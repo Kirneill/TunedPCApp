@@ -5,26 +5,29 @@ import { execFileSync } from 'child_process';
 import { registerIpcHandlers } from './ipc/handlers';
 
 // --- Diagnostic Logger ---
-const LOG_DIR = path.join(app.getPath('userData'), 'logs');
-const LOG_FILE = path.join(LOG_DIR, `main-${new Date().toISOString().slice(0, 10)}.log`);
+// app.getPath() is unavailable before 'ready', so defer log path resolution
+let LOG_DIR = '';
+let LOG_FILE = '';
+
+function ensureLogPaths() {
+  if (!LOG_DIR) {
+    LOG_DIR = path.join(app.getPath('userData'), 'logs');
+    LOG_FILE = path.join(LOG_DIR, `main-${new Date().toISOString().slice(0, 10)}.log`);
+  }
+}
 
 function log(level: 'INFO' | 'WARN' | 'ERROR', message: string) {
   const timestamp = new Date().toISOString();
   const line = `[${timestamp}] [${level}] ${message}\n`;
   try {
+    ensureLogPaths();
     if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
     fs.appendFileSync(LOG_FILE, line);
-  } catch {}
-  if (level === 'ERROR') console.error(line.trim());
+  } catch {
+    // Before app ready, just write to stderr
+    if (level === 'ERROR') console.error(line.trim());
+  }
 }
-
-// Startup diagnostics
-log('INFO', `SENSEQUALITY Optimizer starting`);
-log('INFO', `Electron: ${process.versions.electron}, Node: ${process.versions.node}, Chrome: ${process.versions.chrome}`);
-log('INFO', `process.type: ${process.type}, isPackaged: ${app.isPackaged}`);
-log('INFO', `ELECTRON_RUN_AS_NODE: ${process.env.ELECTRON_RUN_AS_NODE ?? 'unset'}`);
-log('INFO', `Platform: ${process.platform} ${process.arch}, CWD: ${process.cwd()}`);
-log('INFO', `App path: ${app.getAppPath()}, User data: ${app.getPath('userData')}`);
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -108,6 +111,12 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
+    log('INFO', `SENSEQUALITY Optimizer starting`);
+    log('INFO', `Electron: ${process.versions.electron}, Node: ${process.versions.node}, Chrome: ${process.versions.chrome}`);
+    log('INFO', `process.type: ${process.type}, isPackaged: ${app.isPackaged}`);
+    log('INFO', `ELECTRON_RUN_AS_NODE: ${process.env.ELECTRON_RUN_AS_NODE ?? 'unset'}`);
+    log('INFO', `Platform: ${process.platform} ${process.arch}, CWD: ${process.cwd()}`);
+    log('INFO', `App path: ${app.getAppPath()}, User data: ${app.getPath('userData')}`);
     log('INFO', 'App ready, registering IPC handlers');
     registerIpcHandlers(ipcMain);
     createWindow();

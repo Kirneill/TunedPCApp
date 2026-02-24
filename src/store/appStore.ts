@@ -9,7 +9,7 @@ interface AppState {
   isLoading: boolean;
 
   // Navigation
-  currentPage: 'dashboard' | 'bios-guide' | 'gpu-guide' | 'backups';
+  currentPage: 'dashboard' | 'advanced' | 'bios-guide' | 'gpu-guide' | 'backups';
 
   // Optimization toggles
   toggles: Record<string, boolean>;
@@ -61,6 +61,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   currentPage: 'dashboard',
 
   toggles: persisted.toggles || {
+    'win-all': true,
     'win-power-plan': true,
     'win-hags': true,
     'win-game-mode': true,

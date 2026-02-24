@@ -7,7 +7,7 @@
     "dev": "cross-env ELECTRON_RUN_AS_NODE= vite",
     "build": "cross-env ELECTRON_RUN_AS_NODE= vite build",
     "package": "cross-env ELECTRON_RUN_AS_NODE= vite build && electron-builder",
-    "launch": "cross-env ELECTRON_RUN_AS_NODE= electron ."
+    "launch": "node -e \"delete process.env.ELECTRON_RUN_AS_NODE; require('child_process').spawn(require('electron'), ['.'], {stdio:'inherit',env:process.env}).on('exit',c=>process.exit(c||0))\""
   },
   "author": "SENSEQUALITY",
   "license": "MIT",
