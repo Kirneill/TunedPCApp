@@ -192,7 +192,7 @@ export default function HomePage() {
         {/* Pro CTA */}
         <button
           onClick={() => window.sensequality.openExternal('https://sensequality.com/products/pc-optimization')}
-          className="w-full py-3 rounded-xl font-bold text-sm tracking-wide border border-sq-accent/40 text-sq-accent hover:bg-sq-accent/10 hover:border-sq-accent transition-all shrink-0 cursor-pointer"
+          className="w-full py-3.5 rounded-xl font-bold text-sm tracking-wide bg-gradient-to-r from-sq-accent/20 via-sq-accent/10 to-sq-accent/20 border-2 border-sq-accent/60 text-white hover:border-sq-accent hover:from-sq-accent/30 hover:to-sq-accent/30 transition-all shrink-0 cursor-pointer shadow-md shadow-sq-accent/10"
         >
           WANT MORE FPS? GET PRO OPTIMIZATION →
         </button>
