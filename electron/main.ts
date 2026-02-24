@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { execFileSync } from 'child_process';
@@ -95,6 +95,9 @@ function createWindow() {
   ipcMain.on('window:close', () => mainWindow?.close());
 
   ipcMain.handle('system:isAdmin', () => isAdmin());
+  ipcMain.handle('shell:openExternal', (_event, url: string) => {
+    if (url.startsWith('https://')) shell.openExternal(url);
+  });
 }
 
 // Single instance lock

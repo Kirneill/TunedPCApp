@@ -71,6 +71,9 @@ const api = {
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
   closeWindow: () => ipcRenderer.send('window:close'),
+
+  // External links
+  openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
 };
 
 contextBridge.exposeInMainWorld('sensequality', api);

@@ -189,6 +189,14 @@ export default function HomePage() {
           )}
         </button>
 
+        {/* Pro CTA */}
+        <button
+          onClick={() => window.sensequality.openExternal('https://sensequality.com/products/pc-optimization')}
+          className="w-full py-3 rounded-xl font-bold text-sm tracking-wide border border-sq-accent/40 text-sq-accent hover:bg-sq-accent/10 hover:border-sq-accent transition-all shrink-0 cursor-pointer"
+        >
+          WANT MORE FPS? GET PRO OPTIMIZATION →
+        </button>
+
         {/* Progress log */}
         {progressLog.length > 0 && (
           <div className="shrink-0">
