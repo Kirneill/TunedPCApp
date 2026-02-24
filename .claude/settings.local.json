@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npx vite build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(timeout 8 npx electron:*)",
+      "Bash(curl:*)",
+      "WebFetch(domain:pngimg.com)",
+      "WebFetch(domain:commons.wikimedia.org)",
+      "WebFetch(domain:steamgriddb.com)",
+      "Bash(timeout 10 npx electron .)",
+      "Bash(./node_modules/.bin/electron --version)",
+      "Bash(node -e \"console.log\\(require\\(''electron/package.json''\\).version\\)\")",
+      "Bash(./node_modules/.bin/electron -e \"const { app } = require\\(''electron''\\); console.log\\(''app:'', typeof app\\); app.quit\\(\\);\")",
+      "Bash(timeout 10 ./node_modules/.bin/electron .)",
+      "Bash(timeout 10 ./node_modules/.bin/electron test_basic.js)",
+      "Bash(timeout 10 ./node_modules/electron/dist/electron.exe test_basic.js)",
+      "Bash(timeout 8 ./node_modules/.bin/electron .)",
+      "Bash(node_modules/electron/dist/electron.exe --version)",
+      "Bash(timeout 8 node_modules/electron/dist/electron.exe --no-sandbox)",
+      "Bash(timeout 8 ./electron.exe)",
+      "Bash(timeout 8 node_modules/electron/dist/electron.exe --app=.)",
+      "Bash(echo \"ELECTRON_RUN_AS_NODE: ''$ELECTRON_RUN_AS_NODE''\")",
+      "Bash(echo \"ELECTRON_NO_ASAR: ''$ELECTRON_NO_ASAR''\")",
+      "Bash(node -e \"const fs=require\\(''fs''\\);const p=JSON.parse\\(fs.readFileSync\\(''package.json'',''utf8''\\)\\);p.main=''test_app.js'';fs.writeFileSync\\(''package.json'',JSON.stringify\\(p,null,2\\)\\);\")",
+      "Bash(ELECTRON_RUN_AS_NODE= timeout 8 node_modules/electron/dist/electron.exe .)",
+      "Bash(node -e \"const fs=require\\(''fs''\\);const p=JSON.parse\\(fs.readFileSync\\(''package.json'',''utf8''\\)\\);p.main=''dist-electron/main.js'';fs.writeFileSync\\(''package.json'',JSON.stringify\\(p,null,2\\)\\);\")",
+      "Bash(unset ELECTRON_RUN_AS_NODE)",
+      "Bash(env)",
+      "Bash(timeout 8 node_modules/electron/dist/electron.exe .)",
+      "Bash(timeout 12 node_modules/electron/dist/electron.exe .)",
+      "Bash(git status -u)",
+      "Bash(git add .gitignore README.md package.json package-lock.json vite.config.ts tsconfig.json tsconfig.electron.json electron-builder.yml index.html electron/ src/ scripts/ resources/ .claude/settings.local.json)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

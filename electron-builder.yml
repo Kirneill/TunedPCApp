@@ -1,0 +1,29 @@
+appId: com.sensequality.optimizer
+productName: SENSEQUALITY Optimizer
+copyright: Copyright 2026 SENSEQUALITY
+
+directories:
+  output: release
+
+files:
+  - dist/**/*
+  - dist-electron/**/*
+
+extraResources:
+  - from: scripts
+    to: scripts
+    filter:
+      - "**/*.ps1"
+      - "**/*.md"
+
+win:
+  target: nsis
+  icon: resources/icon.ico
+  requestedExecutionLevel: requireAdministrator
+
+nsis:
+  oneClick: false
+  perMachine: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: SENSEQUALITY Optimizer

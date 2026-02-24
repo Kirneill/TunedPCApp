@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist-electron/
+release/
+*.log
+.env
+test_*.js
+package_test.json

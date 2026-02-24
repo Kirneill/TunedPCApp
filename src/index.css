@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@theme {
+  --color-sq-bg: #0a0a0f;
+  --color-sq-surface: #12121a;
+  --color-sq-surface-hover: #1a1a28;
+  --color-sq-border: #1e1e2e;
+  --color-sq-accent: #6366f1;
+  --color-sq-accent-hover: #818cf8;
+  --color-sq-accent-dim: #4f46e5;
+  --color-sq-success: #22c55e;
+  --color-sq-warning: #f59e0b;
+  --color-sq-danger: #ef4444;
+  --color-sq-text: #e2e8f0;
+  --color-sq-text-muted: #64748b;
+  --color-sq-text-dim: #475569;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Consolas", monospace;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--color-sq-bg);
+  color: var(--color-sq-text);
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-sq-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-sq-text-dim);
+}
+
+/* Title bar drag region */
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Toggle switch */
+.toggle-track {
+  transition: background-color 0.2s ease;
+}
+.toggle-thumb {
+  transition: transform 0.2s ease;
+}

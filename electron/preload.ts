@@ -1,0 +1,78 @@
+import { contextBridge, ipcRenderer } from 'electron';
+
+export interface LogEntry {
+  type: 'info' | 'success' | 'error' | 'warning' | 'start' | 'complete';
+  message: string;
+  timestamp: number;
+  section?: string;
+}
+
+export interface SystemInfo {
+  gpu: string;
+  gpuVram: string;
+  cpu: string;
+  cpuCores: number;
+  cpuThreads: number;
+  ramGB: number;
+  os: string;
+  osBuild: string;
+  isNvidia: boolean;
+  isAmd: boolean;
+}
+
+export interface DetectedGame {
+  id: string;
+  name: string;
+  installed: boolean;
+  path?: string;
+}
+
+export interface BackupInfo {
+  name: string;
+  path: string;
+  date: string;
+  files: string[];
+}
+
+export interface UserConfig {
+  monitorWidth: number;
+  monitorHeight: number;
+  monitorRefresh: number;
+  nvidiaGpu: boolean;
+  cs2Stretched: boolean;
+}
+
+const api = {
+  // System
+  getSystemInfo: (): Promise<SystemInfo> => ipcRenderer.invoke('system:getInfo'),
+  getInstalledGames: (): Promise<DetectedGame[]> => ipcRenderer.invoke('system:getGames'),
+  isAdmin: (): Promise<boolean> => ipcRenderer.invoke('system:isAdmin'),
+
+  // Optimizations
+  runOptimization: (id: string, config: UserConfig): Promise<{ success: boolean; errors: string[] }> =>
+    ipcRenderer.invoke('optimize:run', id, config),
+  runSelected: (ids: string[], config: UserConfig): Promise<{ success: boolean; results: Record<string, boolean> }> =>
+    ipcRenderer.invoke('optimize:runSelected', ids, config),
+
+  // Progress/Log streaming
+  onProgressLog: (callback: (entry: LogEntry) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, entry: LogEntry) => callback(entry);
+    ipcRenderer.on('optimize:log', handler);
+    return () => { ipcRenderer.removeListener('optimize:log', handler); };
+  },
+
+  // Backups
+  listBackups: (): Promise<BackupInfo[]> => ipcRenderer.invoke('backup:list'),
+  createBackup: (): Promise<{ success: boolean; path: string }> => ipcRenderer.invoke('backup:create'),
+  restoreBackup: (backupPath: string): Promise<{ success: boolean }> => ipcRenderer.invoke('backup:restore', backupPath),
+  deleteBackup: (backupPath: string): Promise<{ success: boolean }> => ipcRenderer.invoke('backup:delete', backupPath),
+
+  // Window controls
+  minimizeWindow: () => ipcRenderer.send('window:minimize'),
+  maximizeWindow: () => ipcRenderer.send('window:maximize'),
+  closeWindow: () => ipcRenderer.send('window:close'),
+};
+
+contextBridge.exposeInMainWorld('sensequality', api);
+
+export type SensequalityAPI = typeof api;
