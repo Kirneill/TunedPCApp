@@ -46,8 +46,8 @@ Automatically backs up registry keys and config files before making changes. One
 This section is intentionally detailed so another model/developer can resume quickly.
 
 ### App Version / Installer
-- Current package version: **1.0.1**
-- Installer output: `release/SENSEQUALITY Optimizer Setup 1.0.1.exe`
+- Current package version: **1.0.4**
+- Installer output: `release/SENSEQUALITY Optimizer Setup 1.0.4.exe`
 
 ### Recently Added Features
 1. Standard baseline integration:

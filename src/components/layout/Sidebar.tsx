@@ -37,7 +37,7 @@ export default function Sidebar() {
 
       <div className="px-3 py-4 border-t border-sq-border">
         <div className="text-[10px] text-sq-text-dim uppercase tracking-wider mb-1">SENSEQUALITY</div>
-        <div className="text-[10px] text-sq-text-dim">v1.0.0</div>
+        <div className="text-[10px] text-sq-text-dim">v1.0.4</div>
       </div>
     </aside>
   );
