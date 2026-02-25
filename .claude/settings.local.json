@@ -33,7 +33,30 @@
       "Bash(timeout 12 node_modules/electron/dist/electron.exe .)",
       "Bash(git status -u)",
       "Bash(git add .gitignore README.md package.json package-lock.json vite.config.ts tsconfig.json tsconfig.electron.json electron-builder.yml index.html electron/ src/ scripts/ resources/ .claude/settings.local.json)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(timeout 20 npx vite)",
+      "Bash(echo $ELECTRON_RUN_AS_NODE)",
+      "Bash(node -e \":*)",
+      "Bash(git add src/App.tsx src/components/layout/TitleBar.tsx src/index.css src/store/appStore.ts src/components/home/GameCard.tsx src/components/home/HomePage.tsx src/components/advanced/AdvancedPage.tsx electron/main.ts package.json)",
+      "Bash(git add electron/main.ts electron/preload.ts src/components/home/HomePage.tsx src/types/index.ts)",
+      "Bash(gh auth status)",
+      "Bash(git add src/components/home/HomePage.tsx)",
+      "Bash(gh repo create sensequality-optimizer --private --source=. --remote=origin --push)",
+      "Bash(powershell -Command \":*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"F:\\\\CLAUDE\\\\APPGaming\\\\screenshot.ps1\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"F:\\\\CLAUDE\\\\APPGaming\\\\generate-icon.ps1\")",
+      "Bash(npx electron-builder --win --config electron-builder.yml)",
+      "Bash(ls -lh \"f:/CLAUDE/APPGaming/release/\"*.exe)",
+      "Bash(gh release:*)",
+      "Bash(git add electron/telemetry/config.ts electron/telemetry/telemetry.ts electron/ipc/handlers.ts electron/main.ts electron/preload.ts electron-builder.yml package.json package-lock.json src/App.tsx src/components/advanced/AdvancedPage.tsx src/components/ui/ConsentModal.tsx src/store/appStore.ts src/types/index.ts supabase-schema.sql resources/icon.ico resources/icon.png)",
+      "Bash(git push)",
+      "Bash(npx cross-env ELECTRON_RUN_AS_NODE= vite build)",
+      "Bash(npx electron-builder --win)",
+      "Bash(git add README.md electron/telemetry/config.ts)",
+      "Bash(git push origin main)",
+      "Bash(node test-supabase.js)",
+      "Bash(powershell -NoProfile -Command ':*)",
+      "Bash(git add electron/ipc/handlers.ts scripts/01_Windows_Optimization.ps1 scripts/02_BlackOps7_Settings.ps1 scripts/03_Fortnite_Settings.ps1 scripts/04_Valorant_Settings.ps1 scripts/05_CS2_Settings.ps1 scripts/06_ArcRaiders_Settings.ps1)"
     ]
   }
 }
