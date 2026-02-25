@@ -5,7 +5,7 @@ import MonitorConfig from '../dashboard/MonitorConfig';
 import LogViewer from '../ui/LogViewer';
 
 export default function AdvancedPage() {
-  const { toggles, userConfig, isRunning, setIsRunning, clearLog, progressLog, setAllToggles } = useAppStore();
+  const { toggles, userConfig, isRunning, setIsRunning, clearLog, progressLog, setAllToggles, telemetryEnabled, setTelemetryEnabled } = useAppStore();
 
   const enabledIds = Object.entries(toggles)
     .filter(([, enabled]) => enabled)
@@ -64,6 +64,35 @@ export default function AdvancedPage() {
       />
 
       <MonitorConfig />
+
+      {/* Telemetry toggle */}
+      <div className="bg-sq-surface border border-sq-border rounded-xl px-5 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-sq-text">Anonymous Usage Data</h3>
+            <p className="text-[11px] text-sq-text-dim mt-0.5">
+              Help improve SENSEQUALITY by sharing anonymous hardware and optimization results.
+              No personal info is ever collected.
+            </p>
+          </div>
+          <div
+            className={`
+              w-12 h-7 rounded-full flex items-center px-1 transition-colors shrink-0 cursor-pointer
+              ${telemetryEnabled ? 'bg-sq-accent' : 'bg-sq-border'}
+            `}
+            onClick={async () => {
+              const next = !telemetryEnabled;
+              await window.sensequality.setTelemetryConsent(next);
+              setTelemetryEnabled(next);
+            }}
+          >
+            <div className={`
+              w-5 h-5 rounded-full bg-white shadow-md transition-transform
+              ${telemetryEnabled ? 'translate-x-5' : 'translate-x-0'}
+            `} />
+          </div>
+        </div>
+      </div>
 
       {/* Run button */}
       <button

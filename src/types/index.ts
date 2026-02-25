@@ -84,6 +84,9 @@ declare global {
       maximizeWindow: () => void;
       closeWindow: () => void;
       openExternal: (url: string) => Promise<void>;
+      hasConsentDecision: () => Promise<boolean>;
+      getTelemetryConsent: () => Promise<boolean>;
+      setTelemetryConsent: (granted: boolean) => Promise<void>;
     };
   }
 }

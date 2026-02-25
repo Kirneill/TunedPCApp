@@ -25,6 +25,10 @@ interface AppState {
   // Backups
   backups: BackupInfo[];
 
+  // Telemetry
+  showConsentModal: boolean;
+  telemetryEnabled: boolean;
+
   // Actions
   setSystemInfo: (info: SystemInfo) => void;
   setDetectedGames: (games: DetectedGame[]) => void;
@@ -39,6 +43,8 @@ interface AppState {
   clearLog: () => void;
   setProgress: (completed: number, total: number) => void;
   setBackups: (backups: BackupInfo[]) => void;
+  setShowConsentModal: (show: boolean) => void;
+  setTelemetryEnabled: (enabled: boolean) => void;
 }
 
 // Load persisted config from localStorage
@@ -90,6 +96,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   progressLog: [],
   progress: { completed: 0, total: 0 },
   backups: [],
+  showConsentModal: false,
+  telemetryEnabled: false,
 
   // Actions
   setSystemInfo: (info) => set({ systemInfo: info }),
@@ -124,6 +132,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   clearLog: () => set({ progressLog: [] }),
   setProgress: (completed, total) => set({ progress: { completed, total } }),
   setBackups: (backups) => set({ backups }),
+  setShowConsentModal: (show) => set({ showConsentModal: show }),
+  setTelemetryEnabled: (enabled) => set({ telemetryEnabled: enabled }),
 }));
 
 function persistConfig(toggles: Record<string, boolean>, userConfig: UserConfig) {

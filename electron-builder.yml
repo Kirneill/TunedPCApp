@@ -13,8 +13,13 @@ extraResources:
   - from: scripts
     to: scripts
     filter:
-      - "**/*.ps1"
-      - "**/*.md"
+      - "*.ps1"
+      - "!Gaming Research"
+      - "!Gaming Research/**"
+      - "!testimages"
+      - "!testimages/**"
+      - "!RUN_AS_ADMIN.bat"
+      - "!00_MASTER_RUN_ALL.ps1"
 
 win:
   target: nsis

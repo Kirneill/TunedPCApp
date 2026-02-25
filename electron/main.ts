@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { execFileSync } from 'child_process';
 import { registerIpcHandlers } from './ipc/handlers';
+import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackAppLaunch } from './telemetry/telemetry';
 
 // --- Diagnostic Logger ---
 // app.getPath() is unavailable before 'ready', so defer log path resolution
@@ -98,6 +99,14 @@ function createWindow() {
   ipcMain.handle('shell:openExternal', (_event, url: string) => {
     if (url.startsWith('https://')) shell.openExternal(url);
   });
+
+  // Telemetry IPC
+  ipcMain.handle('telemetry:hasConsentDecision', () => hasConsentDecision());
+  ipcMain.handle('telemetry:getConsent', () => getConsentStatus());
+  ipcMain.handle('telemetry:setConsent', (_event, granted: boolean) => {
+    setConsent(granted);
+    log('INFO', `Telemetry consent: ${granted ? 'granted' : 'declined'}`);
+  });
 }
 
 // Single instance lock
@@ -121,6 +130,7 @@ if (!gotLock) {
     log('INFO', `Platform: ${process.platform} ${process.arch}, CWD: ${process.cwd()}`);
     log('INFO', `App path: ${app.getAppPath()}, User data: ${app.getPath('userData')}`);
     log('INFO', 'App ready, registering IPC handlers');
+    initTelemetry();
     registerIpcHandlers(ipcMain);
     createWindow();
   });

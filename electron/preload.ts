@@ -74,6 +74,11 @@ const api = {
 
   // External links
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
+
+  // Telemetry
+  hasConsentDecision: (): Promise<boolean> => ipcRenderer.invoke('telemetry:hasConsentDecision'),
+  getTelemetryConsent: (): Promise<boolean> => ipcRenderer.invoke('telemetry:getConsent'),
+  setTelemetryConsent: (granted: boolean): Promise<void> => ipcRenderer.invoke('telemetry:setConsent', granted),
 };
 
 contextBridge.exposeInMainWorld('sensequality', api);

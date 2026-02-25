@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useAppStore } from './store/appStore';
 import TitleBar from './components/layout/TitleBar';
 import HomePage from './components/home/HomePage';
@@ -6,9 +6,10 @@ import AdvancedPage from './components/advanced/AdvancedPage';
 import BiosGuidePage from './components/guides/BiosGuidePage';
 import NvidiaGuidePage from './components/guides/NvidiaGuidePage';
 import BackupPage from './components/backups/BackupPage';
+import ConsentModal from './components/ui/ConsentModal';
 
 export default function App() {
-  const { currentPage, setSystemInfo, setDetectedGames, setIsAdmin, setIsLoading, addLogEntry } = useAppStore();
+  const { currentPage, setSystemInfo, setDetectedGames, setIsAdmin, setIsLoading, addLogEntry, setShowConsentModal, setTelemetryEnabled } = useAppStore();
 
   useEffect(() => {
     async function init() {
@@ -23,6 +24,15 @@ export default function App() {
         setIsAdmin(admin);
         if (sysInfo.isNvidia) {
           useAppStore.getState().setUserConfig({ nvidiaGpu: true });
+        }
+
+        // Check telemetry consent — show modal on first launch
+        const hasDecision = await window.sensequality.hasConsentDecision();
+        if (!hasDecision) {
+          setShowConsentModal(true);
+        } else {
+          const consent = await window.sensequality.getTelemetryConsent();
+          setTelemetryEnabled(consent);
         }
       } catch (err) {
         console.error('Init failed:', err);
@@ -53,6 +63,7 @@ export default function App() {
       <main className="flex-1 overflow-y-auto">
         {renderPage()}
       </main>
+      <ConsentModal />
     </div>
   );
 }

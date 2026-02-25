@@ -3,6 +3,7 @@ import { getSystemInfo } from './system-info';
 import { detectInstalledGames } from './game-detection';
 import { listBackups, createBackup, restoreBackup, deleteBackup } from './backup-manager';
 import { runPowerShellScript, getScriptPath } from './powershell';
+import { trackOptimizationResult, type HardwareInfo } from '../telemetry/telemetry';
 
 interface UserConfig {
   monitorWidth: number;
@@ -84,6 +85,7 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
 
   // Run selected optimizations
   ipcMain.handle('optimize:runSelected', async (event, ids: string[], config: UserConfig) => {
+    const startTime = Date.now();
     const win = BrowserWindow.fromWebContents(event.sender);
     const results: Record<string, boolean> = {};
 
@@ -145,10 +147,23 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
     }
 
     const allSuccess = Object.values(results).every(Boolean);
+    const errorCount = Object.values(results).filter(v => !v).length;
     sendLog(win, 'complete',
       allSuccess ? 'All optimizations applied successfully!' : 'Completed with some errors',
       'Summary'
     );
+
+    // Telemetry — fire and forget, never blocks the UI
+    try {
+      const sysInfo = await getSystemInfo();
+      const hw: HardwareInfo = {
+        gpu: sysInfo.gpu,
+        cpu: sysInfo.cpu,
+        ram_gb: sysInfo.ramGB,
+        os_build: sysInfo.osBuild,
+      };
+      trackOptimizationResult(hw, ids, allSuccess, Date.now() - startTime, errorCount);
+    } catch {}
 
     return { success: allSuccess, results };
   });
