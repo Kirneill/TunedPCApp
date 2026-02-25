@@ -3,7 +3,9 @@ import path from 'path';
 import fs from 'fs';
 import { execFileSync } from 'child_process';
 import { registerIpcHandlers } from './ipc/handlers';
+import { registerAuthHandlers } from './ipc/auth-handlers';
 import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackFailureStage } from './telemetry/telemetry';
+import { initAuth } from './auth/auth';
 
 // --- Diagnostic Logger ---
 // app.getPath() is unavailable before 'ready', so defer log path resolution
@@ -180,7 +182,7 @@ if (!gotLock) {
     }
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     log('INFO', `SENSEQUALITY Optimizer starting`);
     log('INFO', `Electron: ${process.versions.electron}, Node: ${process.versions.node}, Chrome: ${process.versions.chrome}`);
     log('INFO', `process.type: ${process.type}, isPackaged: ${app.isPackaged}`);
@@ -188,13 +190,27 @@ if (!gotLock) {
     log('INFO', `Platform: ${process.platform} ${process.arch}, CWD: ${process.cwd()}`);
     log('INFO', `App path: ${app.getAppPath()}, User data: ${app.getPath('userData')}`);
 
+    // Phase 1: Init telemetry (anonymous, consent-gated)
     initTelemetry();
+
+    // Phase 2: Init auth (separate Supabase client, always active)
+    try {
+      await initAuth();
+      log('INFO', 'Auth initialized');
+    } catch (err) {
+      log('WARN', `Auth init failed: ${err instanceof Error ? err.message : err}`);
+    }
+
     if (!ensureElevatedOrQuit()) {
       return;
     }
 
+    // Phase 3: Register IPC handlers
     log('INFO', 'App ready, registering IPC handlers');
     registerIpcHandlers(ipcMain);
+    registerAuthHandlers(ipcMain);
+
+    // Phase 4: Create window
     createWindow();
   });
 }

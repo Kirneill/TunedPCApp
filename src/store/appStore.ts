@@ -1,7 +1,16 @@
 import { create } from 'zustand';
-import type { SystemInfo, DetectedGame, BackupInfo, LogEntry, UserConfig } from '../types';
+import type { SystemInfo, DetectedGame, BackupInfo, LogEntry, UserConfig, AuthUser, UserMachine } from '../types';
 
 interface AppState {
+  // Auth
+  authUser: AuthUser | null;
+  authLoading: boolean;
+  authError: string | null;
+  machines: UserMachine[];
+  showAuthGate: boolean;
+  showMaxDevices: boolean;
+  isOffline: boolean;
+
   // System
   systemInfo: SystemInfo | null;
   detectedGames: DetectedGame[];
@@ -30,6 +39,16 @@ interface AppState {
   showConsentModal: boolean;
   telemetryEnabled: boolean;
 
+  // Auth actions
+  setAuthUser: (user: AuthUser | null) => void;
+  setAuthLoading: (loading: boolean) => void;
+  setAuthError: (error: string | null) => void;
+  setMachines: (machines: UserMachine[]) => void;
+  setShowAuthGate: (show: boolean) => void;
+  setShowMaxDevices: (show: boolean) => void;
+  setIsOffline: (offline: boolean) => void;
+  clearAuthState: () => void;
+
   // Actions
   setSystemInfo: (info: SystemInfo) => void;
   setDetectedGames: (games: DetectedGame[]) => void;
@@ -49,14 +68,22 @@ interface AppState {
   setTelemetryEnabled: (enabled: boolean) => void;
 }
 
+// User-namespaced localStorage key
+let storageUserId = '';
+
+function getStorageKey(): string {
+  return storageUserId ? `sensequality-config:${storageUserId}` : 'sensequality-config';
+}
+
 // Load persisted config from localStorage
-function loadPersistedConfig(): Partial<{
+function loadPersistedConfig(userId?: string): Partial<{
   toggles: Record<string, boolean>;
   userConfig: UserConfig;
   windowsUpdateMode: 'on' | 'off';
 }> {
   try {
-    const stored = localStorage.getItem('sensequality-config');
+    const key = userId ? `sensequality-config:${userId}` : 'sensequality-config';
+    const stored = localStorage.getItem(key);
     if (stored) return JSON.parse(stored);
   } catch {}
   return {};
@@ -65,6 +92,15 @@ function loadPersistedConfig(): Partial<{
 const persisted = loadPersistedConfig();
 
 export const useAppStore = create<AppState>((set, get) => ({
+  // Auth state
+  authUser: null,
+  authLoading: true,
+  authError: null,
+  machines: [],
+  showAuthGate: false,
+  showMaxDevices: false,
+  isOffline: false,
+
   // Initial state
   systemInfo: null,
   detectedGames: [],
@@ -106,6 +142,42 @@ export const useAppStore = create<AppState>((set, get) => ({
   backups: [],
   showConsentModal: false,
   telemetryEnabled: false,
+
+  // Auth actions
+  setAuthUser: (user) => {
+    if (user) {
+      storageUserId = user.id;
+      // Reload config for this user
+      const userConfig = loadPersistedConfig(user.id);
+      if (userConfig.toggles) set({ toggles: userConfig.toggles });
+      if (userConfig.userConfig) set({ userConfig: userConfig.userConfig });
+      if (userConfig.windowsUpdateMode) set({ windowsUpdateMode: userConfig.windowsUpdateMode });
+    } else {
+      storageUserId = '';
+    }
+    set({ authUser: user });
+  },
+  setAuthLoading: (loading) => set({ authLoading: loading }),
+  setAuthError: (error) => set({ authError: error }),
+  setMachines: (machines) => set({ machines }),
+  setShowAuthGate: (show) => set({ showAuthGate: show }),
+  setShowMaxDevices: (show) => set({ showMaxDevices: show }),
+  setIsOffline: (offline) => set({ isOffline: offline }),
+  clearAuthState: () => {
+    storageUserId = '';
+    set({
+      authUser: null,
+      authError: null,
+      machines: [],
+      showAuthGate: true,
+      showMaxDevices: false,
+      isOffline: false,
+      systemInfo: null,
+      detectedGames: [],
+      progressLog: [],
+      currentPage: 'dashboard',
+    });
+  },
 
   // Actions
   setSystemInfo: (info) => set({ systemInfo: info }),
@@ -155,6 +227,6 @@ function persistConfig(
   windowsUpdateMode: 'on' | 'off'
 ) {
   try {
-    localStorage.setItem('sensequality-config', JSON.stringify({ toggles, userConfig, windowsUpdateMode }));
+    localStorage.setItem(getStorageKey(), JSON.stringify({ toggles, userConfig, windowsUpdateMode }));
   } catch {}
 }

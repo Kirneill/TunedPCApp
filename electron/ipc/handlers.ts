@@ -29,6 +29,10 @@ const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   'win-fullscreen': { script: '01_Windows_Optimization.ps1', envPrefix: 'FULLSCREEN' },
   'win-mouse': { script: '01_Windows_Optimization.ps1', envPrefix: 'MOUSE' },
   'win-cpu-power': { script: '01_Windows_Optimization.ps1', envPrefix: 'CPU_POWER' },
+  'win-bg-apps': { script: '01_Windows_Optimization.ps1', envPrefix: 'BG_APPS' },
+  'win-mpo': { script: '01_Windows_Optimization.ps1', envPrefix: 'MPO' },
+  'win-visual-extras': { script: '01_Windows_Optimization.ps1', envPrefix: 'VISUAL_EXTRAS' },
+  'win-copilot': { script: '11_Disable_Copilot.ps1' },
   'win-standard': { script: '08_Standard_Windows_Settings.ps1' },
   // Windows Update mode actions
   'updates-off': { script: '09_Windows_Update_Off.ps1' },

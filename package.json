@@ -12,6 +12,7 @@
   "author": "SENSEQUALITY",
   "license": "MIT",
   "dependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.59.0",
     "@supabase/supabase-js": "^2.97.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -28,6 +29,7 @@
     "electron": "^33.4.11",
     "electron-builder": "^26.8.1",
     "postcss": "^8.5.6",
+    "supabase": "^2.76.15",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",

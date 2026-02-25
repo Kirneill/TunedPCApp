@@ -17,6 +17,7 @@ export interface SystemInfo {
   osBuild: string;
   isNvidia: boolean;
   isAmd: boolean;
+  machineId: string;
 }
 
 export interface DetectedGame {
@@ -67,6 +68,38 @@ export interface GpuGuideSetting {
   critical?: boolean;
 }
 
+// ─── Auth Types ──────────────────────────────────────────
+
+export interface AuthUser {
+  id: string;
+  email: string;
+}
+
+export interface AuthResult {
+  success: boolean;
+  error?: string;
+  user?: AuthUser;
+}
+
+export interface UserMachine {
+  id: string;
+  machine_id: string;
+  machine_name: string;
+  gpu: string;
+  cpu: string;
+  ram_gb: number;
+  os_build: string;
+  registered_at: string;
+  last_seen_at: string;
+  is_active: boolean;
+}
+
+export interface MachineRegistrationResult {
+  success: boolean;
+  reason?: 'max_devices' | 'registered' | 'new' | 'not_authenticated';
+  machines?: UserMachine[];
+}
+
 // Extend window for the preload API
 declare global {
   interface Window {
@@ -89,6 +122,21 @@ declare global {
       hasConsentDecision: () => Promise<boolean>;
       getTelemetryConsent: () => Promise<boolean>;
       setTelemetryConsent: (granted: boolean) => Promise<void>;
+      // Auth
+      signUp: (email: string, password: string) => Promise<AuthResult>;
+      signIn: (email: string, password: string) => Promise<AuthResult>;
+      signOut: () => Promise<void>;
+      resetPassword: (email: string) => Promise<AuthResult>;
+      getSession: () => Promise<{ user: AuthUser } | null>;
+      getAuthUser: () => Promise<AuthUser | null>;
+      isOffline: () => Promise<boolean>;
+      getMachineId: () => Promise<string>;
+      // Machine management
+      registerMachine: (info: { machine_name: string; gpu: string; cpu: string; ram_gb: number; os_build: string }) => Promise<MachineRegistrationResult>;
+      deactivateMachine: (machineId: string) => Promise<{ success: boolean; error?: string }>;
+      // Waitlist
+      joinWaitlist: (feature: string) => Promise<{ success: boolean; error?: string }>;
+      hasJoinedWaitlist: (feature: string) => Promise<boolean>;
     };
   }
 }

@@ -1,4 +1,5 @@
 import { runPowerShellCommand } from './powershell';
+import { generateAnonymousId } from '../telemetry/telemetry';
 
 export interface SystemInfo {
   gpu: string;
@@ -11,6 +12,7 @@ export interface SystemInfo {
   osBuild: string;
   isNvidia: boolean;
   isAmd: boolean;
+  machineId: string;
 }
 
 const SYSTEM_INFO_SCRIPT = `
@@ -38,6 +40,7 @@ export async function getSystemInfo(): Promise<SystemInfo> {
       gpu: 'Unknown', gpuVram: '0', cpu: 'Unknown',
       cpuCores: 0, cpuThreads: 0, ramGB: 0,
       os: 'Unknown', osBuild: '', isNvidia: false, isAmd: false,
+      machineId: generateAnonymousId(),
     };
   }
 
@@ -57,12 +60,14 @@ export async function getSystemInfo(): Promise<SystemInfo> {
       osBuild: data.osBuild || '',
       isNvidia: /nvidia|geforce|rtx|gtx/i.test(gpuName),
       isAmd: /amd|radeon|rx\s/i.test(gpuName),
+      machineId: generateAnonymousId(),
     };
   } catch {
     return {
       gpu: 'Detection failed', gpuVram: '0', cpu: 'Detection failed',
       cpuCores: 0, cpuThreads: 0, ramGB: 0,
       os: 'Unknown', osBuild: '', isNvidia: false, isAmd: false,
+      machineId: generateAnonymousId(),
     };
   }
 }

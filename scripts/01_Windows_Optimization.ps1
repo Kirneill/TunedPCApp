@@ -85,11 +85,11 @@ Write-Host ""
 # ─────────────────────────────────────────────────────────────────────────────
 
 if ($env:SKIP_POWER_PLAN -eq '1') {
-    Write-Host "[1/9] POWER PLAN — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[1/12] POWER PLAN — SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:POWER_PLAN]"
 } else {
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-    Write-Host "[1/9] POWER PLAN" -ForegroundColor White
+    Write-Host "[1/12] POWER PLAN" -ForegroundColor White
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
     try {
@@ -119,12 +119,12 @@ if ($env:SKIP_POWER_PLAN -eq '1') {
 # ─────────────────────────────────────────────────────────────────────────────
 
 if ($env:SKIP_HAGS -eq '1') {
-    Write-Host "[2/9] HAGS — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[2/12] HAGS — SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:HAGS]"
 } else {
     Write-Host ""
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-    Write-Host "[2/9] HARDWARE-ACCELERATED GPU SCHEDULING (HAGS)" -ForegroundColor White
+    Write-Host "[2/12] HARDWARE-ACCELERATED GPU SCHEDULING (HAGS)" -ForegroundColor White
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
     try {
@@ -151,12 +151,12 @@ if ($env:SKIP_HAGS -eq '1') {
 # ─────────────────────────────────────────────────────────────────────────────
 
 if ($env:SKIP_GAME_MODE -eq '1') {
-    Write-Host "[3/9] GAME MODE — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[3/12] GAME MODE — SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:GAME_MODE]"
 } else {
     Write-Host ""
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-    Write-Host "[3/9] WINDOWS GAME MODE" -ForegroundColor White
+    Write-Host "[3/12] WINDOWS GAME MODE" -ForegroundColor White
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
     try {
@@ -196,12 +196,12 @@ if ($env:SKIP_GAME_MODE -eq '1') {
 # ─────────────────────────────────────────────────────────────────────────────
 
 if ($env:SKIP_MMCSS -eq '1') {
-    Write-Host "[4/9] MMCSS — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[4/12] MMCSS — SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:MMCSS]"
 } else {
     Write-Host ""
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-    Write-Host "[4/9] MULTIMEDIA SCHEDULER & SYSTEM RESPONSIVENESS" -ForegroundColor White
+    Write-Host "[4/12] MULTIMEDIA SCHEDULER & SYSTEM RESPONSIVENESS" -ForegroundColor White
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
     try {
@@ -242,12 +242,12 @@ if ($env:SKIP_MMCSS -eq '1') {
 # ─────────────────────────────────────────────────────────────────────────────
 
 if ($env:SKIP_NETWORK -eq '1') {
-    Write-Host "[5/9] NETWORK — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[5/12] NETWORK — SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:NETWORK]"
 } else {
     Write-Host ""
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-    Write-Host "[5/9] NETWORK OPTIMIZATION (Nagle's Algorithm + Latency)" -ForegroundColor White
+    Write-Host "[5/12] NETWORK OPTIMIZATION (Nagle's Algorithm + Latency)" -ForegroundColor White
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
     try {
@@ -294,12 +294,12 @@ if ($env:SKIP_NETWORK -eq '1') {
 # ─────────────────────────────────────────────────────────────────────────────
 
 if ($env:SKIP_VISUAL_FX -eq '1') {
-    Write-Host "[6/9] VISUAL FX — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[6/12] VISUAL FX — SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:VISUAL_FX]"
 } else {
     Write-Host ""
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-    Write-Host "[6/9] WINDOWS VISUAL EFFECTS (Best Performance)" -ForegroundColor White
+    Write-Host "[6/12] WINDOWS VISUAL EFFECTS (Best Performance)" -ForegroundColor White
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
     try {
@@ -339,12 +339,12 @@ if ($env:SKIP_VISUAL_FX -eq '1') {
 # ─────────────────────────────────────────────────────────────────────────────
 
 if ($env:SKIP_FULLSCREEN -eq '1') {
-    Write-Host "[7/9] FULLSCREEN — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[7/12] FULLSCREEN — SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:FULLSCREEN]"
 } else {
     Write-Host ""
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-    Write-Host "[7/9] FULLSCREEN OPTIMIZATIONS (Global Disable)" -ForegroundColor White
+    Write-Host "[7/12] FULLSCREEN OPTIMIZATIONS (Global Disable)" -ForegroundColor White
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
     try {
@@ -374,12 +374,12 @@ if ($env:SKIP_FULLSCREEN -eq '1') {
 # ─────────────────────────────────────────────────────────────────────────────
 
 if ($env:SKIP_MOUSE -eq '1') {
-    Write-Host "[8/9] MOUSE — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[8/12] MOUSE — SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:MOUSE]"
 } else {
     Write-Host ""
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-    Write-Host "[8/9] MOUSE ACCELERATION (Disable)" -ForegroundColor White
+    Write-Host "[8/12] MOUSE ACCELERATION (Disable)" -ForegroundColor White
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
     try {
@@ -408,12 +408,12 @@ if ($env:SKIP_MOUSE -eq '1') {
 # ─────────────────────────────────────────────────────────────────────────────
 
 if ($env:SKIP_CPU_POWER -eq '1') {
-    Write-Host "[9/9] CPU POWER — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[9/12] CPU POWER — SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:CPU_POWER]"
 } else {
     Write-Host ""
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-    Write-Host "[9/9] CPU POWER STATES & ADDITIONAL TWEAKS" -ForegroundColor White
+    Write-Host "[9/12] CPU POWER STATES & ADDITIONAL TWEAKS" -ForegroundColor White
     Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
     try {
@@ -432,6 +432,130 @@ if ($env:SKIP_CPU_POWER -eq '1') {
     } catch {
         Write-Host "  [FAIL] CPU Power: $_" -ForegroundColor Red
         Write-Host "[SQ_FAIL:CPU_POWER]"
+    }
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 10: DISABLE BACKGROUND APPS
+# WHY: UWP/Store apps run background tasks (sync, update checks, telemetry)
+#      that steal CPU time and trigger disk I/O during gaming. Disabling the
+#      global background-access toggle stops all Store apps from running
+#      background tasks unless you grant them individually.
+# ─────────────────────────────────────────────────────────────────────────────
+
+if ($env:SKIP_BG_APPS -eq '1') {
+    Write-Host "[10/12] BACKGROUND APPS — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[SQ_SKIP:BG_APPS]"
+} else {
+    Write-Host ""
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "[10/12] DISABLE BACKGROUND APPS" -ForegroundColor White
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+
+    try {
+        $BgAppsPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications"
+        if (-not (Test-Path $BgAppsPath)) { New-Item -Path $BgAppsPath -Force | Out-Null }
+        Set-ItemProperty -Path $BgAppsPath -Name "GlobalUserDisabled" -Value 1 -Type DWord -Force
+
+        $SearchPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
+        if (-not (Test-Path $SearchPath)) { New-Item -Path $SearchPath -Force | Out-Null }
+        Set-ItemProperty -Path $SearchPath -Name "BackgroundAppGlobalToggle" -Value 0 -Type DWord -Force
+
+        Write-Host "  [OK] Background apps disabled globally." -ForegroundColor Green
+        Write-Host "  [TIP] Individual app permissions in: Settings > Privacy > Background apps" -ForegroundColor DarkGray
+        Write-Host "[SQ_OK:BG_APPS]"
+    } catch {
+        Write-Host "  [FAIL] Background Apps: $_" -ForegroundColor Red
+        Write-Host "[SQ_FAIL:BG_APPS]"
+    }
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 11: DISABLE MULTIPLANE OVERLAY (MPO)
+# WHY: MPO allows the DWM compositor to send independent "planes" to the
+#      display hardware, which can cause micro-stutters, black flickers, and
+#      frame pacing issues — particularly on multi-monitor setups and with
+#      hardware-accelerated apps (browsers, Discord). Disabling it forces
+#      single-plane composition, which is more predictable for gaming.
+# ─────────────────────────────────────────────────────────────────────────────
+
+if ($env:SKIP_MPO -eq '1') {
+    Write-Host "[11/12] MPO — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[SQ_SKIP:MPO]"
+} else {
+    Write-Host ""
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "[11/12] DISABLE MULTIPLANE OVERLAY (MPO)" -ForegroundColor White
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+
+    try {
+        $DwmPath = "HKLM:\SOFTWARE\Microsoft\Windows\Dwm"
+        if (-not (Test-Path $DwmPath)) { New-Item -Path $DwmPath -Force | Out-Null }
+        Set-ItemProperty -Path $DwmPath -Name "OverlayTestMode" -Value 5 -Type DWord -Force
+
+        Write-Host "  [OK] Multiplane Overlay (MPO) disabled." -ForegroundColor Green
+        Write-Host "  [NOTE] Fixes flickers and stutters on multi-monitor setups." -ForegroundColor DarkGray
+        Write-Host "[SQ_OK:MPO]"
+    } catch {
+        Write-Host "  [FAIL] MPO: $_" -ForegroundColor Red
+        Write-Host "[SQ_FAIL:MPO]"
+    }
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 12: VISUAL EFFECTS EXTRAS
+# WHY: Beyond the "Best Performance" toggle in Section 6, there are additional
+#      UI elements that steal focus or consume DWM resources:
+#      - MenuShowDelay: default 400ms delays all right-click and start menus
+#      - KeyboardDelay: default repeat delay is higher than needed
+#      - Chat/TaskView/Search icons: taskbar icons that trigger background
+#        processes and can steal focus during fullscreen gaming
+# ─────────────────────────────────────────────────────────────────────────────
+
+if ($env:SKIP_VISUAL_EXTRAS -eq '1') {
+    Write-Host "[12/12] VISUAL EXTRAS — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[SQ_SKIP:VISUAL_EXTRAS]"
+} else {
+    Write-Host ""
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "[12/12] VISUAL EFFECTS EXTRAS" -ForegroundColor White
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+
+    try {
+        # Speed up context menus (default is 400ms)
+        $DesktopPath = "HKCU:\Control Panel\Desktop"
+        if (-not (Test-Path $DesktopPath)) { New-Item -Path $DesktopPath -Force | Out-Null }
+        Set-ItemProperty -Path $DesktopPath -Name "MenuShowDelay" -Value "200" -Type String -Force
+        Write-Host "  [OK] Menu show delay reduced to 200ms (from 400ms)." -ForegroundColor Green
+
+        # Reduce keyboard repeat delay (0=shortest)
+        $KeyboardPath = "HKCU:\Control Panel\Keyboard"
+        if (-not (Test-Path $KeyboardPath)) { New-Item -Path $KeyboardPath -Force | Out-Null }
+        Set-ItemProperty -Path $KeyboardPath -Name "KeyboardDelay" -Value "0" -Type String -Force
+        Write-Host "  [OK] Keyboard repeat delay set to minimum." -ForegroundColor Green
+
+        # Hide Chat icon on taskbar
+        $ChatPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+        Set-ItemProperty -Path $ChatPath -Name "TaskbarMn" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+        Write-Host "  [OK] Chat icon hidden from taskbar." -ForegroundColor Green
+
+        # Hide Task View button
+        Set-ItemProperty -Path $ChatPath -Name "ShowTaskViewButton" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+        Write-Host "  [OK] Task View button hidden." -ForegroundColor Green
+
+        # Minimize Search to icon-only (0=hidden, 1=icon, 2=box)
+        $SearchUIPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
+        if (-not (Test-Path $SearchUIPath)) { New-Item -Path $SearchUIPath -Force | Out-Null }
+        Set-ItemProperty -Path $SearchUIPath -Name "SearchboxTaskbarMode" -Value 1 -Type DWord -Force
+        Write-Host "  [OK] Search bar minimized to icon." -ForegroundColor Green
+
+        Write-Host "[SQ_OK:VISUAL_EXTRAS]"
+    } catch {
+        Write-Host "  [FAIL] Visual Extras: $_" -ForegroundColor Red
+        Write-Host "[SQ_FAIL:VISUAL_EXTRAS]"
     }
 }
 

@@ -58,6 +58,21 @@ export default function AdvancedPage() {
         icon="⚡"
       />
 
+      {/* Copilot warning banner — only show when Copilot toggle is enabled */}
+      {toggles['win-copilot'] && (
+        <div className="bg-sq-warning/10 border border-sq-warning/30 rounded-xl px-5 py-3 flex items-start gap-3">
+          <span className="text-sq-warning text-lg mt-0.5 shrink-0">⚠</span>
+          <div>
+            <h3 className="text-sm font-semibold text-sq-warning">Copilot Disable Warning</h3>
+            <p className="text-[11px] text-sq-text-muted mt-0.5 leading-relaxed">
+              Disabling Copilot removes the appx package and applies policy restrictions.
+              This <strong className="text-sq-text">may affect apps</strong> that rely on Copilot/Bing AI integration
+              (Edge sidebar, Windows Search AI features, Bing Chat). A reboot is required.
+            </p>
+          </div>
+        </div>
+      )}
+
       <WindowsUpdateModeCard />
 
       <OptimizationSection

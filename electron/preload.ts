@@ -81,6 +81,25 @@ const api = {
   hasConsentDecision: (): Promise<boolean> => ipcRenderer.invoke('telemetry:hasConsentDecision'),
   getTelemetryConsent: (): Promise<boolean> => ipcRenderer.invoke('telemetry:getConsent'),
   setTelemetryConsent: (granted: boolean): Promise<void> => ipcRenderer.invoke('telemetry:setConsent', granted),
+
+  // Auth
+  signUp: (email: string, password: string) => ipcRenderer.invoke('auth:signUp', email, password),
+  signIn: (email: string, password: string) => ipcRenderer.invoke('auth:signIn', email, password),
+  signOut: () => ipcRenderer.invoke('auth:signOut'),
+  resetPassword: (email: string) => ipcRenderer.invoke('auth:resetPassword', email),
+  getSession: () => ipcRenderer.invoke('auth:getSession'),
+  getAuthUser: () => ipcRenderer.invoke('auth:getUser'),
+  isOffline: () => ipcRenderer.invoke('auth:isOffline'),
+  getMachineId: () => ipcRenderer.invoke('auth:getMachineId'),
+
+  // Machine management
+  registerMachine: (info: { machine_name: string; gpu: string; cpu: string; ram_gb: number; os_build: string }) =>
+    ipcRenderer.invoke('auth:registerMachine', info),
+  deactivateMachine: (machineId: string) => ipcRenderer.invoke('auth:deactivateMachine', machineId),
+
+  // Waitlist
+  joinWaitlist: (feature: string) => ipcRenderer.invoke('waitlist:join', feature),
+  hasJoinedWaitlist: (feature: string) => ipcRenderer.invoke('waitlist:hasJoined', feature),
 };
 
 contextBridge.exposeInMainWorld('sensequality', api);

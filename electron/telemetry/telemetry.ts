@@ -43,7 +43,7 @@ function saveConfig(config: TelemetryConfig): void {
 
 // Generate a stable anonymous ID from machine characteristics
 // NOT personally identifiable — just a consistent hash per machine
-function generateAnonymousId(): string {
+export function generateAnonymousId(): string {
   const components = [
     process.env.COMPUTERNAME || '',
     process.env.PROCESSOR_IDENTIFIER || '',
@@ -51,6 +51,11 @@ function generateAnonymousId(): string {
     os.totalmem().toString(),
   ];
   return createHash('sha256').update(components.join('|')).digest('hex').slice(0, 16);
+}
+
+// Get the current anonymous ID (available after initTelemetry)
+export function getAnonymousId(): string {
+  return anonymousId;
 }
 
 // Initialize telemetry system — call after app.whenReady()
