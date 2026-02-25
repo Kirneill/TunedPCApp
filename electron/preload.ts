@@ -5,6 +5,7 @@ export interface LogEntry {
   message: string;
   timestamp: number;
   section?: string;
+  runId?: string;
 }
 
 export interface SystemInfo {
@@ -66,6 +67,7 @@ const api = {
   createBackup: (): Promise<{ success: boolean; path: string }> => ipcRenderer.invoke('backup:create'),
   restoreBackup: (backupPath: string): Promise<{ success: boolean }> => ipcRenderer.invoke('backup:restore', backupPath),
   deleteBackup: (backupPath: string): Promise<{ success: boolean }> => ipcRenderer.invoke('backup:delete', backupPath),
+  exportDiagnostics: (): Promise<{ success: boolean; path: string; error?: string }> => ipcRenderer.invoke('diagnostics:export'),
 
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window:minimize'),

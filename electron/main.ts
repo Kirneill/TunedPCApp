@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { execFileSync } from 'child_process';
 import { registerIpcHandlers } from './ipc/handlers';
-import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackAppLaunch } from './telemetry/telemetry';
+import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackFailureStage } from './telemetry/telemetry';
 
 // --- Diagnostic Logger ---
 // app.getPath() is unavailable before 'ready', so defer log path resolution
@@ -33,12 +33,70 @@ function log(level: 'INFO' | 'WARN' | 'ERROR', message: string) {
 let mainWindow: BrowserWindow | null = null;
 
 function isAdmin(): boolean {
+  if (process.platform !== 'win32') return true;
+
+  // Primary check: elevated token via PowerShell
   try {
-    execFileSync('net', ['session'], { stdio: 'ignore' });
+    const output = execFileSync('powershell.exe', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      '[Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent().IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)',
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    if (output.trim().toLowerCase() === 'true') return true;
+  } catch {
+    // fall through to secondary check
+  }
+
+  // Secondary check: `fltmc` typically requires elevation.
+  // If command is missing/fails for environment reasons, treat as unknown and avoid hard-blocking.
+  try {
+    execFileSync('fltmc', [], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
   }
+}
+
+function escapeSingleQuotedPowerShell(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+function relaunchAsAdmin(): boolean {
+  try {
+    const exePath = process.execPath;
+    const args = process.argv.slice(1).filter(arg => arg !== '--sq-elevated-relaunch');
+    const argList = args.map(arg => `'${escapeSingleQuotedPowerShell(arg)}'`).join(', ');
+    const psCommand = [
+      `$exe = '${escapeSingleQuotedPowerShell(exePath)}'`,
+      `$args = @(${argList})`,
+      'Start-Process -FilePath $exe -ArgumentList $args -Verb RunAs',
+    ].join('; ');
+
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psCommand], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function ensureElevatedOrQuit(): boolean {
+  if (process.platform !== 'win32') return true;
+  if (isAdmin()) return true;
+
+  log('WARN', 'App is not running as administrator. Requesting elevation...');
+  const relaunched = relaunchAsAdmin();
+  if (relaunched) {
+    log('INFO', 'Elevation prompt accepted; quitting non-elevated instance.');
+    app.quit();
+    return false;
+  }
+
+  // Do not hard-stop on failed/denied elevation because admin detection can be unreliable on some systems.
+  // Scripts will still enforce required privileges at execution time.
+  log('WARN', 'Elevation prompt was denied or failed. Continuing without forced shutdown.');
+  void trackFailureStage('elevation', 'Elevation prompt was denied or failed.');
+  return true;
 }
 
 function createWindow() {
@@ -129,8 +187,13 @@ if (!gotLock) {
     log('INFO', `ELECTRON_RUN_AS_NODE: ${process.env.ELECTRON_RUN_AS_NODE ?? 'unset'}`);
     log('INFO', `Platform: ${process.platform} ${process.arch}, CWD: ${process.cwd()}`);
     log('INFO', `App path: ${app.getAppPath()}, User data: ${app.getPath('userData')}`);
-    log('INFO', 'App ready, registering IPC handlers');
+
     initTelemetry();
+    if (!ensureElevatedOrQuit()) {
+      return;
+    }
+
+    log('INFO', 'App ready, registering IPC handlers');
     registerIpcHandlers(ipcMain);
     createWindow();
   });

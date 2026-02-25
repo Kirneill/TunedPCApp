@@ -3,6 +3,7 @@ export interface LogEntry {
   message: string;
   timestamp: number;
   section?: string;
+  runId?: string;
 }
 
 export interface SystemInfo {
@@ -80,6 +81,7 @@ declare global {
       createBackup: () => Promise<{ success: boolean; path: string }>;
       restoreBackup: (backupPath: string) => Promise<{ success: boolean }>;
       deleteBackup: (backupPath: string) => Promise<{ success: boolean }>;
+      exportDiagnostics: () => Promise<{ success: boolean; path: string; error?: string }>;
       minimizeWindow: () => void;
       maximizeWindow: () => void;
       closeWindow: () => void;

@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS telemetry_events (
   anonymous_id TEXT NOT NULL,
 
   -- Event classification
-  event_type TEXT NOT NULL CHECK (event_type IN ('app_launch', 'optimization_run', 'optimization_result')),
+  event_type TEXT NOT NULL CHECK (event_type IN ('app_launch', 'optimization_run', 'optimization_result', 'optimization_failure')),
 
   -- Hardware fingerprint
   gpu TEXT,
@@ -32,22 +32,43 @@ CREATE TABLE IF NOT EXISTS telemetry_events (
   duration_ms INTEGER,
   success BOOLEAN,
   error_count INTEGER DEFAULT 0,
+  failure_stage TEXT,
+  error_fingerprint TEXT,
 
   -- App metadata
   app_version TEXT
 );
 
+-- Migration safety for existing projects:
+-- 1) Ensure event_type constraint includes optimization_failure
+ALTER TABLE telemetry_events
+  DROP CONSTRAINT IF EXISTS telemetry_events_event_type_check;
+
+ALTER TABLE telemetry_events
+  ADD CONSTRAINT telemetry_events_event_type_check
+  CHECK (event_type IN ('app_launch', 'optimization_run', 'optimization_result', 'optimization_failure'));
+
+-- 2) Ensure new failure telemetry columns exist
+ALTER TABLE telemetry_events
+  ADD COLUMN IF NOT EXISTS failure_stage TEXT;
+
+ALTER TABLE telemetry_events
+  ADD COLUMN IF NOT EXISTS error_fingerprint TEXT;
+
 -- Indexes for common queries
-CREATE INDEX idx_telemetry_anonymous_id ON telemetry_events (anonymous_id);
-CREATE INDEX idx_telemetry_event_type ON telemetry_events (event_type);
-CREATE INDEX idx_telemetry_created_at ON telemetry_events (created_at DESC);
-CREATE INDEX idx_telemetry_gpu ON telemetry_events (gpu);
-CREATE INDEX idx_telemetry_success ON telemetry_events (success);
+CREATE INDEX IF NOT EXISTS idx_telemetry_anonymous_id ON telemetry_events (anonymous_id);
+CREATE INDEX IF NOT EXISTS idx_telemetry_event_type ON telemetry_events (event_type);
+CREATE INDEX IF NOT EXISTS idx_telemetry_created_at ON telemetry_events (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_telemetry_gpu ON telemetry_events (gpu);
+CREATE INDEX IF NOT EXISTS idx_telemetry_success ON telemetry_events (success);
+CREATE INDEX IF NOT EXISTS idx_telemetry_failure_stage ON telemetry_events (failure_stage);
+CREATE INDEX IF NOT EXISTS idx_telemetry_error_fingerprint ON telemetry_events (error_fingerprint);
 
 -- Row Level Security: allow anonymous inserts, restrict reads to service role
 ALTER TABLE telemetry_events ENABLE ROW LEVEL SECURITY;
 
 -- Allow the anon key to INSERT (the app sends data)
+DROP POLICY IF EXISTS "Allow anonymous inserts" ON telemetry_events;
 CREATE POLICY "Allow anonymous inserts"
   ON telemetry_events
   FOR INSERT
@@ -55,6 +76,7 @@ CREATE POLICY "Allow anonymous inserts"
   WITH CHECK (true);
 
 -- Only the service_role (your dashboard / backend) can read data
+DROP POLICY IF EXISTS "Service role can read all" ON telemetry_events;
 CREATE POLICY "Service role can read all"
   ON telemetry_events
   FOR SELECT

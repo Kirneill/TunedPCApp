@@ -13,6 +13,7 @@ interface AppState {
 
   // Optimization toggles
   toggles: Record<string, boolean>;
+  windowsUpdateMode: 'on' | 'off';
 
   // User config
   userConfig: UserConfig;
@@ -37,6 +38,7 @@ interface AppState {
   setCurrentPage: (page: AppState['currentPage']) => void;
   setToggle: (id: string, value: boolean) => void;
   setAllToggles: (value: boolean) => void;
+  setWindowsUpdateMode: (mode: 'on' | 'off') => void;
   setUserConfig: (config: Partial<UserConfig>) => void;
   setIsRunning: (running: boolean) => void;
   addLogEntry: (entry: LogEntry) => void;
@@ -48,7 +50,11 @@ interface AppState {
 }
 
 // Load persisted config from localStorage
-function loadPersistedConfig(): Partial<{ toggles: Record<string, boolean>; userConfig: UserConfig }> {
+function loadPersistedConfig(): Partial<{
+  toggles: Record<string, boolean>;
+  userConfig: UserConfig;
+  windowsUpdateMode: 'on' | 'off';
+}> {
   try {
     const stored = localStorage.getItem('sensequality-config');
     if (stored) return JSON.parse(stored);
@@ -77,12 +83,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     'win-fullscreen': true,
     'win-mouse': true,
     'win-cpu-power': true,
+    'win-standard': true,
     'game-blackops7': true,
     'game-fortnite': true,
     'game-valorant': true,
     'game-cs2': true,
     'game-arcraiders': true,
   },
+  windowsUpdateMode: persisted.windowsUpdateMode || 'on',
 
   userConfig: persisted.userConfig || {
     monitorWidth: 1920,
@@ -109,7 +117,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setToggle: (id, value) => {
     const toggles = { ...get().toggles, [id]: value };
     set({ toggles });
-    persistConfig(toggles, get().userConfig);
+    persistConfig(toggles, get().userConfig, get().windowsUpdateMode);
   },
 
   setAllToggles: (value) => {
@@ -118,13 +126,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       toggles[key] = value;
     }
     set({ toggles });
-    persistConfig(toggles, get().userConfig);
+    persistConfig(toggles, get().userConfig, get().windowsUpdateMode);
+  },
+
+  setWindowsUpdateMode: (mode) => {
+    set({ windowsUpdateMode: mode });
+    persistConfig(get().toggles, get().userConfig, mode);
   },
 
   setUserConfig: (config) => {
     const userConfig = { ...get().userConfig, ...config };
     set({ userConfig });
-    persistConfig(get().toggles, userConfig);
+    persistConfig(get().toggles, userConfig, get().windowsUpdateMode);
   },
 
   setIsRunning: (running) => set({ isRunning: running }),
@@ -136,8 +149,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   setTelemetryEnabled: (enabled) => set({ telemetryEnabled: enabled }),
 }));
 
-function persistConfig(toggles: Record<string, boolean>, userConfig: UserConfig) {
+function persistConfig(
+  toggles: Record<string, boolean>,
+  userConfig: UserConfig,
+  windowsUpdateMode: 'on' | 'off'
+) {
   try {
-    localStorage.setItem('sensequality-config', JSON.stringify({ toggles, userConfig }));
+    localStorage.setItem('sensequality-config', JSON.stringify({ toggles, userConfig, windowsUpdateMode }));
   } catch {}
 }

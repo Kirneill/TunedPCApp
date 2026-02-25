@@ -73,6 +73,14 @@ export const windowsOptimizations: OptimizationItem[] = [
     risk: 'safe',
     requiresReboot: false,
   },
+  {
+    id: 'win-standard',
+    label: 'Standard Windows Settings',
+    description: 'Applies the standard baseline (privacy, services, restore point, and maintenance tasks) in one pass.',
+    category: 'windows',
+    risk: 'moderate',
+    requiresReboot: true,
+  },
 ];
 
 export const gameOptimizations: OptimizationItem[] = [

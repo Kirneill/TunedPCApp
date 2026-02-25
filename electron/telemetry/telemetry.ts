@@ -1,7 +1,8 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { app } from 'electron';
-import { createHash, randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, TELEMETRY_CONFIGURED } from './config';
 
@@ -34,7 +35,10 @@ function saveConfig(config: TelemetryConfig): void {
     const dir = path.dirname(getConfigPath());
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2));
-  } catch {}
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    console.warn(`[telemetry] Failed to save config: ${errorText}`);
+  }
 }
 
 // Generate a stable anonymous ID from machine characteristics
@@ -44,7 +48,7 @@ function generateAnonymousId(): string {
     process.env.COMPUTERNAME || '',
     process.env.PROCESSOR_IDENTIFIER || '',
     process.arch,
-    require('os').totalmem().toString(),
+    os.totalmem().toString(),
   ];
   return createHash('sha256').update(components.join('|')).digest('hex').slice(0, 16);
 }
@@ -108,13 +112,45 @@ export interface HardwareInfo {
 }
 
 export interface OptimizationEvent {
-  event_type: 'optimization_run' | 'optimization_result' | 'app_launch';
+  event_type: 'optimization_run' | 'optimization_result' | 'optimization_failure' | 'app_launch';
   hardware: HardwareInfo;
   settings_applied?: string[];
   game_id?: string;
   duration_ms?: number;
   success?: boolean;
   error_count?: number;
+  failure_stage?: FailureStage | null;
+  error_fingerprint?: string | null;
+}
+
+export type FailureStage = 'restore-point' | 'elevation' | 'script-exit';
+
+function normalizeErrorForFingerprint(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/g, '<guid>')
+    .replace(/0x[a-f0-9]+/g, '<hex>')
+    .replace(/[a-z]:\\[^\s'"`]+/g, '<path>')
+    .replace(/\/[^\s'"`]+/g, '<path>')
+    .replace(/\b\d+\b/g, '<num>')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 512);
+}
+
+function buildErrorFingerprint(stage: FailureStage, message: string): string | null {
+  const normalized = normalizeErrorForFingerprint(message || 'unknown');
+  if (!normalized) return null;
+  return createHash('sha256').update(`${stage}|${normalized}`).digest('hex').slice(0, 24);
+}
+
+function getBestEffortHardware(): HardwareInfo {
+  return {
+    gpu: 'unknown',
+    cpu: os.cpus()[0]?.model || 'unknown',
+    ram_gb: Math.round(os.totalmem() / (1024 * 1024 * 1024)),
+    os_build: os.release(),
+  };
 }
 
 // ─── Send Telemetry ──────────────────────────────────────
@@ -137,10 +173,14 @@ export async function sendEvent(event: OptimizationEvent): Promise<void> {
       duration_ms: event.duration_ms || null,
       success: event.success ?? null,
       error_count: event.error_count || 0,
+      failure_stage: event.failure_stage || null,
+      error_fingerprint: event.error_fingerprint || null,
       app_version: app.getVersion(),
     });
-  } catch {
-    // Telemetry should never break the app — silently fail
+  } catch (err) {
+    // Telemetry should never break the app.
+    const errorText = err instanceof Error ? err.message : String(err);
+    console.warn(`[telemetry] Failed to send event ${event.event_type}: ${errorText}`);
   }
 }
 
@@ -176,5 +216,22 @@ export async function trackOptimizationResult(
     success,
     duration_ms: durationMs,
     error_count: errorCount,
+  });
+}
+
+export async function trackFailureStage(
+  failureStage: FailureStage,
+  errorMessage: string,
+  hardware?: HardwareInfo,
+  settingsApplied: string[] = [],
+): Promise<void> {
+  await sendEvent({
+    event_type: 'optimization_failure',
+    hardware: hardware || getBestEffortHardware(),
+    settings_applied: settingsApplied,
+    success: false,
+    error_count: 1,
+    failure_stage: failureStage,
+    error_fingerprint: buildErrorFingerprint(failureStage, errorMessage),
   });
 }

@@ -38,7 +38,10 @@ export async function listBackups(): Promise<BackupInfo[]> {
         files,
       });
     }
-  } catch {}
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    console.warn(`[backup] Failed to list backups: ${errorText}`);
+  }
 
   return backups;
 }
@@ -64,11 +67,16 @@ export async function createBackup(): Promise<{ success: boolean; path: string }
       try {
         const { execFileSync } = require('child_process');
         execFileSync('reg', ['export', reg.path, outFile, '/y'], { stdio: 'ignore' });
-      } catch {}
+      } catch (err) {
+        const errorText = err instanceof Error ? err.message : String(err);
+        console.warn(`[backup] Registry export failed for ${reg.path}: ${errorText}`);
+      }
     }
 
     return { success: true, path: backupDir };
-  } catch {
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    console.warn(`[backup] Failed to create backup: ${errorText}`);
     return { success: false, path: '' };
   }
 }
@@ -83,11 +91,16 @@ export async function restoreBackup(backupPath: string): Promise<{ success: bool
       const fullPath = path.join(backupPath, regFile);
       try {
         execFileSync('reg', ['import', fullPath], { stdio: 'ignore' });
-      } catch {}
+      } catch (err) {
+        const errorText = err instanceof Error ? err.message : String(err);
+        console.warn(`[backup] Failed to import ${fullPath}: ${errorText}`);
+      }
     }
 
     return { success: true };
-  } catch {
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    console.warn(`[backup] Failed to restore backup ${backupPath}: ${errorText}`);
     return { success: false };
   }
 }
@@ -96,7 +109,9 @@ export async function deleteBackup(backupPath: string): Promise<{ success: boole
   try {
     fs.rmSync(backupPath, { recursive: true, force: true });
     return { success: true };
-  } catch {
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    console.warn(`[backup] Failed to delete backup ${backupPath}: ${errorText}`);
     return { success: false };
   }
 }

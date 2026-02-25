@@ -3,12 +3,13 @@ import { windowsOptimizations, gameOptimizations } from '../../data/optimization
 import OptimizationSection from '../optimizations/OptimizationSection';
 import MonitorConfig from '../dashboard/MonitorConfig';
 import LogViewer from '../ui/LogViewer';
+import WindowsUpdateModeCard from '../windows/WindowsUpdateModeCard';
 
 export default function AdvancedPage() {
   const { toggles, userConfig, isRunning, setIsRunning, clearLog, progressLog, setAllToggles, telemetryEnabled, setTelemetryEnabled } = useAppStore();
 
   const enabledIds = Object.entries(toggles)
-    .filter(([, enabled]) => enabled)
+    .filter(([id, enabled]) => id !== 'win-all' && enabled)
     .map(([id]) => id);
 
   const handleRunAll = async () => {
@@ -56,6 +57,8 @@ export default function AdvancedPage() {
         items={windowsOptimizations}
         icon="⚡"
       />
+
+      <WindowsUpdateModeCard />
 
       <OptimizationSection
         title="Game Optimizations"

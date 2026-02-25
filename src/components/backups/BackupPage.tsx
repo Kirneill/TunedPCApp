@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
 import type { BackupInfo } from '../../types';
+import { useAppStore } from '../../store/appStore';
 
 export default function BackupPage() {
+  const addLogEntry = useAppStore((s) => s.addLogEntry);
   const [backups, setBackups] = useState<BackupInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
@@ -41,6 +43,37 @@ export default function BackupPage() {
     setActionInProgress(null);
   };
 
+  const handleExportDiagnostics = async () => {
+    setActionInProgress('exporting');
+    try {
+      const result = await window.sensequality.exportDiagnostics();
+      if (result.success) {
+        addLogEntry({
+          type: 'success',
+          message: `Diagnostics exported: ${result.path}`,
+          timestamp: Date.now(),
+          section: 'Diagnostics',
+        });
+      } else {
+        addLogEntry({
+          type: 'error',
+          message: `Diagnostics export failed: ${result.error || 'Unknown error'}`,
+          timestamp: Date.now(),
+          section: 'Diagnostics',
+        });
+      }
+    } catch (err) {
+      addLogEntry({
+        type: 'error',
+        message: `Diagnostics export failed: ${String(err)}`,
+        timestamp: Date.now(),
+        section: 'Diagnostics',
+      });
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
   return (
     <div className="space-y-5 max-w-4xl">
       <div className="flex items-center justify-between">
@@ -50,13 +83,22 @@ export default function BackupPage() {
             Registry and config backups are created automatically before each optimization run.
           </p>
         </div>
-        <button
-          onClick={handleCreate}
-          disabled={actionInProgress !== null}
-          className="px-4 py-2 rounded-lg bg-sq-accent hover:bg-sq-accent-hover text-white text-sm font-medium transition-colors disabled:opacity-50"
-        >
-          {actionInProgress === 'creating' ? 'Creating...' : 'Create Backup'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportDiagnostics}
+            disabled={actionInProgress !== null}
+            className="px-4 py-2 rounded-lg text-sq-text-muted border border-sq-border hover:bg-sq-surface-hover text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {actionInProgress === 'exporting' ? 'Exporting...' : 'Export Diagnostics'}
+          </button>
+          <button
+            onClick={handleCreate}
+            disabled={actionInProgress !== null}
+            className="px-4 py-2 rounded-lg bg-sq-accent hover:bg-sq-accent-hover text-white text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {actionInProgress === 'creating' ? 'Creating...' : 'Create Backup'}
+          </button>
+        </div>
       </div>
 
       {loading ? (

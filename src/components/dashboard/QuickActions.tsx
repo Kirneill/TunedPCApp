@@ -4,7 +4,7 @@ export default function QuickActions() {
   const { toggles, userConfig, isRunning, setIsRunning, clearLog, setAllToggles } = useAppStore();
 
   const enabledIds = Object.entries(toggles)
-    .filter(([, enabled]) => enabled)
+    .filter(([id, enabled]) => id !== 'win-all' && enabled)
     .map(([id]) => id);
 
   const handleRunAll = async () => {

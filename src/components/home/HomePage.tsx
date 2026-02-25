@@ -1,6 +1,7 @@
 import { useAppStore } from '../../store/appStore';
 import GameCard from './GameCard';
 import LogViewer from '../ui/LogViewer';
+import WindowsUpdateModeCard from '../windows/WindowsUpdateModeCard';
 
 const games = [
   {
@@ -59,7 +60,7 @@ export default function HomePage() {
 
   const allWindowsIds = [
     'win-power-plan', 'win-hags', 'win-game-mode', 'win-mmcss',
-    'win-network', 'win-visual-fx', 'win-fullscreen', 'win-mouse', 'win-cpu-power',
+    'win-network', 'win-visual-fx', 'win-fullscreen', 'win-mouse', 'win-cpu-power', 'win-standard',
   ];
   const idsToRun = [
     ...(windowsEnabled ? allWindowsIds : []),
@@ -137,7 +138,7 @@ export default function HomePage() {
           <div>
             <h3 className="text-sm font-bold text-sq-text">Windows Optimization</h3>
             <p className="text-[11px] text-sq-text-muted mt-0.5">
-              Power plan, GPU scheduling, network latency, mouse accel, visual effects &mdash; 9 tweaks
+              Gaming latency tweaks plus a standard baseline in one pass
             </p>
           </div>
           <div className={`
@@ -150,6 +151,8 @@ export default function HomePage() {
             `} />
           </div>
         </div>
+
+        <WindowsUpdateModeCard compact />
 
         {/* Game cards grid — grows to fill available space */}
         <div className="flex-1 grid grid-cols-5 gap-4 min-h-0">
