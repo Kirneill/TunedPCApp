@@ -100,6 +100,10 @@ const api = {
   // Waitlist
   joinWaitlist: (feature: string) => ipcRenderer.invoke('waitlist:join', feature),
   hasJoinedWaitlist: (feature: string) => ipcRenderer.invoke('waitlist:hasJoined', feature),
+
+  // Updates
+  checkForUpdate: () => ipcRenderer.invoke('updater:check'),
+  getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
 };
 
 contextBridge.exposeInMainWorld('sensequality', api);

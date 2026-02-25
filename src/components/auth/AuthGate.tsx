@@ -3,7 +3,11 @@ import { useAppStore } from '../../store/appStore';
 
 type Mode = 'signin' | 'signup' | 'reset';
 
-export default function AuthGate() {
+interface AuthGateProps {
+  onAuthenticated: () => Promise<void>;
+}
+
+export default function AuthGate({ onAuthenticated }: AuthGateProps) {
   const { setAuthUser, setShowAuthGate, setAuthLoading } = useAppStore();
 
   const [mode, setMode] = useState<Mode>('signin');
@@ -57,7 +61,16 @@ export default function AuthGate() {
     if (result.success && result.user) {
       setAuthUser(result.user);
       setShowAuthGate(false);
-      setAuthLoading(false);
+      setAuthLoading(true);
+      try {
+        await onAuthenticated();
+      } catch (err) {
+        console.error('Post-auth initialization failed:', err);
+        setShowAuthGate(true);
+        setError('Signed in, but initialization failed. Please try again.');
+      } finally {
+        setAuthLoading(false);
+      }
     } else {
       setError(result.error || 'Authentication failed.');
     }

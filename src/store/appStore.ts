@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { SystemInfo, DetectedGame, BackupInfo, LogEntry, UserConfig, AuthUser, UserMachine } from '../types';
+import type { SystemInfo, DetectedGame, BackupInfo, LogEntry, UserConfig, AuthUser, UserMachine, UpdateInfo } from '../types';
 
 interface AppState {
   // Auth
@@ -39,6 +39,10 @@ interface AppState {
   showConsentModal: boolean;
   telemetryEnabled: boolean;
 
+  // Updates
+  updateInfo: UpdateInfo | null;
+  updateDismissed: boolean;
+
   // Auth actions
   setAuthUser: (user: AuthUser | null) => void;
   setAuthLoading: (loading: boolean) => void;
@@ -66,6 +70,8 @@ interface AppState {
   setBackups: (backups: BackupInfo[]) => void;
   setShowConsentModal: (show: boolean) => void;
   setTelemetryEnabled: (enabled: boolean) => void;
+  setUpdateInfo: (info: UpdateInfo | null) => void;
+  dismissUpdate: () => void;
 }
 
 // User-namespaced localStorage key
@@ -142,6 +148,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   backups: [],
   showConsentModal: false,
   telemetryEnabled: false,
+  updateInfo: null,
+  updateDismissed: false,
 
   // Auth actions
   setAuthUser: (user) => {
@@ -219,6 +227,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setBackups: (backups) => set({ backups }),
   setShowConsentModal: (show) => set({ showConsentModal: show }),
   setTelemetryEnabled: (enabled) => set({ telemetryEnabled: enabled }),
+  setUpdateInfo: (info) => set({ updateInfo: info }),
+  dismissUpdate: () => set({ updateDismissed: true }),
 }));
 
 function persistConfig(

@@ -6,6 +6,7 @@ import { registerIpcHandlers } from './ipc/handlers';
 import { registerAuthHandlers } from './ipc/auth-handlers';
 import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackFailureStage } from './telemetry/telemetry';
 import { initAuth } from './auth/auth';
+import { checkForUpdate } from './updater';
 
 // --- Diagnostic Logger ---
 // app.getPath() is unavailable before 'ready', so defer log path resolution
@@ -159,6 +160,10 @@ function createWindow() {
   ipcMain.handle('shell:openExternal', (_event, url: string) => {
     if (url.startsWith('https://')) shell.openExternal(url);
   });
+
+  // Update check
+  ipcMain.handle('updater:check', () => checkForUpdate());
+  ipcMain.handle('app:getVersion', () => app.getVersion());
 
   // Telemetry IPC
   ipcMain.handle('telemetry:hasConsentDecision', () => hasConsentDecision());

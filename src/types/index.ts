@@ -137,6 +137,17 @@ declare global {
       // Waitlist
       joinWaitlist: (feature: string) => Promise<{ success: boolean; error?: string }>;
       hasJoinedWaitlist: (feature: string) => Promise<boolean>;
+      // Updates
+      checkForUpdate: () => Promise<UpdateInfo>;
+      getAppVersion: () => Promise<string>;
     };
   }
+}
+
+export interface UpdateInfo {
+  hasUpdate: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  releaseUrl: string;
+  releaseNotes: string;
 }

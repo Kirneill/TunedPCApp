@@ -9,6 +9,7 @@ import BackupPage from './components/backups/BackupPage';
 import ConsentModal from './components/ui/ConsentModal';
 import AuthGate from './components/auth/AuthGate';
 import MaxDevicesScreen from './components/auth/MaxDevicesScreen';
+import UpdateBanner from './components/ui/UpdateBanner';
 
 export default function App() {
   const {
@@ -17,10 +18,64 @@ export default function App() {
     setIsOffline, setMachines,
     setSystemInfo, setDetectedGames, setIsAdmin, setIsLoading,
     addLogEntry, setShowConsentModal, setTelemetryEnabled,
+    setUpdateInfo,
   } = useAppStore();
 
   // StrictMode guard — prevent double-init in dev
   const initCalledRef = useRef(false);
+
+  const initializeAuthenticatedApp = async () => {
+    setIsLoading(true);
+    try {
+      // Phase 3: Get system info + register machine
+      const sysInfo = await window.sensequality.getSystemInfo();
+      setSystemInfo(sysInfo);
+
+      if (sysInfo.isNvidia) {
+        useAppStore.getState().setUserConfig({ nvidiaGpu: true });
+      }
+
+      const regResult = await window.sensequality.registerMachine({
+        machine_name: sysInfo.cpu,
+        gpu: sysInfo.gpu,
+        cpu: sysInfo.cpu,
+        ram_gb: sysInfo.ramGB,
+        os_build: sysInfo.osBuild,
+      });
+
+      if (!regResult.success && regResult.reason === 'max_devices') {
+        setMachines(regResult.machines || []);
+        setShowMaxDevices(true);
+        return;
+      }
+
+      setShowMaxDevices(false);
+
+      // Phase 4: Normal app init
+      const [games, admin] = await Promise.all([
+        window.sensequality.getInstalledGames(),
+        window.sensequality.isAdmin(),
+      ]);
+      setDetectedGames(games);
+      setIsAdmin(admin);
+
+      // Phase 5: Telemetry consent check
+      const hasDecision = await window.sensequality.hasConsentDecision();
+      if (!hasDecision) {
+        setShowConsentModal(true);
+      } else {
+        const consent = await window.sensequality.getTelemetryConsent();
+        setTelemetryEnabled(consent);
+      }
+
+      // Phase 6: Check for updates (fire-and-forget)
+      window.sensequality.checkForUpdate().then((info) => {
+        if (info.hasUpdate) setUpdateInfo(info);
+      }).catch(() => {});
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (initCalledRef.current) return;
@@ -45,53 +100,13 @@ export default function App() {
         }
 
         setAuthUser(session.user);
-
-        // Phase 3: Get system info + register machine
-        const sysInfo = await window.sensequality.getSystemInfo();
-        setSystemInfo(sysInfo);
-
-        if (sysInfo.isNvidia) {
-          useAppStore.getState().setUserConfig({ nvidiaGpu: true });
-        }
-
-        const regResult = await window.sensequality.registerMachine({
-          machine_name: sysInfo.cpu,
-          gpu: sysInfo.gpu,
-          cpu: sysInfo.cpu,
-          ram_gb: sysInfo.ramGB,
-          os_build: sysInfo.osBuild,
-        });
-
-        if (!regResult.success && regResult.reason === 'max_devices') {
-          setMachines(regResult.machines || []);
-          setShowMaxDevices(true);
-          setAuthLoading(false);
-          return;
-        }
-
-        // Phase 4: Normal app init
-        const [games, admin] = await Promise.all([
-          window.sensequality.getInstalledGames(),
-          window.sensequality.isAdmin(),
-        ]);
-        setDetectedGames(games);
-        setIsAdmin(admin);
-
-        // Phase 5: Telemetry consent check
-        const hasDecision = await window.sensequality.hasConsentDecision();
-        if (!hasDecision) {
-          setShowConsentModal(true);
-        } else {
-          const consent = await window.sensequality.getTelemetryConsent();
-          setTelemetryEnabled(consent);
-        }
+        await initializeAuthenticatedApp();
       } catch (err) {
         console.error('Bootstrap failed:', err);
         // If bootstrap fails entirely, show auth gate as fallback
         setShowAuthGate(true);
       } finally {
         setAuthLoading(false);
-        setIsLoading(false);
       }
     }
 
@@ -193,7 +208,15 @@ export default function App() {
   }
 
   // Auth gate
-  if (showAuthGate) return <AuthGate />;
+  if (showAuthGate) {
+    return (
+      <AuthGate
+        onAuthenticated={async () => {
+          await initializeAuthenticatedApp();
+        }}
+      />
+    );
+  }
 
   // Max devices
   if (showMaxDevices) return <MaxDevicesScreen />;
@@ -212,6 +235,7 @@ export default function App() {
   return (
     <div className="flex flex-col h-full bg-sq-bg">
       <TitleBar />
+      <UpdateBanner />
       <main className="flex-1 overflow-y-auto">
         {renderPage()}
       </main>

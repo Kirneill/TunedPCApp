@@ -343,16 +343,36 @@ export async function deactivateMachine(machineId: string): Promise<{ success: b
 export async function joinWaitlist(feature: string): Promise<{ success: boolean; error?: string }> {
   if (!supabase) return { success: false, error: 'Not authenticated' };
 
+  // Verify we have a valid session before calling the RPC
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) {
+      return { success: false, error: 'Session expired. Please sign out and sign in again.' };
+    }
+  } catch {
+    return { success: false, error: 'Could not verify session.' };
+  }
+
   try {
     const { data, error } = await supabase.rpc('join_waitlist', {
       p_feature_name: feature,
     });
 
-    if (error) return { success: false, error: mapAuthError(error) };
+    if (error) {
+      console.error('[auth] joinWaitlist RPC error:', error.message, error.code, error.details, error.hint);
+      // Surface the actual error for debugging
+      if (error.code === '42883') {
+        return { success: false, error: 'Waitlist feature not set up yet. Run supabase-schema-auth.sql in your Supabase SQL Editor.' };
+      }
+      return { success: false, error: mapAuthError(error) };
+    }
     const result = data as { success: boolean };
     return { success: result.success };
   } catch (err) {
-    return { success: false, error: 'Failed to join waitlist' };
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[auth] joinWaitlist exception:', msg);
+    if (isNetworkError(err)) return { success: false, error: 'No internet connection.' };
+    return { success: false, error: `Failed to join waitlist: ${msg}` };
   }
 }
 
@@ -364,9 +384,13 @@ export async function hasJoinedWaitlist(feature: string): Promise<boolean> {
       p_feature_name: feature,
     });
 
-    if (error) return false;
+    if (error) {
+      console.error('[auth] hasJoinedWaitlist RPC error:', error.message, error.code);
+      return false;
+    }
     return data === true;
-  } catch {
+  } catch (err) {
+    console.error('[auth] hasJoinedWaitlist exception:', err instanceof Error ? err.message : err);
     return false;
   }
 }
