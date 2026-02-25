@@ -1,0 +1,468 @@
+1
+
+
+//
+// Audio
+
+// Adjusts the volume of audio in Cinematics
+CinematicVolume@0;14317;21371 = 1.000000 // 0.000000 to 1.000000
+
+// Adjusts the volume of the sound effects
+EffectsVolume@0;14317;21371 = 1.000000 // 0.000000 to 1.000000
+
+// Adjusts the volume of hit markers
+HitMarkersVolume@0;14317;21371 = 1.000000 // 0.000000 to 1.000000
+
+// Adjusts the volume of the music
+MusicVolume@0;14317;21371 = 1.000000 // 0.000000 to 1.000000
+
+// Adjusts the volume of audio in Telescope (MOTD)
+TelescopeVolume@0;14317;21371 = 1.000000 // 0.000000 to 1.000000
+
+// Adjusts the volume for character dialogues and announcer voices
+VoiceVolume@0;14317;21371 = 1.000000 // 0.000000 to 1.000000
+
+// Adjusts overall volume of the game
+Volume@0;14317;21371 = 1.000000 // 0.000000 to 1.000000
+
+// War Tracks Volume
+WarTracksVolume@0;14317;21371 = 1.000000 // 0.000000 to 1.000000
+
+// Voice device requested by the user
+VoiceOutputDevice@0;2059;35888 = {0.0.0.00000000}.{20528888-7fb7-4fee-843d-195c0df229c0}
+
+// whether to allow MS's 3D spatializer 'Windows Sonic' mode or (false) present a standard 7.1 mix
+WindowsSonicEnable@0;57752;48403 = false
+
+// Using push to talk to activate microphone.
+VoicePushToTalk@0;57752;20945 = false
+
+// Number of output channels requested by the user. Not necessarily the actual channel count. Valid values are 2, 4, 6, 8, 16. Zero means use system default.
+AudioWantedChannelsNumber@0;59395;43096 = 2 // 0 to 16
+
+// Licensed Music Volume
+LicensedMusicVolume@0;14317;21371 = 1.000000 // 0.000000 to 1.000000
+
+// Microphone device requested by the user
+SoundInputDevice@0;2059;35888 = {0.0.1.00000000}.{2b8953e8-a264-4b3d-9962-b16b48f1441e}
+
+// Speaker device requested by the user
+SoundOutputDevice@0;2059;35888 = {0.0.0.00000000}.{da4de85d-bf35-43cd-9934-aa706425a8f9}
+
+// Adjusts minimum volume threshold before activating your microphone
+MicThreshold@0;18951;22597 = 0.031623 // 0.000000 to 1.000000
+
+
+//
+// Display
+
+// Enables AMD Antilag 2.
+AmdAntilag2@0;57752;48403 = false
+
+// Force specific aspect ratio independent of window aspect ratio
+AspectRatio@0;19775;7764 = auto // one of auto, standard, 5:4, wide 16:10, wide 16:9, wide 18:9, wide 19.5:9, wide 21:9, wide 32:9
+
+// Percentage of window resolution that the 3D scene renders at. value set by the user. can be smaller than the actual.
+ResolutionMultiplier@0;64786;30730 = 100 // 0 to 200
+
+// Vsync while in menus only
+VSyncInMenu@0;55075;11445 = disabled // one of disabled, 100%, 50%, 33%, 25%
+
+// Enable Nvidia low latency mode. Boost mode request maximum GPU clock frequency regardless of workload
+NvidiaReflex@0;33761;11445 = Enabled // one of Disabled, Enabled, Enabled + boost
+
+// Enable focused mode
+FocusedMode@0;57752;48403 = false
+
+// Set overlay opacity for the focused mode
+FocusedModeOpacity@0;14317;7707 = 0.000000 // 0.000000 to 1.000000
+
+// Constrain mouse to game window
+ConstrainMouse@1;17649;48403 = false
+
+// Color spaces for monitor output
+DisplayGamma@0;57228;7764 = BT709_sRGB // one of BT709_sRGB, BT709_BT1886
+
+// Fullscreen mode
+DisplayMode@0;22564;43096 = Fullscreen // one of Windowed, Fullscreen, Fullscreen borderless window, Fullscreen borderless extended window
+
+// Monitor name of the monitor used to display the game
+Monitor@0;2059;35888 = MPG272UX OLED
+
+// Fullscreen mode preference
+PreferredDisplayMode@0;15994;11445 = Fullscreen // one of Fullscreen, Fullscreen borderless window, Fullscreen borderless extended window
+
+// Refresh rate of used monitor
+RefreshRate@0;56178;35888 = 240.000
+
+// Fullscreen Resolution
+Resolution@0;56178;35888 = 3840x2160
+
+// Synchronizes framerate with refresh rate to prevent screen tearing issues
+VSync@0;55075;7764 = disabled // one of disabled, 100%, 50%, 33%, 25%
+
+// Window height
+WindowHeight@0;64387;17138 = 400 // 0 to 32767
+
+// Window is maximized on boot
+WindowMaximized@0;57752;48403 = true
+
+// Window width
+WindowWidth@0;64387;12850 = 1422 // 0 to 32767
+
+// Window X position
+WindowX@0;8975;53132 = 1396 // -32768 to 32767
+
+// Window Y position
+WindowY@0;8975;53132 = 591 // -32768 to 32767
+
+
+//
+// Gameplay
+
+// Speed of the cursor when selecting a location on the map when using a MOUSE to control the cursor
+MapLocationSelectionCursorSpeedMouse@0;23423;65063 = 0.600000 // 0.001000 to 2.000000
+
+// Limit blood effects (to 'prevent excess blood stacking')
+BloodLimit@0;57752;48403 = true
+
+// When limiting blood effects, number of milliseconds between effects.
+BloodLimitInterval@0;30928;7741 = 2000 // 1 to 2000
+
+// Blink rate of an invalid command hint
+InvalidCmdHintBlinkInterval@0;64284;30837 = 600 // 1 to 10000
+
+// Duration of an invalid command hint
+InvalidCmdHintDuration@0;5208;21990 = 1800 // 0 to 10000
+
+// Speed of the cursor when selecting a location on the map With a gamepad
+MapLocationSelectionCursorSpeed@0;39230;65063 = 0.600000 // 0.001000 to 1.000000
+
+// Marks on entities from player's bullets only.
+MarksEntsPlayerOnly@0;57752;48403 = false
+
+// Show blood effects
+ShowBlood@0;57752;20945 = false
+
+// Weapons eject brass
+ShowBrass@0;57752;20945 = false
+
+// Apply custom framerate limit
+CapFps@0;57752;20945 = false
+
+// Custom maximum frames per second when in a match
+MaxFpsInGame@0;13305;58861 = 250 // 30 to 300
+
+// Custom maximum frames per second when in menus
+MaxFpsInMenu@0;13305;27917 = 120 // 30 to 300
+
+// Custom maximum frames per second when game is out of focus
+MaxFpsOutOfFocus@0;35936;15032 = 30 // 5 to 300
+
+// Adds blur on out of focus areas when aiming down sights
+DepthOfField@0;57752;20945 = false
+
+// DOF filter quality
+DepthOfFieldQuality@0;11629;11445 = Low // one of Low, High
+
+// maximum number of AI corpses
+CorpseLimit@0;18638;7094 = 0 // 0 to 28
+
+
+//
+// Graphics
+
+// AMD FidelityFX Super Resolution 2 & 3 quality
+AMDSuperResolution2Quality@0;27441;8284 = Balanced // one of Ultra Performance, Maximum Performance, Balanced, Maximum Quality, Native Resolution
+
+// Activate FSR 3 Frame Interpolation
+FSRFrameInterpolation@0;57752;48403 = false
+
+// Strength for Contrast Adaptive Sharpening (CAS)
+AMDContrastAdaptiveSharpeningStrength@0;14317;40397 = 0.700000 // 0.000000 to 1.000000
+
+// Select AMD FidelityFX
+AMDFidelityFX@0;56444;48403 = CAS // one of Off, CAS, FSR 1, FSR 3
+
+// Select AMD FidelityFX
+AMDFidelityFX@1;16223;48403 = CAS // one of Off, CAS, FSR 1, FSR 3
+
+// AMD FidelityFX Super Resolution quality
+AMDSuperResolutionQuality@0;27441;8284 = Maximum Quality // one of Maximum Performance, Balanced, Maximum Quality, Ultra Quality
+
+// Enable ingame cinematics to play.
+CinematicEmissive@0;57752;20945 = true
+
+// Enable deferred physics
+DeferredPhysics@0;6619;43096 = Low Quality // one of Low Quality, Medium Quality, High Quality
+
+// DXR Denoiser selection
+DxrDenoiser@0;6377;7764 = Default // one of Default, FSR Ray Regeneration, DLSS Ray Reconstruction
+
+// Enables DirectX Raytracing
+DxrMode@0;37334;7764 = Off // one of Off, On
+
+// Enables DirectX Raytracing
+DxrMode@1;8707;7764 = Off // one of Off, Low, Medium, High, Ultra
+
+// Activate dynamic scene resolution
+DynamicSceneResolution@0;57752;48403 = false
+
+// Target frame time in ms for dynamic scene resolution.
+DynamicSceneResolutionTarget@0;27783;23416 = 16.670000 // 0.000000 to 1000.000000
+
+// Absolute target resolution
+AbsoluteTargetResolution@0;64285;26972 = none // one of 540P, 640P, 720P, 900P, 1080P, 1440P, native, none
+
+// Texture quality level, high to low ( higher number means lower resolution )
+TextureQuality@0;61129;7764 = 3 // 0 to 3
+
+// XeSS quality
+XeSSQuality@0;27441;8284 = Balanced // one of Ultra Performance, Maximum Performance, Balanced, Maximum Quality, Ultra Quality, Ultra Quality Plus, Native Resolution
+
+// Enables optimisations when resizable-bar is supported by uploading more data to VRAM
+GPUUploadHeaps@0;57752;20945 = true
+
+// DLSS mode
+DLSSModeMP@0;43179;20945 = DLSS // one of DLSS, DLAA, DLSS-D
+
+// DLSS performance mode
+DLSSPerfModeMP@0;27441;8284 = Balanced // one of Ultra Performance, Maximum Performance, Balanced, Maximum Quality
+
+// DLSS Sharpness.
+DLSSSharpnessMP@0;14317;40397 = 0.500000 // 0.000000 to 1.000000
+
+// Activate Nvidia DLSS Frame Generation
+DLSSFrameGeneration@0;57752;48403 = false
+
+// DLSS model
+DLSSModelUI@0;51058;48403 = CNN // one of CNN, TRANSFORMER
+
+// Determines how many frames are generated by DLSS Frame Generation.
+DLSSFrameGenerationmulti@0;61843;11445 = 1 // 1 to 3
+
+// Enable NVIDIA Image Scaling
+NVIDIAImageScalingMP@0;57752;48403 = false
+
+// NVIDIA Image Scaling quality
+NVIDIAImageScalingQualityMP@0;27441;34191 = Native Resolution // one of Maximum Performance, Balanced, Maximum Quality, Ultra Quality, Native Resolution
+
+// NVIDIA Image Scaling sharpness
+NVIDIAImageScalingSharpnessMP@0;14317;19055 = 0.300000 // 0.000000 to 1.000000
+
+// Set HDR activation mode. Option only takes effect on HDR Display.
+HDR@0;3781;43096 = Off // one of Off, On, Automatic
+
+// Enable persistent damage layer
+PersistentDamageLayer@0;57752;20945 = false
+
+// User preferred anti-aliasing technique
+AATechniquePreferredMP@0;47961;48403 = SMAA // one of SMAA, DLSS, XeSS, FSR AA
+
+// Sets high-impact settings to consume less power in order to reduce battery usage, enabling longer play sessions.
+UserEcoLowBatteryModeUI@0;57752;48403 = false
+
+// Automatically enables Low Battery Mode when the battery reaches the selected level.
+UserEcoLowBatteryThresholdUI@0;46255;143 = 10 // 10 to 100
+
+// Enable half resolution reflection probes
+ReflectionProbeHalfResolution@0;57752;48403 = true
+
+// If true radial motion blur will be applied based on the player velocity.
+EnableVelocityBasedBlur@0;57752;20945 = false
+
+// Select the shader quality setting
+ShaderQuality@0;19450;7764 = Low // one of Default, Medium, Low
+
+// Catmull Clark subdivision level
+SubdivisionLevel@0;36080;58629 = 0 // 0 to 8
+
+// Drop the dynamic scene resolution in non-interactive scenes to save power.
+SustainabilityMenuSceneResolution@0;16519;11445 = min // one of off, min, full
+
+// Reduce rendering quality after being idle for a certain time period.
+SustainabilityReduceQualityIdle@0;15516;11445 = off // one of off, min, full
+
+// Pause rendering in Multiplayer when entering the pause menu or when out of focus to save power.
+SustainabilityPauseRendering@0;57752;48403 = false
+
+// Enable Variable Rate Shading
+VRS@0;57752;20945 = true
+
+// Volumetric quality
+VolumetricQuality@0;25292;43096 = QUALITY_LOW // one of QUALITY_LOW, QUALITY_MEDIUM, QUALITY_HIGH
+
+// Select water caustics mode
+WaterCausticsMode@0;41499;11445 = Off // one of Off, Low Quality, High Quality
+
+// Enables persistent static geometry wetness from water waves.
+WaterWaveWetness@0;57752;20945 = false
+
+// Select weather grid volumes quality
+WeatherGridVolumesQuality@0;38459;58629 = Off // one of Off, Low, Medium, High, Ultra
+
+// Ambient lighting quality
+AmbientLightingQuality@0;20439;58629 = Off // one of Off, Low, Medium, High, Ultra
+
+// Show bullet impacts
+BulletImpacts@0;57752;20945 = false
+
+// Use fallback movies.
+CinematicQuality@0;57752;48403 = true
+
+// Corpses culling threshold
+CorpsesCullingThreshold@0;62572;12490 = 0.500000 // 0.500000 to 1.000000
+
+// Preferred GPU if multiple GPU system
+GPUName@0;2059;35888 = NVIDIA GeForce RTX 5090
+
+// Graphics Quality Preset Level
+GraphicsQuality@0;9088;43096 = Balanced // one of Minimum, Basic, Balanced, Ultra, Extreme
+
+// Models quality level
+ModelQuality@0;15002;43096 = Low Quality // one of Low Quality, Medium Quality, High Quality
+
+// Particle quality level
+ParticleQuality@0;60198;58629 = very low // one of very low, low, medium, high
+
+// Reflection probe relighting update stages
+ReflectionProbeRelighting@0;42543;9045 = 1 // 1 to 4
+
+// Screen Space Shadow quality level
+ScreenSpaceShadowQuality@0;42742;43096 = Off // one of Off, Low, High
+
+// Shadow Quality Level
+ShadowQuality@0;3981;58629 = Very_Low // one of Very_Low, Low, Medium, High, Very_High
+
+// Screen-space reflection quality level
+SSRQuality@0;58437;11445 = Off // one of Off, Low, High
+
+// Static sunshadow moment clipmap resolution
+StaticSunshadowClipmapResolution@0;21851;46253 = 0 // 0 to 2147483647
+
+// Number of ST LOD to skip
+STLodSkip@0;52787;7764 = 0 // 0 to 5
+
+// Terrain quality
+TerrainQuality@0;36295;58629 = Very Low // one of Very Low, Low, Medium, High, Very High
+
+// Tessellation quality level
+Tessellation@0;27349;11445 = 0_Off // one of 0_Off, 1_Near, 2_All
+
+// Texture filtering quality level
+TextureFilter@0;63279;8284 = aniso 2x // one of aniso 2x, aniso 4x, aniso 8x, aniso 16x
+
+// World streaming quality option
+WorldStreamingQuality@0;6770;11445 = Low // one of Low, High
+
+
+//
+// Interface
+
+// Enable/Disable the FPS counter on PC
+ShowFPSCounter@0;57752;48403 = false
+
+// Display the OS cursors instead of the custom game one for accessibility reasons.
+UseOSCursors@1;17649;48403 = false
+
+// Enable hud elements
+EnableHUD@0;57752;20945 = true
+
+// Skip introduction movie that plays when game is started
+SkipIntro@1;17649;48403 = false
+
+// Controls if the season video plays or not.
+SkipSeasonIntroVideo@0;57752;48403 = false
+
+// Whether or not we show the season video when the player logs in the second time on after seeing the season video.
+SkipSeasonVideo@0;57752;20945 = true
+
+// Enable the player to skip the spash screen if viewed at least once
+ViewedSplashScreen@0;57752;48403 = true
+
+
+//
+// Mouse and Gamepad
+
+// Use raw mouse input.
+MouseUsesRawInput@0;57752;20945 = true
+
+// Menu scroll key-repeat delay, for the first repeat, in milliseconds
+GamepadMenuScrollDelayFirst@0;2139;26978 = 420 // 0 to 1000
+
+// Menu scroll key-repeat delay acceleration from start to end, for repeats after the first, in milliseconds per repeat
+GamepadMenuScrollDelayRestAccel@0;2139;43096 = 2 // 0 to 1000
+
+// Menu scroll key-repeat delay end, for repeats after the first, in milliseconds
+GamepadMenuScrollDelayRestEnd@0;2139;17479 = 50 // 0 to 1000
+
+// Menu scroll key-repeat delay start, for repeats after the first, in milliseconds
+GamepadMenuScrollDelayRestStart@0;2139;50451 = 210 // 0 to 1000
+
+// Max pitch speed in degrees for game pad
+PitchSpeed@0;13349;2099 = 140.000000 // 0.000000 to 280.000000
+
+// Vehicle mouse steering sensitivity
+VehicleMouseSteerSensitivity@0;15092;9220 = 2.000000 // 0.010000 to 10.000000
+
+// Set minimum delay in milliseconds between valid mouse wheel inputs
+WeaponCycleDelay@0;35888;7764 = 0 // 0 to 5000
+
+// Max yaw speed in degrees for game pad and keyboard
+YawSpeed@0;13349;2099 = 140.000000 // 0.000000 to 280.000000
+
+
+//
+// System
+
+// Version of the last display driver used to run the game
+DisplayDriverVersion@0;5555;35888 = 581.42
+
+// Recommended display driver version seen during last game startup
+DisplayDriverVersionRecommended@0;5555;35888 = 581.42
+
+// Set a target fraction of your PC's video memory to be used by the game. Affects Multiplayer gamemodes
+VideoMemoryScaleMP@0;59710;7707 = 0.700000 // 0.000000 to 2.000000
+
+// Thread count for handling the job queue
+RendererWorkerCount@0;51989;59387 = 7 // -1 to 16
+
+// DO NOT MODIFY. VRS validation mask
+VRSValidationMask@0;18964;7764 = 0 // 0 to 255
+
+// DO NOT MODIFY. Normalized detected total CPU power, based on cpu type, count, and speed
+DetectedFrequencyGHz@0;21498;7764 = 34.399998 // -340282346638528859811704183484516925440.000000 to 340282346638528859811704183484516925440.000000
+
+// DO NOT MODIFY. Physical memory detected in the system
+DetectedMemoryAmountMB@0;38495;7764 = 32406 // -2147483648 to 2147483647
+
+// Disable autodetect when hardware changes
+DisableHWChangeDetection@0;57752;48403 = false
+
+// essdi
+ESSDI@0;2059;35888 = 
+
+// DO NOT MODIFY. Last Detected GPU driver version
+GPUDriverVersion@0;2059;35888 = 58142 r581_36
+
+// Last Drive type used for the game use to display a pop up
+LastSavedDriveType@0;3662;48403 = ssdorbetter // one of unknown, hdd, ssdorbetter, count
+
+// DO NOT MODIFY. Last used GPU
+LastUsedGPU@0;56178;35888 = NVIDIA GeForce RTX 5090
+
+// Indicates whether recommended settings have been set, will reset settings to recommended if set to 0
+RecommendedSet@0;57752;48403 = true
+
+
+// DLSS-RR performance mode
+DLSSRRPerfModeMP@0;27441;20945 = Ultra Performance // one of Ultra Performance, Maximum Performance, Balanced, Maximum Quality, Native Resolution
+
+// Ui Quality
+UiQuality@0;42500;43096 = Auto // one of 1080P, 4K, Auto
+
+// r_virtualTexturingMemoryModeDescription
+VirtualTexturingMemoryMode@0;992;58629 = Extra Large // one of Extra Small, Small, Medium, Large, Extra Large
+
+// Allows locally stored files to be synced in with the cloud
+ConfigCloudStorageEnabled@0;57752;20945 = true
