@@ -24,11 +24,23 @@
     Patch 1.0.7 significantly improved shadow LOD transitions.
 #>
 
+# ─── HEADLESS MODE ────────────────────────────────────────────────────────────
+$Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
+
 # ─── USER CONFIGURATION - EDIT THESE VALUES ──────────────────────────────────
-$MonitorWidth   = 1920
-$MonitorHeight  = 1080
-$MonitorRefresh = 240
-$NvidiaGPU      = $true   # $true for NVIDIA DLSS, $false for AMD FSR
+# When run from SENSEQUALITY app, these are overridden by environment variables.
+
+if ($Headless -and $env:MONITOR_WIDTH) {
+    $MonitorWidth   = [int]$env:MONITOR_WIDTH
+    $MonitorHeight  = [int]$env:MONITOR_HEIGHT
+    $MonitorRefresh = [int]$env:MONITOR_REFRESH
+    $NvidiaGPU      = $env:NVIDIA_GPU -eq '1'
+} else {
+    $MonitorWidth   = 1920
+    $MonitorHeight  = 1080
+    $MonitorRefresh = 240
+    $NvidiaGPU      = $true   # $true for NVIDIA DLSS, $false for AMD FSR
+}
 # ─────────────────────────────────────────────────────────────────────────────
 
 Write-Host "======================================================" -ForegroundColor Cyan

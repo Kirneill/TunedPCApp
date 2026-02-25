@@ -24,6 +24,10 @@
     - Anti-cheat safe: only OS-level registry flags modified
 #>
 
+# ─── HEADLESS MODE ────────────────────────────────────────────────────────────
+$Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
+
+if (-not $Headless) { Clear-Host }
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "  Call of Duty: Black Ops 7 - Optimization Script" -ForegroundColor Cyan
 Write-Host "  February 2026 | IW Engine | Ricochet Anti-Cheat" -ForegroundColor Cyan

@@ -33,6 +33,14 @@ const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   'game-arcraiders': { script: '06_ArcRaiders_Settings.ps1' },
 };
 
+// Maps env prefix (e.g. 'POWER_PLAN') back to optimization ID (e.g. 'win-power-plan')
+const PREFIX_TO_ID: Record<string, string> = {};
+for (const [id, mapping] of Object.entries(SCRIPT_MAP)) {
+  if (mapping.envPrefix) {
+    PREFIX_TO_ID[mapping.envPrefix] = id;
+  }
+}
+
 function sendLog(win: BrowserWindow | null, type: string, message: string, section?: string) {
   win?.webContents.send('optimize:log', {
     type,
@@ -113,19 +121,45 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
         }
       }
 
+      // Track per-section results via structured markers from PowerShell stdout
+      const sectionResults: Record<string, boolean> = {};
+
       sendLog(win, 'start', 'Applying Windows optimizations...', 'Windows');
       const scriptPath = getScriptPath('01_Windows_Optimization.ps1');
       const result = await runPowerShellScript(scriptPath, envVars, (line) => {
-        sendLog(win, 'info', line, 'Windows');
+        // Parse structured markers: [SQ_OK:POWER_PLAN], [SQ_FAIL:POWER_PLAN], [SQ_SKIP:POWER_PLAN]
+        const okMatch = line.match(/\[SQ_OK:(\w+)\]/);
+        const failMatch = line.match(/\[SQ_FAIL:(\w+)\]/);
+        const skipMatch = line.match(/\[SQ_SKIP:(\w+)\]/);
+
+        if (okMatch) {
+          const id = PREFIX_TO_ID[okMatch[1]];
+          if (id) sectionResults[id] = true;
+        } else if (failMatch) {
+          const id = PREFIX_TO_ID[failMatch[1]];
+          if (id) sectionResults[id] = false;
+        } else if (skipMatch) {
+          // Skipped sections are not failures — don't track them
+        } else {
+          // Regular log line — forward to UI
+          sendLog(win, 'info', line, 'Windows');
+        }
       });
 
+      // Assign per-section results; fall back to overall script result for sections without markers
       for (const id of windowsIds) {
-        results[id] = result.success;
+        results[id] = sectionResults[id] !== undefined ? sectionResults[id] : result.success;
       }
-      sendLog(win, result.success ? 'success' : 'error',
-        result.success ? 'Windows optimizations applied!' : 'Windows optimizations had errors',
-        'Windows'
-      );
+
+      const winFailed = windowsIds.filter(id => !results[id]);
+      if (winFailed.length === 0) {
+        sendLog(win, 'success', 'Windows optimizations applied!', 'Windows');
+      } else {
+        sendLog(win, 'error',
+          `Windows optimizations: ${winFailed.length} section(s) had errors`,
+          'Windows'
+        );
+      }
     }
 
     // Run each game script sequentially

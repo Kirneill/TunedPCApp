@@ -27,11 +27,21 @@
     and should NOT be used. Source 2 handles these automatically.
 #>
 
+# ─── HEADLESS MODE ────────────────────────────────────────────────────────────
+$Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
+
 # ─── USER CONFIGURATION - EDIT THESE VALUES ──────────────────────────────────
-$MonitorRefreshRate = 240      # Your monitor's refresh rate in Hz
-$UseStretchedRes    = $false   # Set to $true for 4:3 stretched (1280x960)
-                                # Set to $false for native 16:9 (1920x1080)
-$NvidiaGPU          = $true    # Set to $true for NVIDIA, $false for AMD
+# When run from SENSEQUALITY app, these are overridden by environment variables.
+
+if ($Headless -and $env:MONITOR_REFRESH) {
+    $MonitorRefreshRate = [int]$env:MONITOR_REFRESH
+    $UseStretchedRes    = $env:CS2_STRETCHED -eq '1'
+    $NvidiaGPU          = $env:NVIDIA_GPU -eq '1'
+} else {
+    $MonitorRefreshRate = 240      # Your monitor's refresh rate in Hz
+    $UseStretchedRes    = $false   # Set to $true for 4:3 stretched (1280x960)
+    $NvidiaGPU          = $true    # Set to $true for NVIDIA, $false for AMD
+}
 
 # Steam library paths to search (add your custom Steam library path if needed)
 $SteamLibraryPaths = @(

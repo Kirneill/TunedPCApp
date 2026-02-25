@@ -24,11 +24,22 @@
     This script only touches user config and Windows compatibility flags.
 #>
 
+# ─── HEADLESS MODE ────────────────────────────────────────────────────────────
+$Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
+
 # ─── USER CONFIGURATION - EDIT THESE VALUES ──────────────────────────────────
-$MonitorWidth   = 1920
-$MonitorHeight  = 1080
-$MonitorRefresh = 240
-$FrameRateLimit = 237    # Refresh rate minus 3 for frame stability
+# When run from SENSEQUALITY app, these are overridden by environment variables.
+
+if ($Headless -and $env:MONITOR_WIDTH) {
+    $MonitorWidth   = [int]$env:MONITOR_WIDTH
+    $MonitorHeight  = [int]$env:MONITOR_HEIGHT
+    $MonitorRefresh = [int]$env:MONITOR_REFRESH
+} else {
+    $MonitorWidth   = 1920
+    $MonitorHeight  = 1080
+    $MonitorRefresh = 240
+}
+$FrameRateLimit = $MonitorRefresh - 3    # Refresh rate minus 3 for frame stability
 # ─────────────────────────────────────────────────────────────────────────────
 
 Write-Host "======================================================" -ForegroundColor Cyan

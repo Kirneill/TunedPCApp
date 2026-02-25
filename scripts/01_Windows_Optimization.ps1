@@ -30,12 +30,19 @@
 #>
 
 # ─────────────────────────────────────────────────────────────────────────────
+# HEADLESS MODE: When run from SENSEQUALITY app, skip interactive prompts
+# and read skip flags from environment variables
+# ─────────────────────────────────────────────────────────────────────────────
+$Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # SAFETY: Create backup folder and export registry snapshots before any changes
 # ─────────────────────────────────────────────────────────────────────────────
 
 $BackupDir = "$env:USERPROFILE\Documents\GamingOptimization_Backup_$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss')"
 New-Item -ItemType Directory -Path $BackupDir -Force | Out-Null
 
+if (-not $Headless) { Clear-Host }
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "  Windows Gaming Optimization Script v2.0 (Feb 2026)" -ForegroundColor Cyan
 Write-Host "  Supports: BO7, Fortnite, Valorant, CS2, Arc Raiders" -ForegroundColor Cyan
@@ -77,20 +84,31 @@ Write-Host ""
 #      Ultimate Performance is the highest-priority plan available.
 # ─────────────────────────────────────────────────────────────────────────────
 
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-Write-Host "[1/9] POWER PLAN" -ForegroundColor White
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+if ($env:SKIP_POWER_PLAN -eq '1') {
+    Write-Host "[1/9] POWER PLAN — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[SQ_SKIP:POWER_PLAN]"
+} else {
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "[1/9] POWER PLAN" -ForegroundColor White
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
-# Unlock the hidden "Ultimate Performance" power plan (GUID: e9a42b02-d5df-448d-aa00-03f14749eb61)
-$UltimatePerfGUID = "e9a42b02-d5df-448d-aa00-03f14749eb61"
-$existingPlans = powercfg /list
-if ($existingPlans -notmatch $UltimatePerfGUID) {
-    Write-Host "  [INFO] Unlocking Ultimate Performance plan..." -ForegroundColor DarkCyan
-    powercfg -duplicatescheme $UltimatePerfGUID | Out-Null
+    try {
+        # Unlock the hidden "Ultimate Performance" power plan (GUID: e9a42b02-d5df-448d-aa00-03f14749eb61)
+        $UltimatePerfGUID = "e9a42b02-d5df-448d-aa00-03f14749eb61"
+        $existingPlans = powercfg /list
+        if ($existingPlans -notmatch $UltimatePerfGUID) {
+            Write-Host "  [INFO] Unlocking Ultimate Performance plan..." -ForegroundColor DarkCyan
+            powercfg -duplicatescheme $UltimatePerfGUID | Out-Null
+        }
+        powercfg /setactive $UltimatePerfGUID
+        Write-Host "  [OK] Ultimate Performance power plan activated." -ForegroundColor Green
+        Write-Host "  [TIP] Verify in: Control Panel > Power Options" -ForegroundColor DarkGray
+        Write-Host "[SQ_OK:POWER_PLAN]"
+    } catch {
+        Write-Host "  [FAIL] Power plan: $_" -ForegroundColor Red
+        Write-Host "[SQ_FAIL:POWER_PLAN]"
+    }
 }
-powercfg /setactive $UltimatePerfGUID
-Write-Host "  [OK] Ultimate Performance power plan activated." -ForegroundColor Green
-Write-Host "  [TIP] Verify in: Control Panel > Power Options" -ForegroundColor DarkGray
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -100,18 +118,29 @@ Write-Host "  [TIP] Verify in: Control Panel > Power Options" -ForegroundColor D
 #      Note: Disable if you experience increased VRAM usage or stutters on 8GB VRAM GPUs.
 # ─────────────────────────────────────────────────────────────────────────────
 
-Write-Host ""
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-Write-Host "[2/9] HARDWARE-ACCELERATED GPU SCHEDULING (HAGS)" -ForegroundColor White
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+if ($env:SKIP_HAGS -eq '1') {
+    Write-Host "[2/9] HAGS — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[SQ_SKIP:HAGS]"
+} else {
+    Write-Host ""
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "[2/9] HARDWARE-ACCELERATED GPU SCHEDULING (HAGS)" -ForegroundColor White
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
-$HagsPath = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
-if (-not (Test-Path $HagsPath)) { New-Item -Path $HagsPath -Force | Out-Null }
+    try {
+        $HagsPath = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
+        if (-not (Test-Path $HagsPath)) { New-Item -Path $HagsPath -Force | Out-Null }
 
-Set-ItemProperty -Path $HagsPath -Name "HwSchMode" -Value 2 -Type DWord -Force
-Write-Host "  [OK] HAGS enabled (HwSchMode = 2)." -ForegroundColor Green
-Write-Host "  [TIP] If you have 8GB VRAM or less and experience stutters, disable via:" -ForegroundColor DarkGray
-Write-Host "         Settings > Display > Graphics > Change default graphics settings" -ForegroundColor DarkGray
+        Set-ItemProperty -Path $HagsPath -Name "HwSchMode" -Value 2 -Type DWord -Force
+        Write-Host "  [OK] HAGS enabled (HwSchMode = 2)." -ForegroundColor Green
+        Write-Host "  [TIP] If you have 8GB VRAM or less and experience stutters, disable via:" -ForegroundColor DarkGray
+        Write-Host "         Settings > Display > Graphics > Change default graphics settings" -ForegroundColor DarkGray
+        Write-Host "[SQ_OK:HAGS]"
+    } catch {
+        Write-Host "  [FAIL] HAGS: $_" -ForegroundColor Red
+        Write-Host "[SQ_FAIL:HAGS]"
+    }
+}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -121,34 +150,41 @@ Write-Host "         Settings > Display > Graphics > Change default graphics set
 #      to prioritize the game. Should be ON for single-monitor gaming setups.
 # ─────────────────────────────────────────────────────────────────────────────
 
-Write-Host ""
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-Write-Host "[3/9] WINDOWS GAME MODE" -ForegroundColor White
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+if ($env:SKIP_GAME_MODE -eq '1') {
+    Write-Host "[3/9] GAME MODE — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[SQ_SKIP:GAME_MODE]"
+} else {
+    Write-Host ""
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "[3/9] WINDOWS GAME MODE" -ForegroundColor White
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
-$GameBarPath = "HKCU:\Software\Microsoft\GameBar"
-if (-not (Test-Path $GameBarPath)) { New-Item -Path $GameBarPath -Force | Out-Null }
+    try {
+        $GameBarPath = "HKCU:\Software\Microsoft\GameBar"
+        if (-not (Test-Path $GameBarPath)) { New-Item -Path $GameBarPath -Force | Out-Null }
 
-# Enable Game Mode (focuses CPU/GPU resources on the game process)
-Set-ItemProperty -Path $GameBarPath -Name "AllowAutoGameMode" -Value 1 -Type DWord -Force
-Set-ItemProperty -Path $GameBarPath -Name "AutoGameModeEnabled" -Value 1 -Type DWord -Force
+        Set-ItemProperty -Path $GameBarPath -Name "AllowAutoGameMode" -Value 1 -Type DWord -Force
+        Set-ItemProperty -Path $GameBarPath -Name "AutoGameModeEnabled" -Value 1 -Type DWord -Force
+        Set-ItemProperty -Path $GameBarPath -Name "UseNexusForGameBarEnabled" -Value 0 -Type DWord -Force
 
-# Disable Xbox Game Bar overlay (reduces background overhead and accidental activation)
-# Game Bar overlay adds ~10-30ms of overhead and can cause frame drops when triggered
-Set-ItemProperty -Path $GameBarPath -Name "UseNexusForGameBarEnabled" -Value 0 -Type DWord -Force
-$GameBarPolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"
-if (-not (Test-Path $GameBarPolicyPath)) { New-Item -Path $GameBarPolicyPath -Force | Out-Null }
-Set-ItemProperty -Path $GameBarPolicyPath -Name "AllowGameDVR" -Value 0 -Type DWord -Force
+        $GameBarPolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"
+        if (-not (Test-Path $GameBarPolicyPath)) { New-Item -Path $GameBarPolicyPath -Force | Out-Null }
+        Set-ItemProperty -Path $GameBarPolicyPath -Name "AllowGameDVR" -Value 0 -Type DWord -Force
 
-# Disable Game DVR / background recording (significant CPU/GPU overhead when active)
-$GameDVRPath = "HKCU:\System\GameConfigStore"
-if (-not (Test-Path $GameDVRPath)) { New-Item -Path $GameDVRPath -Force | Out-Null }
-Set-ItemProperty -Path $GameDVRPath -Name "GameDVR_Enabled" -Value 0 -Type DWord -Force
+        $GameDVRPath = "HKCU:\System\GameConfigStore"
+        if (-not (Test-Path $GameDVRPath)) { New-Item -Path $GameDVRPath -Force | Out-Null }
+        Set-ItemProperty -Path $GameDVRPath -Name "GameDVR_Enabled" -Value 0 -Type DWord -Force
 
-Write-Host "  [OK] Game Mode enabled." -ForegroundColor Green
-Write-Host "  [OK] Xbox Game Bar overlay disabled." -ForegroundColor Green
-Write-Host "  [OK] Game DVR / background recording disabled." -ForegroundColor Green
-Write-Host "  [TIP] These can also be toggled in: Settings > Gaming" -ForegroundColor DarkGray
+        Write-Host "  [OK] Game Mode enabled." -ForegroundColor Green
+        Write-Host "  [OK] Xbox Game Bar overlay disabled." -ForegroundColor Green
+        Write-Host "  [OK] Game DVR / background recording disabled." -ForegroundColor Green
+        Write-Host "  [TIP] These can also be toggled in: Settings > Gaming" -ForegroundColor DarkGray
+        Write-Host "[SQ_OK:GAME_MODE]"
+    } catch {
+        Write-Host "  [FAIL] Game Mode: $_" -ForegroundColor Red
+        Write-Host "[SQ_FAIL:GAME_MODE]"
+    }
+}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -159,34 +195,42 @@ Write-Host "  [TIP] These can also be toggled in: Settings > Gaming" -Foreground
 #      Values below 10 are auto-rounded up to 20 by Windows, so 10 is optimal.
 # ─────────────────────────────────────────────────────────────────────────────
 
-Write-Host ""
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-Write-Host "[4/9] MULTIMEDIA SCHEDULER & SYSTEM RESPONSIVENESS" -ForegroundColor White
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+if ($env:SKIP_MMCSS -eq '1') {
+    Write-Host "[4/9] MMCSS — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[SQ_SKIP:MMCSS]"
+} else {
+    Write-Host ""
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "[4/9] MULTIMEDIA SCHEDULER & SYSTEM RESPONSIVENESS" -ForegroundColor White
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
-$ProfilePath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
-$GamesTaskPath = "$ProfilePath\Tasks\Games"
+    try {
+        $ProfilePath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
+        $GamesTaskPath = "$ProfilePath\Tasks\Games"
 
-if (-not (Test-Path $ProfilePath)) { New-Item -Path $ProfilePath -Force | Out-Null }
-if (-not (Test-Path $GamesTaskPath)) { New-Item -Path $GamesTaskPath -Force | Out-Null }
+        if (-not (Test-Path $ProfilePath)) { New-Item -Path $ProfilePath -Force | Out-Null }
+        if (-not (Test-Path $GamesTaskPath)) { New-Item -Path $GamesTaskPath -Force | Out-Null }
 
-# SystemResponsiveness: 10 = allocate 90% of CPU cycles to games (min value OS honors)
-Set-ItemProperty -Path $ProfilePath -Name "SystemResponsiveness" -Value 10 -Type DWord -Force
-# NetworkThrottlingIndex: 0xFFFFFFFF = disable multimedia network throttling limit
-Set-ItemProperty -Path $ProfilePath -Name "NetworkThrottlingIndex" -Value 0xFFFFFFFF -Type DWord -Force
+        Set-ItemProperty -Path $ProfilePath -Name "SystemResponsiveness" -Value 10 -Type DWord -Force
+        Set-ItemProperty -Path $ProfilePath -Name "NetworkThrottlingIndex" -Value 0xFFFFFFFF -Type DWord -Force
 
-# Games task profile settings
-Set-ItemProperty -Path $GamesTaskPath -Name "Affinity"             -Value 0          -Type DWord -Force
-Set-ItemProperty -Path $GamesTaskPath -Name "Background Only"      -Value "False"     -Type String -Force
-Set-ItemProperty -Path $GamesTaskPath -Name "Clock Rate"           -Value 10000       -Type DWord -Force
-Set-ItemProperty -Path $GamesTaskPath -Name "GPU Priority"         -Value 8          -Type DWord -Force
-Set-ItemProperty -Path $GamesTaskPath -Name "Priority"             -Value 6          -Type DWord -Force
-Set-ItemProperty -Path $GamesTaskPath -Name "Scheduling Category"  -Value "High"      -Type String -Force
-Set-ItemProperty -Path $GamesTaskPath -Name "SFIO Priority"        -Value "High"      -Type String -Force
+        Set-ItemProperty -Path $GamesTaskPath -Name "Affinity"             -Value 0          -Type DWord -Force
+        Set-ItemProperty -Path $GamesTaskPath -Name "Background Only"      -Value "False"     -Type String -Force
+        Set-ItemProperty -Path $GamesTaskPath -Name "Clock Rate"           -Value 10000       -Type DWord -Force
+        Set-ItemProperty -Path $GamesTaskPath -Name "GPU Priority"         -Value 8          -Type DWord -Force
+        Set-ItemProperty -Path $GamesTaskPath -Name "Priority"             -Value 6          -Type DWord -Force
+        Set-ItemProperty -Path $GamesTaskPath -Name "Scheduling Category"  -Value "High"      -Type String -Force
+        Set-ItemProperty -Path $GamesTaskPath -Name "SFIO Priority"        -Value "High"      -Type String -Force
 
-Write-Host "  [OK] SystemResponsiveness set to 10 (90% CPU to games)." -ForegroundColor Green
-Write-Host "  [OK] NetworkThrottlingIndex disabled (0xFFFFFFFF)." -ForegroundColor Green
-Write-Host "  [OK] MMCSS Games task: Scheduling Category=High, GPU Priority=8." -ForegroundColor Green
+        Write-Host "  [OK] SystemResponsiveness set to 10 (90% CPU to games)." -ForegroundColor Green
+        Write-Host "  [OK] NetworkThrottlingIndex disabled (0xFFFFFFFF)." -ForegroundColor Green
+        Write-Host "  [OK] MMCSS Games task: Scheduling Category=High, GPU Priority=8." -ForegroundColor Green
+        Write-Host "[SQ_OK:MMCSS]"
+    } catch {
+        Write-Host "  [FAIL] MMCSS: $_" -ForegroundColor Red
+        Write-Host "[SQ_FAIL:MMCSS]"
+    }
+}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -197,42 +241,48 @@ Write-Host "  [OK] MMCSS Games task: Scheduling Category=High, GPU Priority=8." 
 #      NetworkThrottlingIndex removal ensures full bandwidth for game traffic.
 # ─────────────────────────────────────────────────────────────────────────────
 
-Write-Host ""
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-Write-Host "[5/9] NETWORK OPTIMIZATION (Nagle's Algorithm + Latency)" -ForegroundColor White
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-
-$TcpipInterfacesPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces"
-
-if (Test-Path $TcpipInterfacesPath) {
-    $interfaces = Get-ChildItem -Path $TcpipInterfacesPath
-    $patchedCount = 0
-
-    foreach ($iface in $interfaces) {
-        # Only patch interfaces that have an assigned IP (active adapters)
-        $ipAddr = (Get-ItemProperty -Path $iface.PSPath -Name "DhcpIPAddress" -ErrorAction SilentlyContinue)?.DhcpIPAddress
-        $staticIp = (Get-ItemProperty -Path $iface.PSPath -Name "IPAddress" -ErrorAction SilentlyContinue)?.IPAddress
-
-        if ($ipAddr -or $staticIp) {
-            # TcpAckFrequency = 1: Send ACK for every packet (disables Nagle batching)
-            Set-ItemProperty -Path $iface.PSPath -Name "TcpAckFrequency" -Value 1 -Type DWord -Force
-            # TCPNoDelay = 1: Disable Nagle's Algorithm (send data immediately)
-            Set-ItemProperty -Path $iface.PSPath -Name "TCPNoDelay" -Value 1 -Type DWord -Force
-            $patchedCount++
-        }
-    }
-
-    Write-Host "  [OK] Nagle's Algorithm disabled on $patchedCount active network interface(s)." -ForegroundColor Green
+if ($env:SKIP_NETWORK -eq '1') {
+    Write-Host "[5/9] NETWORK — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[SQ_SKIP:NETWORK]"
 } else {
-    Write-Host "  [WARN] Could not find TCP/IP interfaces registry key. Skipping." -ForegroundColor Yellow
-}
+    Write-Host ""
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "[5/9] NETWORK OPTIMIZATION (Nagle's Algorithm + Latency)" -ForegroundColor White
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
-# Global TCP parameters for gaming
-$TcpParamsPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
-if (Test-Path $TcpParamsPath) {
-    # DefaultTTL: 64 is standard for gaming (reduces hop processing overhead)
-    Set-ItemProperty -Path $TcpParamsPath -Name "DefaultTTL" -Value 64 -Type DWord -Force
-    Write-Host "  [OK] DefaultTTL set to 64." -ForegroundColor Green
+    try {
+        $TcpipInterfacesPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces"
+
+        if (Test-Path $TcpipInterfacesPath) {
+            $interfaces = Get-ChildItem -Path $TcpipInterfacesPath
+            $patchedCount = 0
+
+            foreach ($iface in $interfaces) {
+                $ipAddr = (Get-ItemProperty -Path $iface.PSPath -Name "DhcpIPAddress" -ErrorAction SilentlyContinue)?.DhcpIPAddress
+                $staticIp = (Get-ItemProperty -Path $iface.PSPath -Name "IPAddress" -ErrorAction SilentlyContinue)?.IPAddress
+
+                if ($ipAddr -or $staticIp) {
+                    Set-ItemProperty -Path $iface.PSPath -Name "TcpAckFrequency" -Value 1 -Type DWord -Force
+                    Set-ItemProperty -Path $iface.PSPath -Name "TCPNoDelay" -Value 1 -Type DWord -Force
+                    $patchedCount++
+                }
+            }
+
+            Write-Host "  [OK] Nagle's Algorithm disabled on $patchedCount active network interface(s)." -ForegroundColor Green
+        } else {
+            Write-Host "  [WARN] Could not find TCP/IP interfaces registry key. Skipping." -ForegroundColor Yellow
+        }
+
+        $TcpParamsPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
+        if (Test-Path $TcpParamsPath) {
+            Set-ItemProperty -Path $TcpParamsPath -Name "DefaultTTL" -Value 64 -Type DWord -Force
+            Write-Host "  [OK] DefaultTTL set to 64." -ForegroundColor Green
+        }
+        Write-Host "[SQ_OK:NETWORK]"
+    } catch {
+        Write-Host "  [FAIL] Network: $_" -ForegroundColor Red
+        Write-Host "[SQ_FAIL:NETWORK]"
+    }
 }
 
 
@@ -243,30 +293,39 @@ if (Test-Path $TcpParamsPath) {
 #      eliminates this background rendering overhead.
 # ─────────────────────────────────────────────────────────────────────────────
 
-Write-Host ""
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-Write-Host "[6/9] WINDOWS VISUAL EFFECTS (Best Performance)" -ForegroundColor White
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+if ($env:SKIP_VISUAL_FX -eq '1') {
+    Write-Host "[6/9] VISUAL FX — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[SQ_SKIP:VISUAL_FX]"
+} else {
+    Write-Host ""
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "[6/9] WINDOWS VISUAL EFFECTS (Best Performance)" -ForegroundColor White
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
-$VisualFXPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects"
-if (-not (Test-Path $VisualFXPath)) { New-Item -Path $VisualFXPath -Force | Out-Null }
-# VisualFXSetting: 2 = "Adjust for best performance" (disables most animations/effects)
-Set-ItemProperty -Path $VisualFXPath -Name "VisualFXSetting" -Value 2 -Type DWord -Force
+    try {
+        $VisualFXPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects"
+        if (-not (Test-Path $VisualFXPath)) { New-Item -Path $VisualFXPath -Force | Out-Null }
+        Set-ItemProperty -Path $VisualFXPath -Name "VisualFXSetting" -Value 2 -Type DWord -Force
 
-# Additional animation/transparency toggles
-$DWMPath = "HKCU:\Software\Microsoft\Windows\DWM"
-if (-not (Test-Path $DWMPath)) { New-Item -Path $DWMPath -Force | Out-Null }
-Set-ItemProperty -Path $DWMPath -Name "EnableAeroPeek" -Value 0 -Type DWord -Force
+        $DWMPath = "HKCU:\Software\Microsoft\Windows\DWM"
+        if (-not (Test-Path $DWMPath)) { New-Item -Path $DWMPath -Force | Out-Null }
+        Set-ItemProperty -Path $DWMPath -Name "EnableAeroPeek" -Value 0 -Type DWord -Force
 
-$PersonalizePath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-if (-not (Test-Path $PersonalizePath)) { New-Item -Path $PersonalizePath -Force | Out-Null }
-Set-ItemProperty -Path $PersonalizePath -Name "EnableTransparency" -Value 0 -Type DWord -Force
+        $PersonalizePath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+        if (-not (Test-Path $PersonalizePath)) { New-Item -Path $PersonalizePath -Force | Out-Null }
+        Set-ItemProperty -Path $PersonalizePath -Name "EnableTransparency" -Value 0 -Type DWord -Force
 
-Write-Host "  [OK] Visual effects set to Best Performance mode." -ForegroundColor Green
-Write-Host "  [OK] Aero Peek disabled." -ForegroundColor Green
-Write-Host "  [OK] Window transparency disabled." -ForegroundColor Green
-Write-Host "  [TIP] To restore: Right-click My Computer > Properties > Advanced >" -ForegroundColor DarkGray
-Write-Host "         Performance Settings > Visual Effects > Let Windows choose" -ForegroundColor DarkGray
+        Write-Host "  [OK] Visual effects set to Best Performance mode." -ForegroundColor Green
+        Write-Host "  [OK] Aero Peek disabled." -ForegroundColor Green
+        Write-Host "  [OK] Window transparency disabled." -ForegroundColor Green
+        Write-Host "  [TIP] To restore: Right-click My Computer > Properties > Advanced >" -ForegroundColor DarkGray
+        Write-Host "         Performance Settings > Visual Effects > Let Windows choose" -ForegroundColor DarkGray
+        Write-Host "[SQ_OK:VISUAL_FX]"
+    } catch {
+        Write-Host "  [FAIL] Visual FX: $_" -ForegroundColor Red
+        Write-Host "[SQ_FAIL:VISUAL_FX]"
+    }
+}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -279,21 +338,32 @@ Write-Host "         Performance Settings > Visual Effects > Let Windows choose"
 #      Per-game overrides are handled in individual game scripts.
 # ─────────────────────────────────────────────────────────────────────────────
 
-Write-Host ""
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-Write-Host "[7/9] FULLSCREEN OPTIMIZATIONS (Global Disable)" -ForegroundColor White
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+if ($env:SKIP_FULLSCREEN -eq '1') {
+    Write-Host "[7/9] FULLSCREEN — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[SQ_SKIP:FULLSCREEN]"
+} else {
+    Write-Host ""
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "[7/9] FULLSCREEN OPTIMIZATIONS (Global Disable)" -ForegroundColor White
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
-$AppCompatPath = "HKCU:\System\GameConfigStore"
-if (-not (Test-Path $AppCompatPath)) { New-Item -Path $AppCompatPath -Force | Out-Null }
-Set-ItemProperty -Path $AppCompatPath -Name "GameDVR_FSEBehaviorMode" -Value 2 -Type DWord -Force
-Set-ItemProperty -Path $AppCompatPath -Name "GameDVR_HonorUserFSEBehaviorMode" -Value 1 -Type DWord -Force
-Set-ItemProperty -Path $AppCompatPath -Name "GameDVR_DXGIHonorFSEWindowsCompatible" -Value 1 -Type DWord -Force
-Set-ItemProperty -Path $AppCompatPath -Name "GameDVR_EFSEBehaviorMode" -Value 2 -Type DWord -Force
+    try {
+        $AppCompatPath = "HKCU:\System\GameConfigStore"
+        if (-not (Test-Path $AppCompatPath)) { New-Item -Path $AppCompatPath -Force | Out-Null }
+        Set-ItemProperty -Path $AppCompatPath -Name "GameDVR_FSEBehaviorMode" -Value 2 -Type DWord -Force
+        Set-ItemProperty -Path $AppCompatPath -Name "GameDVR_HonorUserFSEBehaviorMode" -Value 1 -Type DWord -Force
+        Set-ItemProperty -Path $AppCompatPath -Name "GameDVR_DXGIHonorFSEWindowsCompatible" -Value 1 -Type DWord -Force
+        Set-ItemProperty -Path $AppCompatPath -Name "GameDVR_EFSEBehaviorMode" -Value 2 -Type DWord -Force
 
-Write-Host "  [OK] Fullscreen optimizations disabled globally." -ForegroundColor Green
-Write-Host "  [NOTE] Valorant may perform slightly better with FSO enabled." -ForegroundColor DarkGray
-Write-Host "  [NOTE] Per-game EXE overrides are set in individual game scripts." -ForegroundColor DarkGray
+        Write-Host "  [OK] Fullscreen optimizations disabled globally." -ForegroundColor Green
+        Write-Host "  [NOTE] Valorant may perform slightly better with FSO enabled." -ForegroundColor DarkGray
+        Write-Host "  [NOTE] Per-game EXE overrides are set in individual game scripts." -ForegroundColor DarkGray
+        Write-Host "[SQ_OK:FULLSCREEN]"
+    } catch {
+        Write-Host "  [FAIL] Fullscreen: $_" -ForegroundColor Red
+        Write-Host "[SQ_FAIL:FULLSCREEN]"
+    }
+}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -303,22 +373,31 @@ Write-Host "  [NOTE] Per-game EXE overrides are set in individual game scripts."
 #      memory consistency critical for competitive FPS aiming.
 # ─────────────────────────────────────────────────────────────────────────────
 
-Write-Host ""
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-Write-Host "[8/9] MOUSE ACCELERATION (Disable)" -ForegroundColor White
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+if ($env:SKIP_MOUSE -eq '1') {
+    Write-Host "[8/9] MOUSE — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[SQ_SKIP:MOUSE]"
+} else {
+    Write-Host ""
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "[8/9] MOUSE ACCELERATION (Disable)" -ForegroundColor White
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
-$MousePath = "HKCU:\Control Panel\Mouse"
-if (-not (Test-Path $MousePath)) { New-Item -Path $MousePath -Force | Out-Null }
-# MouseSpeed = 0: Disable enhanced pointer precision (mouse acceleration)
-# MouseThreshold1 & 2 = 0: Disable double/quadruple speed thresholds
-Set-ItemProperty -Path $MousePath -Name "MouseSpeed"      -Value "0" -Type String -Force
-Set-ItemProperty -Path $MousePath -Name "MouseThreshold1" -Value "0" -Type String -Force
-Set-ItemProperty -Path $MousePath -Name "MouseThreshold2" -Value "0" -Type String -Force
+    try {
+        $MousePath = "HKCU:\Control Panel\Mouse"
+        if (-not (Test-Path $MousePath)) { New-Item -Path $MousePath -Force | Out-Null }
+        Set-ItemProperty -Path $MousePath -Name "MouseSpeed"      -Value "0" -Type String -Force
+        Set-ItemProperty -Path $MousePath -Name "MouseThreshold1" -Value "0" -Type String -Force
+        Set-ItemProperty -Path $MousePath -Name "MouseThreshold2" -Value "0" -Type String -Force
 
-Write-Host "  [OK] Mouse acceleration (Enhance Pointer Precision) disabled." -ForegroundColor Green
-Write-Host "  [TIP] Also verify in: Control Panel > Mouse > Pointer Options >" -ForegroundColor DarkGray
-Write-Host "         Uncheck 'Enhance pointer precision'" -ForegroundColor DarkGray
+        Write-Host "  [OK] Mouse acceleration (Enhance Pointer Precision) disabled." -ForegroundColor Green
+        Write-Host "  [TIP] Also verify in: Control Panel > Mouse > Pointer Options >" -ForegroundColor DarkGray
+        Write-Host "         Uncheck 'Enhance pointer precision'" -ForegroundColor DarkGray
+        Write-Host "[SQ_OK:MOUSE]"
+    } catch {
+        Write-Host "  [FAIL] Mouse: $_" -ForegroundColor Red
+        Write-Host "[SQ_FAIL:MOUSE]"
+    }
+}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -328,26 +407,33 @@ Write-Host "         Uncheck 'Enhance pointer precision'" -ForegroundColor DarkG
 #      Disabling CPU C-States (deep sleep) prevents wake latency spikes.
 # ─────────────────────────────────────────────────────────────────────────────
 
-Write-Host ""
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
-Write-Host "[9/9] CPU POWER STATES & ADDITIONAL TWEAKS" -ForegroundColor White
-Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+if ($env:SKIP_CPU_POWER -eq '1') {
+    Write-Host "[9/9] CPU POWER — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[SQ_SKIP:CPU_POWER]"
+} else {
+    Write-Host ""
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "[9/9] CPU POWER STATES & ADDITIONAL TWEAKS" -ForegroundColor White
+    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
 
-# Set minimum processor state to 100% on the Ultimate Performance plan
-# This prevents CPU from downclocking when a new frame burst starts
-$UltimatePerfGUID = "e9a42b02-d5df-448d-aa00-03f14749eb61"
-powercfg /setacvalueindex $UltimatePerfGUID SUB_PROCESSOR PROCTHROTTLEMIN 100
-powercfg /setactive $UltimatePerfGUID
+    try {
+        $UltimatePerfGUID = "e9a42b02-d5df-448d-aa00-03f14749eb61"
+        powercfg /setacvalueindex $UltimatePerfGUID SUB_PROCESSOR PROCTHROTTLEMIN 100
+        powercfg /setactive $UltimatePerfGUID
 
-# Disable USB Selective Suspend (prevents mouse/keyboard latency spikes from USB power saving)
-powercfg /setacvalueindex $UltimatePerfGUID 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
+        powercfg /setacvalueindex $UltimatePerfGUID 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
 
-# Disable hibernation to free pagefile space and reduce wake delay
-powercfg /hibernate off
+        powercfg /hibernate off
 
-Write-Host "  [OK] CPU minimum state set to 100% (no downclocking mid-game)." -ForegroundColor Green
-Write-Host "  [OK] USB Selective Suspend disabled (prevents input latency spikes)." -ForegroundColor Green
-Write-Host "  [OK] Hibernation disabled." -ForegroundColor Green
+        Write-Host "  [OK] CPU minimum state set to 100% (no downclocking mid-game)." -ForegroundColor Green
+        Write-Host "  [OK] USB Selective Suspend disabled (prevents input latency spikes)." -ForegroundColor Green
+        Write-Host "  [OK] Hibernation disabled." -ForegroundColor Green
+        Write-Host "[SQ_OK:CPU_POWER]"
+    } catch {
+        Write-Host "  [FAIL] CPU Power: $_" -ForegroundColor Red
+        Write-Host "[SQ_FAIL:CPU_POWER]"
+    }
+}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -356,16 +442,20 @@ Write-Host "  [OK] Hibernation disabled." -ForegroundColor Green
 
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Green
-Write-Host "  ALL WINDOWS OPTIMIZATIONS APPLIED SUCCESSFULLY" -ForegroundColor Green
+Write-Host "  WINDOWS OPTIMIZATIONS COMPLETE" -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  NEXT STEPS:" -ForegroundColor White
-Write-Host "  1. Run the per-game scripts for BO7/Fortnite/Valorant/CS2/Arc Raiders" -ForegroundColor White
-Write-Host "  2. Apply NVIDIA/AMD Control Panel settings manually (see README)" -ForegroundColor White
-Write-Host "  3. REBOOT your PC for all changes to fully take effect" -ForegroundColor White
-Write-Host ""
+if (-not $Headless) {
+    Write-Host "  NEXT STEPS:" -ForegroundColor White
+    Write-Host "  1. Run the per-game scripts for BO7/Fortnite/Valorant/CS2/Arc Raiders" -ForegroundColor White
+    Write-Host "  2. Apply NVIDIA/AMD Control Panel settings manually (see README)" -ForegroundColor White
+    Write-Host "  3. REBOOT your PC for all changes to fully take effect" -ForegroundColor White
+    Write-Host ""
+}
 Write-Host "  BACKUP LOCATION:" -ForegroundColor Yellow
 Write-Host "  $BackupDir" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "  To restore ALL settings: run the .reg files in the backup folder." -ForegroundColor DarkGray
-Write-Host ""
+if (-not $Headless) {
+    Write-Host "  To restore ALL settings: run the .reg files in the backup folder." -ForegroundColor DarkGray
+    Write-Host ""
+}

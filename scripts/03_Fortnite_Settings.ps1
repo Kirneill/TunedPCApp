@@ -25,14 +25,23 @@
     section below before running this script.
 #>
 
-# ─── USER CONFIGURATION - EDIT THESE VALUES ──────────────────────────────────
-# Set these to match YOUR monitor specs before running
+# ─── HEADLESS MODE ────────────────────────────────────────────────────────────
+$Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
 
-$MonitorWidth     = 1920   # Your monitor width  (e.g., 1920, 2560, 1280)
-$MonitorHeight    = 1080   # Your monitor height (e.g., 1080, 1440, 720)
-$MonitorRefresh   = 240    # Your monitor refresh rate in Hz (e.g., 144, 165, 240, 360)
-$FrameRateLimit   = 237    # Cap FPS at RefreshRate - 3 for frame stability
-                            # Example: 240Hz monitor = 237 cap, 144Hz = 141 cap
+# ─── USER CONFIGURATION - EDIT THESE VALUES ──────────────────────────────────
+# When run from SENSEQUALITY app, these are overridden by environment variables.
+# When run standalone, edit the values below.
+
+if ($Headless -and $env:MONITOR_WIDTH) {
+    $MonitorWidth   = [int]$env:MONITOR_WIDTH
+    $MonitorHeight  = [int]$env:MONITOR_HEIGHT
+    $MonitorRefresh = [int]$env:MONITOR_REFRESH
+} else {
+    $MonitorWidth     = 1920   # Your monitor width  (e.g., 1920, 2560, 1280)
+    $MonitorHeight    = 1080   # Your monitor height (e.g., 1080, 1440, 720)
+    $MonitorRefresh   = 240    # Your monitor refresh rate in Hz (e.g., 144, 165, 240, 360)
+}
+$FrameRateLimit   = $MonitorRefresh - 3    # Cap FPS at RefreshRate - 3 for frame stability
 # ─────────────────────────────────────────────────────────────────────────────
 
 Write-Host "======================================================" -ForegroundColor Cyan
