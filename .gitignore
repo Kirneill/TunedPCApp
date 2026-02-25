@@ -6,3 +6,4 @@ release/
 .env
 test_*.js
 package_test.json
+scripts/
