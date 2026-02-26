@@ -3,6 +3,12 @@ name: Mirror release assets to public repo
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing private release tag to mirror (for example: v1.0.5)"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -15,7 +21,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_REPO: ${{ github.repository }}
-          TAG_NAME: ${{ github.event.release.tag_name }}
+          TAG_NAME: ${{ github.event.inputs.tag || github.event.release.tag_name }}
         run: |
           set -euo pipefail
           mkdir -p out
@@ -32,14 +38,32 @@ jobs:
             exit 1
           fi
 
+          # Ensure uploaded installer names match latest.yml path/url.
+          latest_file="$(find out -maxdepth 1 -type f -name 'latest*.yml' | head -n 1 || true)"
+          if [ -n "$latest_file" ]; then
+            expected_installer="$(awk -F': ' '$1=="path"{print $2; exit}' "$latest_file" | tr -d '\r')"
+            source_installer="$(find out -maxdepth 1 -type f -name '*.exe' ! -name '*.exe.blockmap' | head -n 1 || true)"
+            source_blockmap="$(find out -maxdepth 1 -type f -name '*.exe.blockmap' | head -n 1 || true)"
+
+            if [ -n "${expected_installer:-}" ] && [ -n "${source_installer:-}" ]; then
+              cp -f "$source_installer" "out/$expected_installer"
+
+              if [ -n "${source_blockmap:-}" ]; then
+                cp -f "$source_blockmap" "out/${expected_installer}.blockmap"
+              fi
+
+              # Keep only canonical installer names so update metadata and assets stay consistent.
+              find out -maxdepth 1 -type f -name '*.exe' ! -name "$expected_installer" -delete
+              find out -maxdepth 1 -type f -name '*.exe.blockmap' ! -name "${expected_installer}.blockmap" -delete
+            fi
+          fi
+
       - name: Create or update mirrored release in public repo
         env:
           GH_TOKEN: ${{ secrets.PUBLIC_RELEASES_PAT }}
+          SOURCE_REPO: ${{ github.repository }}
           TARGET_REPO: Kirneill/TunedPCApp
-          TAG_NAME: ${{ github.event.release.tag_name }}
-          RELEASE_NAME: ${{ github.event.release.name }}
-          RELEASE_BODY: ${{ github.event.release.body }}
-          IS_PRERELEASE: ${{ github.event.release.prerelease }}
+          TAG_NAME: ${{ github.event.inputs.tag || github.event.release.tag_name }}
         run: |
           set -euo pipefail
 
@@ -48,23 +72,29 @@ jobs:
             exit 1
           fi
 
+          release_name="$(gh release view "$TAG_NAME" --repo "$SOURCE_REPO" --json name --jq '.name // ""')"
+          is_prerelease="$(gh release view "$TAG_NAME" --repo "$SOURCE_REPO" --json isPrerelease --jq '.isPrerelease')"
           notes_file="$(mktemp)"
-          printf '%s\n' "${RELEASE_BODY:-}" > "$notes_file"
+          gh release view "$TAG_NAME" --repo "$SOURCE_REPO" --json body --jq '.body // ""' > "$notes_file"
 
           if gh release view "$TAG_NAME" --repo "$TARGET_REPO" >/dev/null 2>&1; then
-            gh release upload "$TAG_NAME" out/* --repo "$TARGET_REPO" --clobber
+            gh release view "$TAG_NAME" --repo "$TARGET_REPO" --json assets --jq '.assets[].name' | while IFS= read -r asset_name; do
+              [ -n "$asset_name" ] && gh release delete-asset "$TAG_NAME" "$asset_name" --repo "$TARGET_REPO" --yes
+            done
+
+            gh release upload "$TAG_NAME" out/* --repo "$TARGET_REPO"
             gh release edit "$TAG_NAME" --repo "$TARGET_REPO" \
-              --title "${RELEASE_NAME:-$TAG_NAME}" \
+              --title "${release_name:-$TAG_NAME}" \
               --notes-file "$notes_file"
           else
-            if [ "$IS_PRERELEASE" = "true" ]; then
+            if [ "$is_prerelease" = "true" ]; then
               gh release create "$TAG_NAME" out/* --repo "$TARGET_REPO" \
-                --title "${RELEASE_NAME:-$TAG_NAME}" \
+                --title "${release_name:-$TAG_NAME}" \
                 --notes-file "$notes_file" \
                 --prerelease
             else
               gh release create "$TAG_NAME" out/* --repo "$TARGET_REPO" \
-                --title "${RELEASE_NAME:-$TAG_NAME}" \
+                --title "${release_name:-$TAG_NAME}" \
                 --notes-file "$notes_file"
             fi
           fi

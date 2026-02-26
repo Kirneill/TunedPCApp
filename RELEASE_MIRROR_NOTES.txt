@@ -23,8 +23,17 @@ How it works
    - *.exe
    - *.exe.blockmap
    - latest*.yml
-4) Workflow creates/updates the same tag release in public repo:
+4) Workflow normalizes installer asset names to match latest.yml path values.
+5) Workflow creates/updates the same tag release in public repo:
    Kirneill/TunedPCApp
+
+Manual backfill / rerun
+-----------------------
+You can run the workflow manually for any existing tag:
+- Actions -> "Mirror release assets to public repo" -> Run workflow
+- Input "tag" (example: v1.0.5)
+
+This is useful for migrating older releases that existed before the workflow.
 
 One-time setup required
 -----------------------
@@ -52,6 +61,7 @@ Notes
 -----
 - Users still download only the installer .exe manually.
 - Auto-update uses latest.yml + blockmap files from the public release.
+- Public target repo must have at least one commit before GitHub can create releases.
 - If you rename owner/repo later, update:
   - .github/workflows/mirror-public-release.yml (TARGET_REPO)
   - electron-builder.yml (publish.owner/repo)
