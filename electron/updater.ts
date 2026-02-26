@@ -326,6 +326,23 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
     try {
       const fallbackInfo = await checkForUpdateViaGitHub();
       lastKnownUpdate = fallbackInfo;
+      if (fallbackInfo.hasUpdate) {
+        setUpdaterState({
+          status: 'available',
+          progress: 0,
+          latestVersion: fallbackInfo.latestVersion,
+          message: `Update v${fallbackInfo.latestVersion} available.`,
+          error: undefined,
+        });
+      } else {
+        setUpdaterState({
+          status: 'up-to-date',
+          progress: 100,
+          latestVersion: fallbackInfo.latestVersion,
+          message: `You're on the latest version (v${fallbackInfo.currentVersion}).`,
+          error: undefined,
+        });
+      }
       return fallbackInfo;
     } catch {
       return lastKnownUpdate;

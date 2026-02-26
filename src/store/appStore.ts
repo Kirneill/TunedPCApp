@@ -97,6 +97,33 @@ function loadPersistedConfig(userId?: string): Partial<{
   return {};
 }
 
+const DEFAULT_TOGGLES: Record<string, boolean> = {
+  'win-all': true,
+  'win-power-plan': true,
+  'win-hags': true,
+  'win-game-mode': true,
+  'win-mmcss': true,
+  'win-network': true,
+  'win-visual-fx': true,
+  'win-fullscreen': true,
+  'win-mouse': true,
+  'win-cpu-power': true,
+  'win-bg-apps': true,
+  'win-mpo': true,
+  'win-visual-extras': true,
+  'win-copilot': true,
+  'win-standard': true,
+  'game-blackops7': true,
+  'game-fortnite': true,
+  'game-valorant': true,
+  'game-cs2': true,
+  'game-arcraiders': true,
+};
+
+function normalizePersistedToggles(toggles?: Record<string, boolean>): Record<string, boolean> {
+  return { ...DEFAULT_TOGGLES, ...(toggles || {}) };
+}
+
 const persisted = loadPersistedConfig();
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -116,24 +143,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isLoading: true,
   currentPage: 'dashboard',
 
-  toggles: persisted.toggles || {
-    'win-all': true,
-    'win-power-plan': true,
-    'win-hags': true,
-    'win-game-mode': true,
-    'win-mmcss': true,
-    'win-network': true,
-    'win-visual-fx': true,
-    'win-fullscreen': true,
-    'win-mouse': true,
-    'win-cpu-power': true,
-    'win-standard': true,
-    'game-blackops7': true,
-    'game-fortnite': true,
-    'game-valorant': true,
-    'game-cs2': true,
-    'game-arcraiders': true,
-  },
+  toggles: normalizePersistedToggles(persisted.toggles),
   windowsUpdateMode: persisted.windowsUpdateMode || 'on',
 
   userConfig: persisted.userConfig || {
@@ -164,7 +174,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       storageUserId = user.id;
       // Reload config for this user
       const userConfig = loadPersistedConfig(user.id);
-      if (userConfig.toggles) set({ toggles: userConfig.toggles });
+      set({ toggles: normalizePersistedToggles(userConfig.toggles) });
       if (userConfig.userConfig) set({ userConfig: userConfig.userConfig });
       if (userConfig.windowsUpdateMode) set({ windowsUpdateMode: userConfig.windowsUpdateMode });
     } else {

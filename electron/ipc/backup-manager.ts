@@ -27,9 +27,9 @@ export async function listBackups(): Promise<BackupInfo[]> {
     for (const dir of backupDirs.sort().reverse()) {
       const fullPath = path.join(baseDir, dir);
       const files = fs.readdirSync(fullPath);
-      // Extract date from folder name: GamingOptimization_Backup_YYYY-MM-DD_HH-mm-ss
-      const dateMatch = dir.match(/Backup_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2})/);
-      const date = dateMatch ? dateMatch[1].replace('_', ' ') : 'Unknown';
+      // Supports both: GamingOptimization_Backup_YYYY-MM-DDTHH-mm-ss and _YYYY-MM-DD_HH-mm-ss
+      const dateMatch = dir.match(/Backup_(\d{4}-\d{2}-\d{2})[T_](\d{2}-\d{2}(?:-\d{2})?)/);
+      const date = dateMatch ? `${dateMatch[1]} ${dateMatch[2]}` : 'Unknown';
 
       backups.push({
         name: dir,

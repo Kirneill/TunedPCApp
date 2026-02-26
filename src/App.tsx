@@ -10,12 +10,13 @@ import ConsentModal from './components/ui/ConsentModal';
 import AuthGate from './components/auth/AuthGate';
 import MaxDevicesScreen from './components/auth/MaxDevicesScreen';
 import UpdateBanner from './components/ui/UpdateBanner';
+import appLogo from './assets/app-logo.ico';
 
 export default function App() {
   const {
     currentPage, authLoading, showAuthGate, showMaxDevices, isOffline,
     setAuthUser, setAuthLoading, setShowAuthGate, setShowMaxDevices,
-    setIsOffline, setMachines,
+    setIsOffline, setMachines, clearAuthState,
     setSystemInfo, setDetectedGames, setIsAdmin, setIsLoading,
     addLogEntry, setShowConsentModal, setTelemetryEnabled,
     setUpdateInfo, setUpdaterState,
@@ -43,9 +44,17 @@ export default function App() {
         os_build: sysInfo.osBuild,
       });
 
-      if (!regResult.success && regResult.reason === 'max_devices') {
-        setMachines(regResult.machines || []);
-        setShowMaxDevices(true);
+      if (!regResult.success) {
+        if (regResult.reason === 'max_devices') {
+          setMachines(regResult.machines || []);
+          setShowMaxDevices(true);
+          return;
+        }
+
+        try {
+          await window.sensequality.signOut();
+        } catch {}
+        clearAuthState();
         return;
       }
 
@@ -159,9 +168,7 @@ export default function App() {
         </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-sq-accent flex items-center justify-center text-lg font-bold text-white shadow-lg shadow-sq-accent/30">
-              SQ
-            </div>
+            <img src={appLogo} alt="SENSEQUALITY logo" className="w-12 h-12 rounded-xl shadow-lg shadow-sq-accent/30" />
             <svg className="w-6 h-6 animate-spin text-sq-accent" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />

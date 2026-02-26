@@ -68,7 +68,7 @@ export default function OptimizationSection({ title, items, icon }: Optimization
             <OptimizationToggle
               key={item.id}
               item={item}
-              checked={toggles[item.id] ?? true}
+              checked={toggles[item.id] ?? false}
               onChange={(val) => setToggle(item.id, val)}
               disabled={isRunning}
             />

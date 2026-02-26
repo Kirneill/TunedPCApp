@@ -61,29 +61,28 @@ if (-not $GameExe) {
     Write-Host "       Skipping EXE compatibility flags." -ForegroundColor Yellow
     Write-Host "       If installed in a custom location, set EXE flags manually:" -ForegroundColor Yellow
     Write-Host "       Right-click BlackOps7.exe > Properties > Compatibility >" -ForegroundColor Yellow
-    Write-Host "       Check 'Disable fullscreen optimizations'" -ForegroundColor Yellow
+    Write-Host "       Enable High DPI override for the executable" -ForegroundColor Yellow
 } else {
     Write-Host "[INFO] Found Black Ops 7 at: $GameExe" -ForegroundColor Green
 
     # ─────────────────────────────────────────────────────────────────────────
     # SECTION 2: EXE COMPATIBILITY FLAGS (Safe, OS-Level Only)
-    # WHY: Disabling fullscreen optimizations for the specific EXE ensures
-    #      true exclusive fullscreen mode, reducing latency by ~1 frame.
-    #      High DPI override prevents Windows scaling artifacts.
+    # WHY: Applies safe Windows compatibility flags for BO7.
+    #      High DPI override prevents scaling artifacts.
+    #      Theme disabling avoids extra OS visual injection overhead.
     # ─────────────────────────────────────────────────────────────────────────
 
     $AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
     if (-not (Test-Path $AppCompatLayers)) { New-Item -Path $AppCompatLayers -Force | Out-Null }
 
-    # DISABLETHEMES: Prevents Windows from injecting visual theme DLL into game process
-    # DISABLEDWM: Skips DWM composition check (handled by exclusive fullscreen)
+    # DISABLETHEMES: Prevents Windows from injecting visual theme DLL into the process
     # HIGHDPIAWARE: Lets game handle DPI rather than Windows scaling it
     Set-ItemProperty -Path $AppCompatLayers -Name $GameExe -Value "~ DISABLETHEMES HIGHDPIAWARE" -Type String -Force
     Write-Host "  [OK] EXE compatibility flags set (DPI-aware, themes disabled)." -ForegroundColor Green
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SECTION 3: DISABLE FULLSCREEN OPTIMIZATIONS FOR COD LAUNCHER
+# SECTION 3: APPLY DPI OVERRIDE FOR COD LAUNCHER
 # ─────────────────────────────────────────────────────────────────────────────
 
 $BattleNetExe = "C:\Program Files (x86)\Battle.net\Battle.net.exe"
