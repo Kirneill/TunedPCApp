@@ -1,0 +1,38 @@
+TUNEDPC APP END USER LICENSE AGREEMENT (EULA)
+==============================================
+
+By downloading, installing, or using this software, you agree to this EULA.
+
+1. Permitted Use
+You are granted a limited, non-exclusive, non-transferable license to download,
+install, and use this application for personal or business use.
+
+2. Source Code Rights
+No source code rights are granted. Access to, disclosure of, and rights in the
+source code are expressly withheld.
+
+3. Restrictions
+You may not, except where explicitly permitted by applicable law:
+- redistribute this software;
+- modify this software;
+- repackage this software;
+- reverse engineer, decompile, or disassemble this software.
+
+4. Ownership
+This software is licensed, not sold. All rights, title, and interest remain
+with SENSEQUALITY and its licensors.
+
+5. Disclaimer
+This software is provided "AS IS", without warranties of any kind, express or
+implied, including merchantability, fitness for a particular purpose, and
+non-infringement.
+
+6. Limitation of Liability
+To the maximum extent permitted by law, SENSEQUALITY is not liable for any
+indirect, incidental, special, consequential, or exemplary damages arising out
+of or related to use of this software.
+
+7. Changes to This EULA
+SENSEQUALITY may update this EULA in future versions. Continued use of the
+software after an update constitutes acceptance of the revised terms.
+

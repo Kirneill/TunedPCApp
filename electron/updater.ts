@@ -32,7 +32,7 @@ export interface UpdaterActionResult {
 }
 
 const GITHUB_OWNER = 'Kirneill';
-const GITHUB_REPO = 'sensequality-optimizer';
+const GITHUB_REPO = 'TunedPCApp';
 const RELEASES_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`;
 
 let getMainWindow: (() => BrowserWindow | null) | null = null;

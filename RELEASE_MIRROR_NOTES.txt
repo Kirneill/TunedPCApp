@@ -1,0 +1,58 @@
+Release Mirroring (Private Source Repo -> Public Binaries Repo)
+==============================================================
+
+Goal
+----
+Keep source code private in this repo, while publishing install/update assets to:
+Kirneill/TunedPCApp (public)
+
+What was configured
+-------------------
+1) Workflow file:
+   .github/workflows/mirror-public-release.yml
+
+2) Updater target changed to public binaries repo:
+   - electron-builder.yml (publish.repo = TunedPCApp)
+   - electron/updater.ts (GITHUB_REPO = TunedPCApp)
+
+How it works
+------------
+1) You publish a release in this private repo (same process you already use).
+2) GitHub Actions triggers on release event: "published".
+3) Workflow downloads only updater assets from the private release:
+   - *.exe
+   - *.exe.blockmap
+   - latest*.yml
+4) Workflow creates/updates the same tag release in public repo:
+   Kirneill/TunedPCApp
+
+One-time setup required
+-----------------------
+Create a fine-grained GitHub Personal Access Token and store it in THIS private repo:
+
+Secret name:
+PUBLIC_RELEASES_PAT
+
+Token permissions needed (for repo Kirneill/TunedPCApp):
+- Contents: Read and write
+
+GitHub path:
+Private repo -> Settings -> Secrets and variables -> Actions -> New repository secret
+
+Release checklist each time
+---------------------------
+1) Build/package app as usual.
+2) Create/publish release in this private repo with assets attached.
+3) Confirm Action run succeeded:
+   Actions -> "Mirror release assets to public repo"
+4) Confirm assets exist in:
+   https://github.com/Kirneill/TunedPCApp/releases
+
+Notes
+-----
+- Users still download only the installer .exe manually.
+- Auto-update uses latest.yml + blockmap files from the public release.
+- If you rename owner/repo later, update:
+  - .github/workflows/mirror-public-release.yml (TARGET_REPO)
+  - electron-builder.yml (publish.owner/repo)
+  - electron/updater.ts (GITHUB_OWNER/GITHUB_REPO)

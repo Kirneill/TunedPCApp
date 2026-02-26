@@ -20,6 +20,8 @@ extraResources:
       - "!testimages/**"
       - "!RUN_AS_ADMIN.bat"
       - "!00_MASTER_RUN_ALL.ps1"
+  - from: EULA.txt
+    to: EULA.txt
 
 win:
   target: nsis
@@ -32,8 +34,9 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   shortcutName: SENSEQUALITY Optimizer
+  license: EULA.txt
 
 publish:
   provider: github
   owner: Kirneill
-  repo: sensequality-optimizer
+  repo: TunedPCApp

@@ -1,0 +1,70 @@
+name: Mirror release assets to public repo
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release assets from private repo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_REPO: ${{ github.repository }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+
+          gh release download "$TAG_NAME" \
+            --repo "$SOURCE_REPO" \
+            --dir out \
+            --pattern "*.exe" \
+            --pattern "*.exe.blockmap" \
+            --pattern "latest*.yml"
+
+          if ! find out -maxdepth 1 -type f | grep -q .; then
+            echo "No matching assets found to mirror."
+            exit 1
+          fi
+
+      - name: Create or update mirrored release in public repo
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_RELEASES_PAT }}
+          TARGET_REPO: Kirneill/TunedPCApp
+          TAG_NAME: ${{ github.event.release.tag_name }}
+          RELEASE_NAME: ${{ github.event.release.name }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+          IS_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "Missing required secret: PUBLIC_RELEASES_PAT"
+            exit 1
+          fi
+
+          notes_file="$(mktemp)"
+          printf '%s\n' "${RELEASE_BODY:-}" > "$notes_file"
+
+          if gh release view "$TAG_NAME" --repo "$TARGET_REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" out/* --repo "$TARGET_REPO" --clobber
+            gh release edit "$TAG_NAME" --repo "$TARGET_REPO" \
+              --title "${RELEASE_NAME:-$TAG_NAME}" \
+              --notes-file "$notes_file"
+          else
+            if [ "$IS_PRERELEASE" = "true" ]; then
+              gh release create "$TAG_NAME" out/* --repo "$TARGET_REPO" \
+                --title "${RELEASE_NAME:-$TAG_NAME}" \
+                --notes-file "$notes_file" \
+                --prerelease
+            else
+              gh release create "$TAG_NAME" out/* --repo "$TARGET_REPO" \
+                --title "${RELEASE_NAME:-$TAG_NAME}" \
+                --notes-file "$notes_file"
+            fi
+          fi

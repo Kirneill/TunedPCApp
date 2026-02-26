@@ -10,7 +10,7 @@
     "launch": "node -e \"delete process.env.ELECTRON_RUN_AS_NODE; require('child_process').spawn(require('electron'), ['.'], {stdio:'inherit',env:process.env}).on('exit',c=>process.exit(c||0))\""
   },
   "author": "SENSEQUALITY",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "dependencies": {
     "@rollup/rollup-win32-x64-msvc": "^4.59.0",
     "@supabase/supabase-js": "^2.97.0",
