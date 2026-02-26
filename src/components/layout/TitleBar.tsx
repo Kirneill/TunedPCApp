@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../../store/appStore';
+import appLogo from '../../assets/app-logo.ico';
 
 type Page = 'dashboard' | 'advanced' | 'bios-guide' | 'gpu-guide' | 'backups';
 
@@ -53,10 +54,8 @@ export default function TitleBar() {
       {/* Logo */}
       <div className="flex items-center gap-3 no-drag">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded bg-sq-accent flex items-center justify-center text-[10px] font-bold text-white tracking-tight">
-            SQ
-          </div>
-          <span className="text-sm font-bold text-sq-text tracking-wide">SENSEQUALITY</span>
+          <img src={appLogo} alt="TUNEDPC by SENSEQUALITY.com logo" className="w-6 h-6 rounded" />
+          <span className="text-[11px] font-bold text-sq-text tracking-[0.02em]">TUNEDPC by SENSEQUALITY.com</span>
         </div>
       </div>
 
