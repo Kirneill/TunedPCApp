@@ -60,40 +60,41 @@ jobs:
 
       - name: Create or update mirrored release in public repo
         env:
-          GH_TOKEN: ${{ secrets.PUBLIC_RELEASES_PAT }}
+          SOURCE_GH_TOKEN: ${{ github.token }}
+          TARGET_GH_TOKEN: ${{ secrets.PUBLIC_RELEASES_PAT }}
           SOURCE_REPO: ${{ github.repository }}
           TARGET_REPO: Kirneill/TunedPCApp
           TAG_NAME: ${{ github.event.inputs.tag || github.event.release.tag_name }}
         run: |
           set -euo pipefail
 
-          if [ -z "${GH_TOKEN:-}" ]; then
+          if [ -z "${TARGET_GH_TOKEN:-}" ]; then
             echo "Missing required secret: PUBLIC_RELEASES_PAT"
             exit 1
           fi
 
-          release_name="$(gh release view "$TAG_NAME" --repo "$SOURCE_REPO" --json name --jq '.name // ""')"
-          is_prerelease="$(gh release view "$TAG_NAME" --repo "$SOURCE_REPO" --json isPrerelease --jq '.isPrerelease')"
+          release_name="$(GH_TOKEN="$SOURCE_GH_TOKEN" gh release view "$TAG_NAME" --repo "$SOURCE_REPO" --json name --jq '.name // ""')"
+          is_prerelease="$(GH_TOKEN="$SOURCE_GH_TOKEN" gh release view "$TAG_NAME" --repo "$SOURCE_REPO" --json isPrerelease --jq '.isPrerelease')"
           notes_file="$(mktemp)"
-          gh release view "$TAG_NAME" --repo "$SOURCE_REPO" --json body --jq '.body // ""' > "$notes_file"
+          GH_TOKEN="$SOURCE_GH_TOKEN" gh release view "$TAG_NAME" --repo "$SOURCE_REPO" --json body --jq '.body // ""' > "$notes_file"
 
-          if gh release view "$TAG_NAME" --repo "$TARGET_REPO" >/dev/null 2>&1; then
-            gh release view "$TAG_NAME" --repo "$TARGET_REPO" --json assets --jq '.assets[].name' | while IFS= read -r asset_name; do
-              [ -n "$asset_name" ] && gh release delete-asset "$TAG_NAME" "$asset_name" --repo "$TARGET_REPO" --yes
+          if GH_TOKEN="$TARGET_GH_TOKEN" gh release view "$TAG_NAME" --repo "$TARGET_REPO" >/dev/null 2>&1; then
+            GH_TOKEN="$TARGET_GH_TOKEN" gh release view "$TAG_NAME" --repo "$TARGET_REPO" --json assets --jq '.assets[].name' | while IFS= read -r asset_name; do
+              [ -n "$asset_name" ] && GH_TOKEN="$TARGET_GH_TOKEN" gh release delete-asset "$TAG_NAME" "$asset_name" --repo "$TARGET_REPO" --yes
             done
 
-            gh release upload "$TAG_NAME" out/* --repo "$TARGET_REPO"
-            gh release edit "$TAG_NAME" --repo "$TARGET_REPO" \
+            GH_TOKEN="$TARGET_GH_TOKEN" gh release upload "$TAG_NAME" out/* --repo "$TARGET_REPO"
+            GH_TOKEN="$TARGET_GH_TOKEN" gh release edit "$TAG_NAME" --repo "$TARGET_REPO" \
               --title "${release_name:-$TAG_NAME}" \
               --notes-file "$notes_file"
           else
             if [ "$is_prerelease" = "true" ]; then
-              gh release create "$TAG_NAME" out/* --repo "$TARGET_REPO" \
+              GH_TOKEN="$TARGET_GH_TOKEN" gh release create "$TAG_NAME" out/* --repo "$TARGET_REPO" \
                 --title "${release_name:-$TAG_NAME}" \
                 --notes-file "$notes_file" \
                 --prerelease
             else
-              gh release create "$TAG_NAME" out/* --repo "$TARGET_REPO" \
+              GH_TOKEN="$TARGET_GH_TOKEN" gh release create "$TAG_NAME" out/* --repo "$TARGET_REPO" \
                 --title "${release_name:-$TAG_NAME}" \
                 --notes-file "$notes_file"
             fi
