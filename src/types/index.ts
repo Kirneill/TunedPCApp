@@ -139,6 +139,10 @@ declare global {
       hasJoinedWaitlist: (feature: string) => Promise<boolean>;
       // Updates
       checkForUpdate: () => Promise<UpdateInfo>;
+      getUpdaterState: () => Promise<UpdaterState>;
+      downloadUpdate: () => Promise<UpdaterActionResult>;
+      installUpdate: () => Promise<UpdaterActionResult>;
+      onUpdaterState: (callback: (state: UpdaterState) => void) => () => void;
       getAppVersion: () => Promise<string>;
     };
   }
@@ -150,4 +154,26 @@ export interface UpdateInfo {
   latestVersion: string;
   releaseUrl: string;
   releaseNotes: string;
+}
+
+export type UpdaterStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'up-to-date'
+  | 'error';
+
+export interface UpdaterState {
+  status: UpdaterStatus;
+  progress: number;
+  message: string;
+  latestVersion?: string;
+  error?: string;
+}
+
+export interface UpdaterActionResult {
+  started: boolean;
+  reason?: string;
 }

@@ -32,3 +32,8 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   shortcutName: SENSEQUALITY Optimizer
+
+publish:
+  provider: github
+  owner: Kirneill
+  repo: sensequality-optimizer

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { SystemInfo, DetectedGame, BackupInfo, LogEntry, UserConfig, AuthUser, UserMachine, UpdateInfo } from '../types';
+import type { SystemInfo, DetectedGame, BackupInfo, LogEntry, UserConfig, AuthUser, UserMachine, UpdateInfo, UpdaterState } from '../types';
 
 interface AppState {
   // Auth
@@ -42,6 +42,7 @@ interface AppState {
   // Updates
   updateInfo: UpdateInfo | null;
   updateDismissed: boolean;
+  updaterState: UpdaterState;
 
   // Auth actions
   setAuthUser: (user: AuthUser | null) => void;
@@ -71,6 +72,7 @@ interface AppState {
   setShowConsentModal: (show: boolean) => void;
   setTelemetryEnabled: (enabled: boolean) => void;
   setUpdateInfo: (info: UpdateInfo | null) => void;
+  setUpdaterState: (state: UpdaterState) => void;
   dismissUpdate: () => void;
 }
 
@@ -150,6 +152,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   telemetryEnabled: false,
   updateInfo: null,
   updateDismissed: false,
+  updaterState: {
+    status: 'idle',
+    progress: 0,
+    message: '',
+  },
 
   // Auth actions
   setAuthUser: (user) => {
@@ -227,7 +234,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   setBackups: (backups) => set({ backups }),
   setShowConsentModal: (show) => set({ showConsentModal: show }),
   setTelemetryEnabled: (enabled) => set({ telemetryEnabled: enabled }),
-  setUpdateInfo: (info) => set({ updateInfo: info }),
+  setUpdateInfo: (info) => set({
+    updateInfo: info,
+    // If an update is found again via manual check, show the banner even if it was dismissed before.
+    updateDismissed: info?.hasUpdate ? false : get().updateDismissed,
+  }),
+  setUpdaterState: (state) => set({ updaterState: state }),
   dismissUpdate: () => set({ updateDismissed: true }),
 }));
 

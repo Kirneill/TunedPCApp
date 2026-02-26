@@ -6,7 +6,7 @@ import { registerIpcHandlers } from './ipc/handlers';
 import { registerAuthHandlers } from './ipc/auth-handlers';
 import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackFailureStage } from './telemetry/telemetry';
 import { initAuth } from './auth/auth';
-import { checkForUpdate } from './updater';
+import { checkForUpdate, initUpdater, getUpdaterState, downloadUpdate, installUpdate } from './updater';
 
 // --- Diagnostic Logger ---
 // app.getPath() is unavailable before 'ready', so defer log path resolution
@@ -121,6 +121,8 @@ function createWindow() {
     },
   });
 
+  initUpdater(() => mainWindow);
+
   // vite-plugin-electron sets VITE_DEV_SERVER_URL in dev mode
   const devUrl = process.env.VITE_DEV_SERVER_URL;
   if (devUrl) {
@@ -163,6 +165,9 @@ function createWindow() {
 
   // Update check
   ipcMain.handle('updater:check', () => checkForUpdate());
+  ipcMain.handle('updater:getState', () => getUpdaterState());
+  ipcMain.handle('updater:download', () => downloadUpdate());
+  ipcMain.handle('updater:install', () => installUpdate());
   ipcMain.handle('app:getVersion', () => app.getVersion());
 
   // Telemetry IPC

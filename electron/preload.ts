@@ -43,6 +43,19 @@ export interface UserConfig {
   cs2Stretched: boolean;
 }
 
+export interface UpdaterState {
+  status: 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'up-to-date' | 'error';
+  progress: number;
+  message: string;
+  latestVersion?: string;
+  error?: string;
+}
+
+export interface UpdaterActionResult {
+  started: boolean;
+  reason?: string;
+}
+
 const api = {
   // System
   getSystemInfo: (): Promise<SystemInfo> => ipcRenderer.invoke('system:getInfo'),
@@ -103,6 +116,14 @@ const api = {
 
   // Updates
   checkForUpdate: () => ipcRenderer.invoke('updater:check'),
+  getUpdaterState: (): Promise<UpdaterState> => ipcRenderer.invoke('updater:getState'),
+  downloadUpdate: (): Promise<UpdaterActionResult> => ipcRenderer.invoke('updater:download'),
+  installUpdate: (): Promise<UpdaterActionResult> => ipcRenderer.invoke('updater:install'),
+  onUpdaterState: (callback: (state: UpdaterState) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, state: UpdaterState) => callback(state);
+    ipcRenderer.on('updater:state', handler);
+    return () => { ipcRenderer.removeListener('updater:state', handler); };
+  },
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
 };
 

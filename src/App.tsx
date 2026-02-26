@@ -18,7 +18,7 @@ export default function App() {
     setIsOffline, setMachines,
     setSystemInfo, setDetectedGames, setIsAdmin, setIsLoading,
     addLogEntry, setShowConsentModal, setTelemetryEnabled,
-    setUpdateInfo,
+    setUpdateInfo, setUpdaterState,
   } = useAppStore();
 
   // StrictMode guard — prevent double-init in dev
@@ -52,12 +52,14 @@ export default function App() {
       setShowMaxDevices(false);
 
       // Phase 4: Normal app init
-      const [games, admin] = await Promise.all([
+      const [games, admin, updaterState] = await Promise.all([
         window.sensequality.getInstalledGames(),
         window.sensequality.isAdmin(),
+        window.sensequality.getUpdaterState(),
       ]);
       setDetectedGames(games);
       setIsAdmin(admin);
+      setUpdaterState(updaterState);
 
       // Phase 5: Telemetry consent check
       const hasDecision = await window.sensequality.hasConsentDecision();
@@ -112,10 +114,16 @@ export default function App() {
 
     bootstrap();
 
-    const unsubscribe = window.sensequality.onProgressLog((entry) => {
+    const unsubscribeLogs = window.sensequality.onProgressLog((entry) => {
       addLogEntry(entry);
     });
-    return unsubscribe;
+    const unsubscribeUpdater = window.sensequality.onUpdaterState((state) => {
+      setUpdaterState(state);
+    });
+    return () => {
+      unsubscribeLogs();
+      unsubscribeUpdater();
+    };
   }, []);
 
   const handleRetry = () => {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '../../store/appStore';
 
 type Page = 'dashboard' | 'advanced' | 'bios-guide' | 'gpu-guide' | 'backups';
@@ -12,13 +12,41 @@ const navItems: { id: Page; label: string }[] = [
 ];
 
 export default function TitleBar() {
-  const { currentPage, setCurrentPage, isRunning, authUser, clearAuthState } = useAppStore();
+  const { currentPage, setCurrentPage, isRunning, authUser, clearAuthState, setUpdateInfo } = useAppStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<{ tone: 'info' | 'success' | 'error'; message: string } | null>(null);
 
   const handleSignOut = async () => {
     await window.sensequality.signOut();
     clearAuthState();
   };
+
+  const handleCheckForUpdates = async () => {
+    if (checkingUpdate) return;
+    setCheckingUpdate(true);
+    setUpdateStatus(null);
+
+    try {
+      const info = await window.sensequality.checkForUpdate();
+      if (info.hasUpdate) {
+        setUpdateInfo(info);
+        setUpdateStatus({ tone: 'success', message: `Update available: v${info.latestVersion}` });
+      } else {
+        setUpdateStatus({ tone: 'info', message: `You're on the latest version (v${info.currentVersion})` });
+      }
+    } catch {
+      setUpdateStatus({ tone: 'error', message: 'Update check failed. Please try again.' });
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!updateStatus) return;
+    const timer = window.setTimeout(() => setUpdateStatus(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [updateStatus]);
 
   return (
     <div className="drag-region flex items-center justify-between h-11 bg-sq-surface/80 backdrop-blur-sm border-b border-sq-border px-4 select-none shrink-0">
@@ -55,6 +83,23 @@ export default function TitleBar() {
 
       {/* User + Window controls */}
       <div className="flex items-center no-drag relative">
+        <button
+          onClick={handleCheckForUpdates}
+          disabled={checkingUpdate}
+          title={updateStatus?.message || 'Check for available updates'}
+          className={`
+            mr-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold tracking-wide border transition-colors
+            ${updateStatus?.tone === 'success'
+              ? 'text-sq-accent border-sq-accent/40 bg-sq-accent/10 hover:bg-sq-accent/15'
+              : updateStatus?.tone === 'error'
+                ? 'text-sq-danger border-sq-danger/40 bg-sq-danger/10 hover:bg-sq-danger/15'
+                : 'text-sq-text-muted border-sq-border hover:text-sq-text hover:bg-sq-surface-hover'
+            }
+            ${checkingUpdate ? 'opacity-80 cursor-wait' : ''}
+          `}
+        >
+          {checkingUpdate ? 'CHECKING...' : updateStatus?.tone === 'success' ? 'UPDATE READY' : 'CHECK UPDATE'}
+        </button>
         {authUser && (
           <div className="relative mr-2">
             <button
@@ -78,6 +123,31 @@ export default function TitleBar() {
                     Signed in as<br />
                     <span className="text-sq-text-muted font-medium">{authUser.email}</span>
                   </div>
+                  <button
+                    onClick={handleCheckForUpdates}
+                    disabled={checkingUpdate}
+                    className="w-full px-3 py-2 text-left text-xs text-sq-text-muted hover:text-sq-text hover:bg-sq-surface-hover transition-colors flex items-center gap-2 font-medium disabled:opacity-60 disabled:cursor-wait"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-.001h4.992m0 0a8.25 8.25 0 0013.803-3.7M4.031 8.25a8.25 8.25 0 0113.803-3.7l.341.342m-10.14 14.75l-.34-.34m0 0l-3.16-3.16m3.16 3.16l3.16-3.16m8.318-10.818l3.16 3.16m-3.16-3.16l-3.16 3.16" />
+                    </svg>
+                    {checkingUpdate ? 'Checking updates...' : 'Check for Updates'}
+                  </button>
+                  {updateStatus && (
+                    <div
+                      className={`
+                        px-3 py-2 text-[10px] border-t border-sq-border
+                        ${updateStatus.tone === 'success'
+                          ? 'text-sq-accent'
+                          : updateStatus.tone === 'error'
+                            ? 'text-sq-danger'
+                            : 'text-sq-text-dim'
+                        }
+                      `}
+                    >
+                      {updateStatus.message}
+                    </div>
+                  )}
                   <button
                     onClick={() => { setShowUserMenu(false); handleSignOut(); }}
                     className="w-full px-3 py-2 text-left text-xs text-sq-danger/80 hover:text-sq-danger hover:bg-sq-danger/10 transition-colors flex items-center gap-2 font-medium"
