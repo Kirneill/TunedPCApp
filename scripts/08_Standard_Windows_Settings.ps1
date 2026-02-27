@@ -428,6 +428,11 @@ Invoke-Section -Name "[9/11] Enable End Task on Taskbar Right-Click" -Script {
 }
 
 Invoke-Section -Name "[10/11] Create Restore Point" -Script {
+    if ($Env:SENSEQUALITY_SKIP_INTERNAL_RESTORE_POINT -eq '1') {
+        Write-Host "  [INFO] Restore point handled by app safety flow. Skipping internal restore point step." -ForegroundColor DarkCyan
+        return
+    }
+
     $entries = @(
     @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore'; Name = 'SystemRestorePointCreationFrequency'; Type = 'DWord'; Value = '0' }
     )

@@ -52,6 +52,7 @@ export interface UserConfig {
   gpuMode: 'auto' | 'manual';
   selectedGpuId: string;
   cs2Stretched: boolean;
+  restorePointEnabled: boolean;
 }
 
 export interface OptimizationItem {
@@ -121,6 +122,7 @@ declare global {
       isAdmin: () => Promise<boolean>;
       runOptimization: (id: string, config: UserConfig) => Promise<{ success: boolean; errors: string[] }>;
       runSelected: (ids: string[], config: UserConfig) => Promise<{ success: boolean; results: Record<string, boolean> }>;
+      createRestorePoint: () => Promise<{ success: boolean; errors: string[] }>;
       onProgressLog: (callback: (entry: LogEntry) => void) => () => void;
       listBackups: () => Promise<BackupInfo[]>;
       createBackup: () => Promise<{ success: boolean; path: string }>;

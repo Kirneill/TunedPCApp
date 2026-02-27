@@ -4,6 +4,7 @@ import OptimizationSection from '../optimizations/OptimizationSection';
 import MonitorConfig from '../dashboard/MonitorConfig';
 import LogViewer from '../ui/LogViewer';
 import WindowsUpdateModeCard from '../windows/WindowsUpdateModeCard';
+import RestorePointControls from '../windows/RestorePointControls';
 
 export default function AdvancedPage() {
   const {
@@ -86,6 +87,7 @@ export default function AdvancedPage() {
       )}
 
       <WindowsUpdateModeCard />
+      <RestorePointControls />
 
       <OptimizationSection
         title="Game Optimizations"

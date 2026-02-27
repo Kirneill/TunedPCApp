@@ -2,6 +2,7 @@ import { useAppStore } from '../../store/appStore';
 import GameCard from './GameCard';
 import LogViewer from '../ui/LogViewer';
 import WindowsUpdateModeCard from '../windows/WindowsUpdateModeCard';
+import RestorePointControls from '../windows/RestorePointControls';
 
 const games = [
   {
@@ -201,6 +202,7 @@ export default function HomePage() {
         </div>
 
         <WindowsUpdateModeCard compact />
+        <RestorePointControls compact />
 
         {/* Game cards grid — grows to fill available space */}
         <div className="flex-1 grid grid-cols-5 gap-4 min-h-0">

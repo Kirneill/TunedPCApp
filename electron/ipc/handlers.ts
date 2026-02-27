@@ -17,6 +17,7 @@ interface UserConfig {
   gpuMode: 'auto' | 'manual';
   selectedGpuId: string;
   cs2Stretched: boolean;
+  restorePointEnabled: boolean;
 }
 
 // Maps optimization IDs to script files and env var configurations
@@ -247,37 +248,60 @@ Checkpoint-Computer -Description $description -RestorePointType MODIFY_SETTINGS
 Write-Output "Restore point created: $description"
 `;
 
-async function ensureSystemRestorePoint(log: RunLogFn): Promise<boolean> {
-  log('start', 'Creating system restore point before applying changes...', {
+interface RestorePointOptions {
+  mode: 'auto' | 'manual';
+}
+
+interface RestorePointResult {
+  success: boolean;
+  errors: string[];
+}
+
+async function createSystemRestorePoint(log: RunLogFn, options: RestorePointOptions): Promise<RestorePointResult> {
+  const isManual = options.mode === 'manual';
+
+  log('start', isManual
+    ? 'Creating system restore point on demand...'
+    : 'Creating system restore point before applying changes...', {
     component: 'Safety',
-    action: 'restore-point-start',
+    action: isManual ? 'restore-point-manual-start' : 'restore-point-start',
   });
 
   const result = await runPowerShellCommand(AUTO_RESTORE_POINT_SCRIPT, (line) => {
     log('info', line, {
       component: 'Safety',
-      action: 'restore-point-output',
+      action: isManual ? 'restore-point-manual-output' : 'restore-point-output',
     });
   });
 
   if (!result.success) {
     const errorText = result.errors.join(' | ') || 'Unknown restore point error';
-    log('error', `Restore point failed. No changes were applied. ${errorText}`, {
+    const failureMessage = isManual
+      ? `Manual restore point creation failed. ${errorText}`
+      : `Restore point failed. No changes were applied. ${errorText}`;
+    log('error', failureMessage, {
       component: 'Safety',
-      action: 'restore-point-failed',
+      action: isManual ? 'restore-point-manual-failed' : 'restore-point-failed',
       success: false,
       errorCode: 'RESTORE_POINT_FAILED',
     });
     void trackFailureStage('restore-point', errorText);
-    return false;
+    return { success: false, errors: result.errors };
   }
 
-  log('success', 'System restore point created successfully.', {
+  log('success', isManual
+    ? 'System restore point created successfully (manual).'
+    : 'System restore point created successfully.', {
     component: 'Safety',
-    action: 'restore-point-success',
+    action: isManual ? 'restore-point-manual-success' : 'restore-point-success',
     success: true,
   });
-  return true;
+  return { success: true, errors: [] };
+}
+
+async function ensureSystemRestorePoint(log: RunLogFn): Promise<boolean> {
+  const result = await createSystemRestorePoint(log, { mode: 'auto' });
+  return result.success;
 }
 
 function escapePowerShellSingleQuoted(value: string): string {
@@ -380,6 +404,7 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
     const scriptPath = getScriptPath(mapping.script);
     const envVars: Record<string, string> = {
       SENSEQUALITY_HEADLESS: '1',
+      SENSEQUALITY_SKIP_INTERNAL_RESTORE_POINT: '1',
       MONITOR_WIDTH: String(config.monitorWidth),
       MONITOR_HEIGHT: String(config.monitorHeight),
       MONITOR_REFRESH: String(config.monitorRefresh),
@@ -401,9 +426,16 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       component: 'Run',
       action: 'run-start',
     });
-    const restorePointReady = await ensureSystemRestorePoint(log);
-    if (!restorePointReady) {
-      return { success: false, errors: ['Failed to create restore point.'] };
+    if (config.restorePointEnabled !== false) {
+      const restorePointReady = await ensureSystemRestorePoint(log);
+      if (!restorePointReady) {
+        return { success: false, errors: ['Failed to create restore point.'] };
+      }
+    } else {
+      log('info', 'Automatic restore point is disabled. Continuing without restore point.', {
+        component: 'Safety',
+        action: 'restore-point-skipped',
+      });
     }
 
     log('start', `Running: ${id}`, {
@@ -492,6 +524,7 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
     // Build env vars
     const envVars: Record<string, string> = {
       SENSEQUALITY_HEADLESS: '1',
+      SENSEQUALITY_SKIP_INTERNAL_RESTORE_POINT: '1',
       MONITOR_WIDTH: String(config.monitorWidth),
       MONITOR_HEIGHT: String(config.monitorHeight),
       MONITOR_REFRESH: String(config.monitorRefresh),
@@ -514,19 +547,26 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       action: 'run-start',
     });
 
-    const restorePointReady = await ensureSystemRestorePoint(log);
-    if (!restorePointReady) {
-      for (const id of ids) {
-        results[id] = false;
-        failureReasons[id] = 'Restore point creation failed before any changes were applied.';
+    if (config.restorePointEnabled !== false) {
+      const restorePointReady = await ensureSystemRestorePoint(log);
+      if (!restorePointReady) {
+        for (const id of ids) {
+          results[id] = false;
+          failureReasons[id] = 'Restore point creation failed before any changes were applied.';
+        }
+        log('complete', 'Aborted: restore point creation failed.', {
+          component: 'Summary',
+          action: 'run-abort',
+          success: false,
+          errorCode: 'RESTORE_POINT_FAILED',
+        });
+        return { success: false, results };
       }
-      log('complete', 'Aborted: restore point creation failed.', {
-        component: 'Summary',
-        action: 'run-abort',
-        success: false,
-        errorCode: 'RESTORE_POINT_FAILED',
+    } else {
+      log('info', 'Automatic restore point is disabled. Continuing without restore point.', {
+        component: 'Safety',
+        action: 'restore-point-skipped',
       });
-      return { success: false, results };
     }
 
     // Run Windows optimizations (single script, skip flags for unselected)
@@ -795,5 +835,13 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
   ipcMain.handle('backup:create', () => createBackup());
   ipcMain.handle('backup:restore', (_, backupPath: string) => restoreBackup(backupPath));
   ipcMain.handle('backup:delete', (_, backupPath: string) => deleteBackup(backupPath));
+  ipcMain.handle('safety:createRestorePoint', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const runId = `run-${Date.now()}-${randomUUID().slice(0, 8)}`;
+    const runLogger = createRunLogger(win, runId);
+    const log = runLogger.log;
+    const result = await createSystemRestorePoint(log, { mode: 'manual' });
+    return { success: result.success, errors: result.errors };
+  });
   ipcMain.handle('diagnostics:export', () => exportDiagnosticsBundle());
 }

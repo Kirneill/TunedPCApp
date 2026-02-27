@@ -4,7 +4,7 @@ export const windowsOptimizations: OptimizationItem[] = [
   {
     id: 'win-power-plan',
     label: 'Ultimate Performance Power Plan',
-    description: 'Prevents CPU/GPU clock throttling under sustained gaming load. Single biggest impact for consistent frame times.',
+    description: 'Intel CPUs: activates Ultimate Performance to prevent clock throttling. AMD/Ryzen CPUs keep their existing power plan.',
     category: 'windows',
     risk: 'safe',
     requiresReboot: true,
@@ -68,7 +68,7 @@ export const windowsOptimizations: OptimizationItem[] = [
   {
     id: 'win-cpu-power',
     label: 'CPU Power States (No Downclocking)',
-    description: 'Sets minimum CPU to 100%, disables USB suspend and hibernation. Prevents micro-stutters.',
+    description: 'Intel CPUs: sets minimum CPU state to 100% and disables USB suspend. All CPUs: disables hibernation.',
     category: 'windows',
     risk: 'safe',
     requiresReboot: false,
@@ -108,7 +108,7 @@ export const windowsOptimizations: OptimizationItem[] = [
   {
     id: 'win-standard',
     label: 'Standard Windows Settings',
-    description: 'Applies the standard baseline (privacy, services, restore point, and maintenance tasks) in one pass.',
+    description: 'Applies the standard baseline (privacy, services, and maintenance tasks) in one pass.',
     category: 'windows',
     risk: 'moderate',
     requiresReboot: true,

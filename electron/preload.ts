@@ -53,6 +53,7 @@ export interface UserConfig {
   gpuMode: 'auto' | 'manual';
   selectedGpuId: string;
   cs2Stretched: boolean;
+  restorePointEnabled: boolean;
 }
 
 export interface UpdaterState {
@@ -79,6 +80,8 @@ const api = {
     ipcRenderer.invoke('optimize:run', id, config),
   runSelected: (ids: string[], config: UserConfig): Promise<{ success: boolean; results: Record<string, boolean> }> =>
     ipcRenderer.invoke('optimize:runSelected', ids, config),
+  createRestorePoint: (): Promise<{ success: boolean; errors: string[] }> =>
+    ipcRenderer.invoke('safety:createRestorePoint'),
 
   // Progress/Log streaming
   onProgressLog: (callback: (entry: LogEntry) => void): (() => void) => {

@@ -130,6 +130,7 @@ const DEFAULT_USER_CONFIG: UserConfig = {
   gpuMode: 'auto',
   selectedGpuId: '',
   cs2Stretched: false,
+  restorePointEnabled: true,
 };
 
 function normalizePersistedToggles(toggles?: Record<string, boolean>): Record<string, boolean> {
@@ -140,12 +141,14 @@ function normalizePersistedUserConfig(userConfig?: Partial<UserConfig>): UserCon
   if (!userConfig) return { ...DEFAULT_USER_CONFIG };
   const gpuMode = userConfig.gpuMode === 'manual' ? 'manual' : 'auto';
   const selectedGpuId = typeof userConfig.selectedGpuId === 'string' ? userConfig.selectedGpuId : '';
+  const restorePointEnabled = userConfig.restorePointEnabled !== false;
 
   return {
     ...DEFAULT_USER_CONFIG,
     ...userConfig,
     gpuMode,
     selectedGpuId,
+    restorePointEnabled,
   };
 }
 

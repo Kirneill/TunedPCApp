@@ -12,7 +12,7 @@
 
     WHAT THIS SCRIPT DOES:
     - Creates a dated backup of affected registry keys
-    - Sets the Ultimate Performance power plan
+    - Intel CPUs: sets the Ultimate Performance power plan
     - Configures GPU scheduling (HAGS)
     - Disables Xbox Game Bar and Game DVR
     - Disables Nagle's Algorithm for lower network latency
@@ -34,6 +34,10 @@
 # and read skip flags from environment variables
 # -----------------------------------------------------------------------------
 $Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
+
+# CPU vendor detection for power plan policy
+$CpuName = (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)
+$IsIntelCpu = $CpuName -match "Intel"
 
 # -----------------------------------------------------------------------------
 # SAFETY: Create backup folder and export registry snapshots before any changes
@@ -79,9 +83,10 @@ Write-Host ""
 
 
 # -----------------------------------------------------------------------------
-# SECTION 1: POWER PLAN - Ultimate Performance
+# SECTION 1: POWER PLAN - Intel only
 # WHY: Prevents CPU/GPU clock throttling under sustained gaming load.
-#      Ultimate Performance is the highest-priority plan available.
+#      Ultimate Performance is applied only on Intel CPUs.
+#      AMD/Ryzen systems keep their existing plan (chipset plans are preferred).
 # -----------------------------------------------------------------------------
 
 if ($env:SKIP_POWER_PLAN -eq '1') {
@@ -93,17 +98,22 @@ if ($env:SKIP_POWER_PLAN -eq '1') {
     Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
     try {
-        # Unlock the hidden "Ultimate Performance" power plan (GUID: e9a42b02-d5df-448d-aa00-03f14749eb61)
-        $UltimatePerfGUID = "e9a42b02-d5df-448d-aa00-03f14749eb61"
-        $existingPlans = powercfg /list
-        if ($existingPlans -notmatch $UltimatePerfGUID) {
-            Write-Host "  [INFO] Unlocking Ultimate Performance plan..." -ForegroundColor DarkCyan
-            powercfg -duplicatescheme $UltimatePerfGUID | Out-Null
+        if (-not $IsIntelCpu) {
+            Write-Host "  [INFO] Non-Intel CPU detected ($CpuName). Leaving existing power plan unchanged." -ForegroundColor DarkCyan
+            Write-Host "[SQ_SKIP:POWER_PLAN]"
+        } else {
+            # Unlock the hidden "Ultimate Performance" power plan (GUID: e9a42b02-d5df-448d-aa00-03f14749eb61)
+            $UltimatePerfGUID = "e9a42b02-d5df-448d-aa00-03f14749eb61"
+            $existingPlans = powercfg /list
+            if ($existingPlans -notmatch $UltimatePerfGUID) {
+                Write-Host "  [INFO] Unlocking Ultimate Performance plan..." -ForegroundColor DarkCyan
+                powercfg -duplicatescheme $UltimatePerfGUID | Out-Null
+            }
+            powercfg /setactive $UltimatePerfGUID
+            Write-Host "  [OK] Intel CPU detected. Ultimate Performance power plan activated." -ForegroundColor Green
+            Write-Host "  [TIP] Verify in: Control Panel > Power Options" -ForegroundColor DarkGray
+            Write-Host "[SQ_OK:POWER_PLAN]"
         }
-        powercfg /setactive $UltimatePerfGUID
-        Write-Host "  [OK] Ultimate Performance power plan activated." -ForegroundColor Green
-        Write-Host "  [TIP] Verify in: Control Panel > Power Options" -ForegroundColor DarkGray
-        Write-Host "[SQ_OK:POWER_PLAN]"
     } catch {
         Write-Host "  [FAIL] Power plan: $_" -ForegroundColor Red
         Write-Host "[SQ_FAIL:POWER_PLAN]"
@@ -419,16 +429,20 @@ if ($env:SKIP_CPU_POWER -eq '1') {
     Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
     try {
-        $UltimatePerfGUID = "e9a42b02-d5df-448d-aa00-03f14749eb61"
-        powercfg /setacvalueindex $UltimatePerfGUID SUB_PROCESSOR PROCTHROTTLEMIN 100
-        powercfg /setactive $UltimatePerfGUID
+        if ($IsIntelCpu) {
+            $UltimatePerfGUID = "e9a42b02-d5df-448d-aa00-03f14749eb61"
+            powercfg /setacvalueindex $UltimatePerfGUID SUB_PROCESSOR PROCTHROTTLEMIN 100
+            powercfg /setactive $UltimatePerfGUID
 
-        powercfg /setacvalueindex $UltimatePerfGUID 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
+            powercfg /setacvalueindex $UltimatePerfGUID 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
+
+            Write-Host "  [OK] Intel CPU detected. CPU minimum state set to 100% on Ultimate plan." -ForegroundColor Green
+            Write-Host "  [OK] USB Selective Suspend disabled on Ultimate plan." -ForegroundColor Green
+        } else {
+            Write-Host "  [INFO] Non-Intel CPU detected ($CpuName). Skipping Ultimate/high power-plan forcing." -ForegroundColor DarkCyan
+        }
 
         powercfg /hibernate off
-
-        Write-Host "  [OK] CPU minimum state set to 100% (no downclocking mid-game)." -ForegroundColor Green
-        Write-Host "  [OK] USB Selective Suspend disabled (prevents input latency spikes)." -ForegroundColor Green
         Write-Host "  [OK] Hibernation disabled." -ForegroundColor Green
         Write-Host "[SQ_OK:CPU_POWER]"
     } catch {
