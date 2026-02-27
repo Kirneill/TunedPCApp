@@ -124,6 +124,15 @@ function formatError(error: unknown): string {
   return 'Unknown updater error';
 }
 
+function createUpdateCheckError(primaryError: unknown, fallbackError?: unknown): Error {
+  const primaryText = formatError(primaryError);
+  if (fallbackError === undefined) {
+    return new Error(`Update check failed: ${primaryText}`);
+  }
+  const fallbackText = formatError(fallbackError);
+  return new Error(`Update check failed. Auto-updater: ${primaryText}. GitHub fallback: ${fallbackText}`);
+}
+
 async function checkForUpdateViaGitHub(): Promise<UpdateInfo> {
   const currentVersion = normalizeVersion(app.getVersion());
   const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
@@ -279,49 +288,52 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
       }
       return info;
     } catch (error) {
+      const checkError = createUpdateCheckError(error);
       setUpdaterState({
         status: 'error',
         progress: 0,
         message: 'Update check failed.',
-        error: formatError(error),
+        error: checkError.message,
       });
-      return lastKnownUpdate;
+      throw checkError;
     }
   }
 
   try {
     const checkResult = await autoUpdater.checkForUpdates();
-    if (checkResult?.updateInfo) {
-      const latestVersion = normalizeVersion(checkResult.updateInfo.version || app.getVersion());
-      const hasUpdate = compareVersions(app.getVersion(), latestVersion);
-      const releaseNotes = extractReleaseNotes(checkResult.updateInfo.releaseNotes);
-      updateLastKnownInfo(latestVersion, releaseNotes, hasUpdate);
+    if (!checkResult?.updateInfo) {
+      throw new Error('No update metadata was returned by the updater provider.');
+    }
 
-      if (hasUpdate) {
-        setUpdaterState({
-          status: 'available',
-          progress: 0,
-          latestVersion,
-          message: `Update v${latestVersion} available. Downloading...`,
-          error: undefined,
-        });
-      } else {
-        setUpdaterState({
-          status: 'up-to-date',
-          progress: 100,
-          latestVersion,
-          message: `You're on the latest version (v${lastKnownUpdate.currentVersion}).`,
-          error: undefined,
-        });
-      }
+    const latestVersion = normalizeVersion(checkResult.updateInfo.version || app.getVersion());
+    const hasUpdate = compareVersions(app.getVersion(), latestVersion);
+    const releaseNotes = extractReleaseNotes(checkResult.updateInfo.releaseNotes);
+    updateLastKnownInfo(latestVersion, releaseNotes, hasUpdate);
+
+    if (hasUpdate) {
+      setUpdaterState({
+        status: 'available',
+        progress: 0,
+        latestVersion,
+        message: `Update v${latestVersion} available. Downloading...`,
+        error: undefined,
+      });
+    } else {
+      setUpdaterState({
+        status: 'up-to-date',
+        progress: 100,
+        latestVersion,
+        message: `You're on the latest version (v${lastKnownUpdate.currentVersion}).`,
+        error: undefined,
+      });
     }
     return lastKnownUpdate;
-  } catch (error) {
+  } catch (autoUpdaterError) {
     setUpdaterState({
       status: 'error',
       progress: 0,
       message: 'Update check failed.',
-      error: formatError(error),
+      error: formatError(autoUpdaterError),
     });
     try {
       const fallbackInfo = await checkForUpdateViaGitHub();
@@ -344,8 +356,15 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
         });
       }
       return fallbackInfo;
-    } catch {
-      return lastKnownUpdate;
+    } catch (fallbackError) {
+      const checkError = createUpdateCheckError(autoUpdaterError, fallbackError);
+      setUpdaterState({
+        status: 'error',
+        progress: 0,
+        message: 'Update check failed.',
+        error: checkError.message,
+      });
+      throw checkError;
     }
   }
 }

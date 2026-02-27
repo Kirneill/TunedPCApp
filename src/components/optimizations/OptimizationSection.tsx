@@ -10,7 +10,7 @@ interface OptimizationSectionProps {
 }
 
 export default function OptimizationSection({ title, items, icon }: OptimizationSectionProps) {
-  const { toggles, setToggle, isRunning, detectedGames } = useAppStore();
+  const { toggles, setToggle, isRunning } = useAppStore();
   const [collapsed, setCollapsed] = useState(false);
 
   const enabledCount = items.filter(i => toggles[i.id]).length;
@@ -22,15 +22,6 @@ export default function OptimizationSection({ title, items, icon }: Optimization
       setToggle(item.id, newValue);
     }
   };
-
-  // Filter game optimizations by detected games
-  const visibleItems = items.filter(item => {
-    if (item.gameId) {
-      const game = detectedGames.find(g => g.id === item.gameId);
-      return !game || game.installed; // Show if game found or if no detection data
-    }
-    return true;
-  });
 
   return (
     <div className="bg-sq-surface border border-sq-border rounded-xl overflow-hidden">
@@ -64,7 +55,7 @@ export default function OptimizationSection({ title, items, icon }: Optimization
 
       {!collapsed && (
         <div className="px-4 py-1 divide-y divide-sq-border/50">
-          {visibleItems.map((item) => (
+          {items.map((item) => (
             <OptimizationToggle
               key={item.id}
               item={item}

@@ -36,8 +36,11 @@ export default function TitleBar() {
       } else {
         setUpdateStatus({ tone: 'info', message: `You're on the latest version (v${info.currentVersion})` });
       }
-    } catch {
-      setUpdateStatus({ tone: 'error', message: 'Update check failed. Please try again.' });
+    } catch (error) {
+      const message = error instanceof Error && error.message
+        ? error.message
+        : 'Update check failed. Please try again.';
+      setUpdateStatus({ tone: 'error', message });
     } finally {
       setCheckingUpdate(false);
     }

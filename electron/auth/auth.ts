@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { app, safeStorage } from 'electron';
+import { app, net, safeStorage } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../telemetry/config';
@@ -41,6 +41,14 @@ export interface UserMachine {
 
 let supabase: SupabaseClient | null = null;
 let isOffline = false;
+let connectivityCache: { checkedAt: number; isOnline: boolean } | null = null;
+
+const CONNECTIVITY_CACHE_MS = 15000;
+const CONNECTIVITY_TIMEOUT_MS = 5000;
+const CONNECTIVITY_URLS = [
+  'https://www.msftconnecttest.com/connecttest.txt',
+  'https://www.cloudflare.com/cdn-cgi/trace',
+];
 
 function getAuthDir(): string {
   return app.getPath('userData');
@@ -139,6 +147,48 @@ function mapAuthError(error: { message?: string; status?: number } | null): stri
   return msg || 'Something went wrong. Please try again.';
 }
 
+async function probeConnectivityUrl(url: string): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const request = net.request({
+      url,
+      method: 'HEAD',
+    });
+
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { request.abort(); } catch {}
+      resolve(false);
+    }, CONNECTIVITY_TIMEOUT_MS);
+
+    request.on('response', (response) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve(Boolean(response.statusCode && response.statusCode > 0));
+    });
+
+    request.on('error', () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve(false);
+    });
+
+    request.end();
+  });
+}
+
+async function hasLiveInternetConnectivity(): Promise<boolean> {
+  for (const url of CONNECTIVITY_URLS) {
+    if (await probeConnectivityUrl(url)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // ─── Public API ──────────────────────────────────────────
 
 export async function initAuth(): Promise<void> {
@@ -188,8 +238,18 @@ export async function initAuth(): Promise<void> {
   }
 }
 
-export function getIsOffline(): boolean {
-  return isOffline;
+export async function getIsOffline(): Promise<boolean> {
+  const now = Date.now();
+  if (connectivityCache && now - connectivityCache.checkedAt < CONNECTIVITY_CACHE_MS) {
+    return !connectivityCache.isOnline;
+  }
+
+  const isOnline = await hasLiveInternetConnectivity();
+  connectivityCache = { checkedAt: now, isOnline };
+
+  // Keep the auth-level flag in sync so we don't carry stale offline state.
+  isOffline = !isOnline;
+  return !isOnline;
 }
 
 export async function signUp(email: string, password: string): Promise<AuthResult> {
