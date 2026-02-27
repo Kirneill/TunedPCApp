@@ -14,6 +14,7 @@ Concise maintainer context for future model handoff.
 - In-app top-left branding text: `TUNEDPC by SENSEQUALITY.com`.
 - EULA included and enforced in NSIS installer (`EULA.txt`).
 - `package.json` license set to `UNLICENSED`.
+- BO7 reset troubleshooting note: `BO7_SETTINGS_RESET_TROUBLESHOOTING.md`.
 
 ## Build / Package
 
@@ -88,4 +89,3 @@ gh workflow run mirror-public-release.yml --repo Kirneill/sensequality-optimizer
 - `electron/ipc/handlers.ts`: optimization execution, backups, diagnostics hooks.
 - `src/components/layout/TitleBar.tsx`: top-left app branding text.
 - `scripts/*.ps1`: bundled optimization scripts run by Electron process.
-

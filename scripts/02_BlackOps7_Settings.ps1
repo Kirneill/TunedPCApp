@@ -17,9 +17,9 @@
 
 .NOTES
     IMPORTANT: BO7 encrypts and overwrites its config files on launch.
-    This script sets Windows-layer optimizations only. BO7 player config template
-    writes are disabled by design to prevent cloud/auto-detect sync from forcing
-    unwanted quality presets. In-game settings should be applied manually.
+    This script sets Windows-layer optimizations and performs byte-for-byte
+    BO7 template file replacement from BO7BACKUP into the active players folder.
+    It intentionally avoids in-place text rewrites to preserve exact template bytes.
 
     Optimal Settings Reference (February 2026 - IW Engine):
     - These settings tested across RTX 3060 to RTX 4090 tier hardware
@@ -165,17 +165,89 @@ try {
 
 
 # -----------------------------------------------------------------------------
-# SECTION 5: BO7 PLAYER TEMPLATE COPY (DISABLED BY DESIGN)
-# WHY: BO7 can resync/overwrite local config via cloud + auto-detection.
-#      Copying BO7BACKUP templates here caused quality to revert unexpectedly
-#      on some systems, so this step is intentionally skipped.
+# SECTION 5: RESTORE BO7 PLAYER FILES FROM BACKUP TEMPLATES
+# WHY: Match manual file-copy behavior exactly.
+#      Replace files byte-for-byte and avoid Set-Content rewrites.
 # -----------------------------------------------------------------------------
 
-Write-Host "[INFO] BO7 player template copy step is disabled by design." -ForegroundColor Cyan
-Write-Host "       No .txt0/.txt1/.m files are copied into Activision\\Call of Duty\\players." -ForegroundColor DarkGray
-Write-Host "       Apply the recommended in-game settings manually for stable max FPS." -ForegroundColor DarkGray
-Write-Check -Status 'WARN' -Key 'COD_CONFIG_FILES_COPIED' -Detail 'Disabled by design; BO7BACKUP templates not copied'
-Write-Check -Status 'WARN' -Key 'COD_RENDERER_WORKER_COUNT' -Detail 'Disabled by design; RendererWorkerCount not patched'
+$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$BackupDir = Join-Path $ScriptRoot "BO7BACKUP"
+$PlayersDir = Join-Path $env:LOCALAPPDATA "Activision\Call of Duty\players"
+$RequiredCodFiles = @(
+    's.1.0.cod25.txt0',
+    's.1.0.cod25.txt1',
+    's.1.0.cod25.m'
+)
+$RequiredCodCopyStatus = @{}
+$RequiredCodCopyDetails = @{}
+
+if (-not (Test-Path $BackupDir)) {
+    Write-Host "[WARN] BO7 backup folder not found: $BackupDir" -ForegroundColor Yellow
+    Write-Host "       Skipping player config replacement." -ForegroundColor Yellow
+    Write-Check -Status 'FAIL' -Key 'COD_CONFIG_FILES_COPIED' -Detail 'BO7BACKUP folder missing'
+    Write-Check -Status 'WARN' -Key 'COD_RENDERER_WORKER_COUNT' -Detail 'Skipped to preserve template bytes'
+} else {
+    if (-not (Test-Path $PlayersDir)) {
+        New-Item -ItemType Directory -Path $PlayersDir -Force | Out-Null
+    }
+
+    Write-Host "[INFO] BO7 players target: $PlayersDir" -ForegroundColor Cyan
+    Write-Host "[INFO] Restoring BO7 template files (.txt0, .txt1, .m) byte-for-byte..." -ForegroundColor Cyan
+
+    foreach ($RequiredFile in $RequiredCodFiles) {
+        $RequiredCodCopyStatus[$RequiredFile] = $false
+        $RequiredCodCopyDetails[$RequiredFile] = 'Not processed'
+
+        $SourcePath = Join-Path $BackupDir $RequiredFile
+        $DestinationPath = Join-Path $PlayersDir $RequiredFile
+
+        if (-not (Test-Path $SourcePath)) {
+            $RequiredCodCopyDetails[$RequiredFile] = 'Required template missing in BO7BACKUP'
+            Write-Host "  [WARN] Missing backup template: $RequiredFile" -ForegroundColor Yellow
+            continue
+        }
+
+        try {
+            if (Test-Path $DestinationPath) {
+                Set-ItemProperty -Path $DestinationPath -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
+                Remove-Item -Path $DestinationPath -Force -ErrorAction Stop
+            }
+
+            Copy-Item -Path $SourcePath -Destination $DestinationPath -Force -ErrorAction Stop
+
+            $SourceHash = (Get-FileHash -Path $SourcePath -Algorithm SHA256 -ErrorAction Stop).Hash
+            $DestinationHash = (Get-FileHash -Path $DestinationPath -Algorithm SHA256 -ErrorAction Stop).Hash
+
+            if ($SourceHash -eq $DestinationHash) {
+                $RequiredCodCopyStatus[$RequiredFile] = $true
+                $RequiredCodCopyDetails[$RequiredFile] = 'Replacement verified (hash match)'
+                Write-Host "  [OK] Replaced $RequiredFile and verified destination hash." -ForegroundColor Green
+            } else {
+                $RequiredCodCopyDetails[$RequiredFile] = 'Hash mismatch after copy'
+                Write-Host "  [WARN] $RequiredFile copied but hash mismatch detected." -ForegroundColor Yellow
+            }
+        } catch {
+            $RequiredCodCopyStatus[$RequiredFile] = $false
+            $RequiredCodCopyDetails[$RequiredFile] = "Copy failed: $($_.Exception.Message)"
+            Write-Host "  [WARN] Failed to replace ${RequiredFile}: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+
+    $RequiredFailures = @()
+    foreach ($RequiredFile in $RequiredCodFiles) {
+        if (-not $RequiredCodCopyStatus[$RequiredFile]) {
+            $RequiredFailures += "$RequiredFile -> $($RequiredCodCopyDetails[$RequiredFile])"
+        }
+    }
+
+    if ($RequiredFailures.Count -eq 0) {
+        Write-Check -Status 'OK' -Key 'COD_CONFIG_FILES_COPIED' -Detail '.txt0/.txt1/.m replaced byte-for-byte'
+    } else {
+        Write-Check -Status 'FAIL' -Key 'COD_CONFIG_FILES_COPIED' -Detail ($RequiredFailures -join '; ')
+    }
+
+    Write-Check -Status 'WARN' -Key 'COD_RENDERER_WORKER_COUNT' -Detail 'Skipped to preserve template bytes'
+}
 
 # -----------------------------------------------------------------------------
 # SECTION 6: PRINT IN-GAME SETTINGS GUIDE

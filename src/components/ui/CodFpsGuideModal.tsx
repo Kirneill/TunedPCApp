@@ -72,7 +72,7 @@ export default function CodFpsGuideModal({ open, onClose }: CodFpsGuideModalProp
           </section>
 
           <p className="text-[11px] text-sq-text-dim">
-            BO7 cloud sync and auto-detect can overwrite config files, so this app now avoids writing BO7 template files directly.
+            BO7 cloud sync and auto-detect can overwrite config files; this app restores BO7 template files using direct byte-for-byte copy.
           </p>
         </div>
       </div>

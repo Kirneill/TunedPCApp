@@ -465,4 +465,4 @@ UiQuality@0;42500;43096 = Auto // one of 1080P, 4K, Auto
 VirtualTexturingMemoryMode@0;992;58629 = Extra Large // one of Extra Small, Small, Medium, Large, Extra Large
 
 // Allows locally stored files to be synced in with the cloud
-ConfigCloudStorageEnabled@0;57752;20945 = true
+ConfigCloudStorageEnabled@0;57752;20945 = false
