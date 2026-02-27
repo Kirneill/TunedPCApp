@@ -95,7 +95,7 @@ function Invoke-ProcessWithTimeout {
     try {
         $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -PassThru -WindowStyle Hidden -ErrorAction Stop
     } catch {
-        Write-Host "  [WARN] Failed to start $Label: $_" -ForegroundColor Yellow
+        Write-Host "  [WARN] Failed to start ${Label}: $_" -ForegroundColor Yellow
         $script:SectionFailures++
         return $false
     }

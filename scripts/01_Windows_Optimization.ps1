@@ -258,8 +258,10 @@ if ($env:SKIP_NETWORK -eq '1') {
             $patchedCount = 0
 
             foreach ($iface in $interfaces) {
-                $ipAddr = (Get-ItemProperty -Path $iface.PSPath -Name "DhcpIPAddress" -ErrorAction SilentlyContinue)?.DhcpIPAddress
-                $staticIp = (Get-ItemProperty -Path $iface.PSPath -Name "IPAddress" -ErrorAction SilentlyContinue)?.IPAddress
+                $dhcpProps = Get-ItemProperty -Path $iface.PSPath -Name "DhcpIPAddress" -ErrorAction SilentlyContinue
+                $ipProps = Get-ItemProperty -Path $iface.PSPath -Name "IPAddress" -ErrorAction SilentlyContinue
+                $ipAddr = if ($null -ne $dhcpProps) { $dhcpProps.DhcpIPAddress } else { $null }
+                $staticIp = if ($null -ne $ipProps) { $ipProps.IPAddress } else { $null }
 
                 if ($ipAddr -or $staticIp) {
                     Set-ItemProperty -Path $iface.PSPath -Name "TcpAckFrequency" -Value 1 -Type DWord -Force

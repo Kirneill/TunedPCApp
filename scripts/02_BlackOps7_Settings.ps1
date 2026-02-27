@@ -180,7 +180,9 @@ $RequiredCodFiles = @(
 $RequiredCodCopyStatus = @{}
 $RequiredCodCopyDetails = @{}
 $RendererWorkerIssues = @()
+$CodDeleteFailures = @()
 $FilesCopied = 0
+$CodFilesDeleted = 0
 $CodConfigFilesProcessed = 0
 
 if (-not (Test-Path $BackupDir)) {
@@ -190,6 +192,34 @@ if (-not (Test-Path $BackupDir)) {
 } else {
     if (-not (Test-Path $PlayersDir)) {
         New-Item -ItemType Directory -Path $PlayersDir -Force | Out-Null
+    }
+
+    # Remove existing COD config files first so stale profiles do not override templates.
+    $ExistingCodFiles = @(
+        Get-ChildItem -Path $PlayersDir -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '\.cod\d+\.' }
+    )
+
+    if ($ExistingCodFiles.Count -gt 0) {
+        Write-Host "[INFO] Removing existing COD player files before template restore..." -ForegroundColor Cyan
+        foreach ($ExistingCodFile in $ExistingCodFiles) {
+            try {
+                Remove-Item -Path $ExistingCodFile.FullName -Force -ErrorAction Stop
+                $CodFilesDeleted++
+                Write-Host "  [OK] Removed stale file $($ExistingCodFile.Name)" -ForegroundColor DarkGray
+            } catch {
+                $CodDeleteFailures += "$($ExistingCodFile.Name): $($_.Exception.Message)"
+                Write-Host "  [WARN] Failed to remove $($ExistingCodFile.Name): $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        }
+    } else {
+        Write-Host "[INFO] No existing COD player files found to clean." -ForegroundColor DarkGray
+    }
+
+    if ($CodDeleteFailures.Count -eq 0) {
+        Write-Host "[INFO] COD cleanup complete. Files removed: $CodFilesDeleted" -ForegroundColor Green
+    } else {
+        Write-Host "[WARN] COD cleanup had deletion issues: $($CodDeleteFailures -join '; ')" -ForegroundColor Yellow
     }
 
     $CoreCount = (Get-CimInstance Win32_Processor | Measure-Object NumberOfCores -Sum).Sum
