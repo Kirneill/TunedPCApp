@@ -10,15 +10,15 @@
     Call of Duty: Black Ops 7. Since BO7 uses the Ricochet anti-cheat system,
     this script modifies:
     - Windows compatibility flags for the game EXE (safe, OS-level)
-    - Existing user config files in %LOCALAPPDATA%\Activision\Call of Duty\players
-      with in-place RendererWorkerCount tuning (no full template overwrite)
+    - User-accessible config files in %LOCALAPPDATA%\Activision\Call of Duty\players
+      by restoring BO7BACKUP templates (.txt0, .txt1, .m) + dynamic RendererWorkerCount tuning
 
     It does NOT patch game files, memory, or anything Ricochet monitors.
 
 .NOTES
     IMPORTANT: BO7 encrypts and overwrites its config files on launch.
-    This script sets Windows-layer optimizations and adjusts existing player
-    config files in place. Some in-game settings may still need manual
+    This script sets Windows-layer optimizations and restores player config
+    files from backup templates. Some in-game settings may still need manual
     validation after game updates.
 
     Optimal Settings Reference (February 2026 - IW Engine):
@@ -165,23 +165,36 @@ try {
 
 
 # -----------------------------------------------------------------------------
-# SECTION 5: UPDATE BO7 PLAYER FILES IN PLACE
-# WHY: Preserve each player's existing graphics/control settings while tuning
-#      RendererWorkerCount to the local machine core count.
+# SECTION 5: RESTORE BO7 PLAYER FILES FROM BACKUP TEMPLATES
+# WHY: Place known baseline files (.txt0, .txt1, .m) into players folder,
+#      then tune RendererWorkerCount to the local machine core count.
 # -----------------------------------------------------------------------------
 
+$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$BackupDir = Join-Path $ScriptRoot "BO7BACKUP"
 $PlayersDir = Join-Path $env:LOCALAPPDATA "Activision\Call of Duty\players"
+$RequiredCodFiles = @(
+    's.1.0.cod25.txt0',
+    's.1.0.cod25.txt1',
+    's.1.0.cod25.m'
+)
+$RequiredCodCopyStatus = @{}
+$RequiredCodCopyDetails = @{}
 $RendererWorkerIssues = @()
 $CodConfigFilesProcessed = 0
 $RendererWorkerPatched = 0
 $RendererWorkerUnchanged = 0
 
-if (-not (Test-Path $PlayersDir)) {
-    Write-Host "[WARN] BO7 players folder not found: $PlayersDir" -ForegroundColor Yellow
-    Write-Host "       Launch BO7 once so config files are generated, then re-run optimizer." -ForegroundColor Yellow
-    Write-Check -Status 'FAIL' -Key 'COD_CONFIG_FILES_COPIED' -Detail 'players folder missing'
-    Write-Check -Status 'WARN' -Key 'COD_RENDERER_WORKER_COUNT' -Detail 'No config files to patch'
+if (-not (Test-Path $BackupDir)) {
+    Write-Host "[WARN] BO7 backup folder not found: $BackupDir" -ForegroundColor Yellow
+    Write-Host "       Skipping player config replacement." -ForegroundColor Yellow
+    Write-Check -Status 'FAIL' -Key 'COD_CONFIG_FILES_COPIED' -Detail 'BO7BACKUP folder missing'
+    Write-Check -Status 'WARN' -Key 'COD_RENDERER_WORKER_COUNT' -Detail 'No COD txt config files processed'
 } else {
+    if (-not (Test-Path $PlayersDir)) {
+        New-Item -ItemType Directory -Path $PlayersDir -Force | Out-Null
+    }
+
     $CoreCount = (Get-CimInstance Win32_Processor | Measure-Object NumberOfCores -Sum).Sum
     if (-not $CoreCount -or $CoreCount -lt 1) {
         $CoreCount = [Environment]::ProcessorCount
@@ -197,55 +210,87 @@ if (-not (Test-Path $PlayersDir)) {
     }
 
     Write-Host "[INFO] CPU cores detected: $CoreCount | RendererWorkerCount target: $RendererWorkerCount" -ForegroundColor Cyan
-    Write-Host "[INFO] Preserving player graphics settings (no template overwrite)." -ForegroundColor Cyan
+    Write-Host "[INFO] Restoring BO7 template files (.txt0, .txt1, .m)..." -ForegroundColor Cyan
 
-    $CodConfigFiles = @(
-        Get-ChildItem -Path $PlayersDir -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -match '^s\.1\.0\.cod\d+\.txt[01]$' }
-    )
+    foreach ($RequiredFile in $RequiredCodFiles) {
+        $RequiredCodCopyStatus[$RequiredFile] = $false
+        $RequiredCodCopyDetails[$RequiredFile] = 'Not processed'
 
-    if ($CodConfigFiles.Count -eq 0) {
-        Write-Host "[WARN] No BO7 config files found in players folder." -ForegroundColor Yellow
-        Write-Check -Status 'FAIL' -Key 'COD_CONFIG_FILES_COPIED' -Detail 'No existing cod txt profiles found'
-        Write-Check -Status 'WARN' -Key 'COD_RENDERER_WORKER_COUNT' -Detail 'No COD txt config files processed'
-    } else {
-        foreach ($CodConfigFile in $CodConfigFiles) {
-            $DestinationPath = $CodConfigFile.FullName
-            try {
-                $CodConfigFilesProcessed++
-                $Content = Get-Content -Path $DestinationPath -Raw -ErrorAction Stop
+        $SourcePath = Join-Path $BackupDir $RequiredFile
+        $DestinationPath = Join-Path $PlayersDir $RequiredFile
 
-                if ($Content -match '(?m)^(RendererWorkerCount@[^=]+=\s*)(-?\d+)(\s*//.*)?$') {
-                    $CurrentRendererWorkerCount = [int]$Matches[2]
-                    $UpdatedContent = $Content -replace '(?m)^(RendererWorkerCount@[^=]+=\s*)-?\d+(\s*//.*)?$', "`$1$RendererWorkerCount`$2"
+        if (-not (Test-Path $SourcePath)) {
+            $RequiredCodCopyDetails[$RequiredFile] = 'Required template missing in BO7BACKUP'
+            Write-Host "  [WARN] Missing backup template: $RequiredFile" -ForegroundColor Yellow
+            continue
+        }
 
-                    if ($UpdatedContent -ne $Content) {
-                        Set-Content -Path $DestinationPath -Value $UpdatedContent -Encoding UTF8 -Force
-                        $RendererWorkerPatched++
-                        Write-Host "  [OK] Updated $($CodConfigFile.Name): RendererWorkerCount $CurrentRendererWorkerCount -> $RendererWorkerCount" -ForegroundColor Green
-                    } else {
-                        $RendererWorkerUnchanged++
-                        Write-Host "  [OK] $($CodConfigFile.Name): RendererWorkerCount already set to $RendererWorkerCount" -ForegroundColor Green
-                    }
-                } else {
-                    Write-Host "  [WARN] RendererWorkerCount not found in $($CodConfigFile.Name)" -ForegroundColor Yellow
-                    $RendererWorkerIssues += "$($CodConfigFile.Name):RendererWorkerCount missing"
-                }
-            } catch {
-                $RendererWorkerIssues += "$($CodConfigFile.Name):$($_.Exception.Message)"
-                Write-Host "  [WARN] Could not patch $($CodConfigFile.Name): $($_.Exception.Message)" -ForegroundColor Yellow
+        try {
+            Copy-Item -Path $SourcePath -Destination $DestinationPath -Force -ErrorAction Stop
+            $SourceHash = (Get-FileHash -Path $SourcePath -Algorithm SHA256 -ErrorAction Stop).Hash
+            $DestinationHash = (Get-FileHash -Path $DestinationPath -Algorithm SHA256 -ErrorAction Stop).Hash
+
+            if ($SourceHash -eq $DestinationHash) {
+                $RequiredCodCopyStatus[$RequiredFile] = $true
+                $RequiredCodCopyDetails[$RequiredFile] = 'Replacement verified (hash match)'
+                Write-Host "  [OK] Replaced $RequiredFile and verified destination hash." -ForegroundColor Green
+            } else {
+                $RequiredCodCopyDetails[$RequiredFile] = 'Hash mismatch after copy'
+                Write-Host "  [WARN] $RequiredFile copied but hash mismatch detected." -ForegroundColor Yellow
+                continue
             }
-        }
 
-        Write-Check -Status 'OK' -Key 'COD_CONFIG_FILES_COPIED' -Detail "In-place profile patch mode; processed $CodConfigFilesProcessed file(s)"
+            if ($RequiredFile -like '*.txt*') {
+                try {
+                    $CodConfigFilesProcessed++
+                    $Content = Get-Content -Path $DestinationPath -Raw -ErrorAction Stop
+                    if ($Content -match '(?m)^(RendererWorkerCount@[^=]+=\s*)(-?\d+)(\s*//.*)?$') {
+                        $CurrentRendererWorkerCount = [int]$Matches[2]
+                        $UpdatedContent = $Content -replace '(?m)^(RendererWorkerCount@[^=]+=\s*)-?\d+(\s*//.*)?$', "`$1$RendererWorkerCount`$2"
 
-        if ($CodConfigFilesProcessed -eq 0) {
-            Write-Check -Status 'WARN' -Key 'COD_RENDERER_WORKER_COUNT' -Detail 'No COD txt config files processed'
-        } elseif ($RendererWorkerIssues.Count -eq 0) {
-            Write-Check -Status 'OK' -Key 'COD_RENDERER_WORKER_COUNT' -Detail "Target=$RendererWorkerCount; patched=$RendererWorkerPatched; unchanged=$RendererWorkerUnchanged"
-        } else {
-            Write-Check -Status 'FAIL' -Key 'COD_RENDERER_WORKER_COUNT' -Detail ($RendererWorkerIssues -join '; ')
+                        if ($UpdatedContent -ne $Content) {
+                            Set-Content -Path $DestinationPath -Value $UpdatedContent -Encoding UTF8 -Force
+                            $RendererWorkerPatched++
+                            Write-Host "  [OK] Updated ${RequiredFile}: RendererWorkerCount $CurrentRendererWorkerCount -> $RendererWorkerCount" -ForegroundColor Green
+                        } else {
+                            $RendererWorkerUnchanged++
+                            Write-Host "  [OK] ${RequiredFile}: RendererWorkerCount already set to $RendererWorkerCount" -ForegroundColor Green
+                        }
+                    } else {
+                        $RendererWorkerIssues += "${RequiredFile}:RendererWorkerCount missing"
+                        Write-Host "  [WARN] RendererWorkerCount not found in $RequiredFile" -ForegroundColor Yellow
+                    }
+                } catch {
+                    $RendererWorkerIssues += "${RequiredFile}:$($_.Exception.Message)"
+                    Write-Host "  [WARN] Could not patch ${RequiredFile}: $($_.Exception.Message)" -ForegroundColor Yellow
+                }
+            }
+        } catch {
+            $RequiredCodCopyStatus[$RequiredFile] = $false
+            $RequiredCodCopyDetails[$RequiredFile] = "Copy failed: $($_.Exception.Message)"
+            Write-Host "  [WARN] Failed to replace ${RequiredFile}: $($_.Exception.Message)" -ForegroundColor Yellow
         }
+    }
+
+    $RequiredFailures = @()
+    foreach ($RequiredFile in $RequiredCodFiles) {
+        if (-not $RequiredCodCopyStatus[$RequiredFile]) {
+            $RequiredFailures += "$RequiredFile -> $($RequiredCodCopyDetails[$RequiredFile])"
+        }
+    }
+
+    if ($RequiredFailures.Count -eq 0) {
+        Write-Check -Status 'OK' -Key 'COD_CONFIG_FILES_COPIED' -Detail '.txt0/.txt1/.m replaced successfully'
+    } else {
+        Write-Check -Status 'FAIL' -Key 'COD_CONFIG_FILES_COPIED' -Detail ($RequiredFailures -join '; ')
+    }
+
+    if ($CodConfigFilesProcessed -eq 0) {
+        Write-Check -Status 'WARN' -Key 'COD_RENDERER_WORKER_COUNT' -Detail 'No COD txt config files processed'
+    } elseif ($RendererWorkerIssues.Count -eq 0) {
+        Write-Check -Status 'OK' -Key 'COD_RENDERER_WORKER_COUNT' -Detail "Target=$RendererWorkerCount; patched=$RendererWorkerPatched; unchanged=$RendererWorkerUnchanged"
+    } else {
+        Write-Check -Status 'FAIL' -Key 'COD_RENDERER_WORKER_COUNT' -Detail ($RendererWorkerIssues -join '; ')
     }
 }
 
