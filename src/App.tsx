@@ -19,7 +19,7 @@ export default function App() {
     setIsOffline, setMachines, clearAuthState,
     setSystemInfo, setDetectedGames, setIsAdmin, setIsLoading,
     addLogEntry, setShowConsentModal, setTelemetryEnabled,
-    setUpdateInfo, setUpdaterState,
+    setUpdateInfo, setUpdaterState, setCloseToBackground,
   } = useAppStore();
 
   // StrictMode guard — prevent double-init in dev
@@ -94,6 +94,11 @@ export default function App() {
 
     async function bootstrap() {
       try {
+        try {
+          const closeToBackground = await window.sensequality.getCloseToBackground();
+          setCloseToBackground(closeToBackground);
+        } catch {}
+
         // Phase 1: Check for offline state
         const offline = await window.sensequality.isOffline();
         if (offline) {

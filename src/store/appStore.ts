@@ -43,6 +43,7 @@ interface AppState {
   updateInfo: UpdateInfo | null;
   updateDismissed: boolean;
   updaterState: UpdaterState;
+  closeToBackground: boolean;
 
   // Auth actions
   setAuthUser: (user: AuthUser | null) => void;
@@ -74,6 +75,7 @@ interface AppState {
   setUpdateInfo: (info: UpdateInfo | null) => void;
   setUpdaterState: (state: UpdaterState) => void;
   dismissUpdate: () => void;
+  setCloseToBackground: (enabled: boolean) => void;
 }
 
 // User-namespaced localStorage key
@@ -167,6 +169,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     progress: 0,
     message: '',
   },
+  closeToBackground: true,
 
   // Auth actions
   setAuthUser: (user) => {
@@ -251,6 +254,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   }),
   setUpdaterState: (state) => set({ updaterState: state }),
   dismissUpdate: () => set({ updateDismissed: true }),
+  setCloseToBackground: (enabled) => set({ closeToBackground: enabled }),
 }));
 
 function persistConfig(

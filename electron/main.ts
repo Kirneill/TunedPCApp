@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, Menu, Tray, nativeImage } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { execFileSync } from 'child_process';
@@ -12,6 +12,15 @@ import { checkForUpdate, initUpdater, getUpdaterState, downloadUpdate, installUp
 // app.getPath() is unavailable before 'ready', so defer log path resolution
 let LOG_DIR = '';
 let LOG_FILE = '';
+const APP_SETTINGS_FILE = 'app-settings.json';
+
+interface AppSettings {
+  closeToBackground: boolean;
+}
+
+const DEFAULT_APP_SETTINGS: AppSettings = {
+  closeToBackground: true,
+};
 
 function ensureLogPaths() {
   if (!LOG_DIR) {
@@ -34,6 +43,106 @@ function log(level: 'INFO' | 'WARN' | 'ERROR', message: string) {
 }
 
 let mainWindow: BrowserWindow | null = null;
+let appTray: Tray | null = null;
+let appSettings: AppSettings = { ...DEFAULT_APP_SETTINGS };
+let isQuitting = false;
+
+function getAppSettingsPath() {
+  return path.join(app.getPath('userData'), APP_SETTINGS_FILE);
+}
+
+function loadAppSettings(): AppSettings {
+  const settingsPath = getAppSettingsPath();
+  try {
+    if (!fs.existsSync(settingsPath)) {
+      return { ...DEFAULT_APP_SETTINGS };
+    }
+    const raw = fs.readFileSync(settingsPath, 'utf8');
+    const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    return {
+      closeToBackground: parsed.closeToBackground !== false,
+    };
+  } catch {
+    return { ...DEFAULT_APP_SETTINGS };
+  }
+}
+
+function saveAppSettings(settings: AppSettings) {
+  try {
+    fs.writeFileSync(getAppSettingsPath(), JSON.stringify(settings, null, 2), 'utf8');
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    log('WARN', `Failed to save app settings: ${errorText}`);
+  }
+}
+
+function getTrayIconPath(): string | null {
+  const candidates = [
+    path.join(process.resourcesPath, 'icon.png'),
+    path.join(app.getAppPath(), 'resources', 'icon.png'),
+    path.join(__dirname, '../resources/icon.png'),
+    path.join(process.cwd(), 'resources/icon.png'),
+  ];
+
+  for (const iconPath of candidates) {
+    try {
+      if (fs.existsSync(iconPath)) {
+        return iconPath;
+      }
+    } catch {
+      // Continue to next candidate
+    }
+  }
+
+  return null;
+}
+
+function showMainWindow() {
+  if (!mainWindow) {
+    createWindow();
+    return;
+  }
+  if (!mainWindow.isVisible()) mainWindow.show();
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+}
+
+function createTray() {
+  if (appTray) return;
+
+  const iconPath = getTrayIconPath();
+  if (!iconPath) {
+    log('WARN', 'Tray icon not found. Tray menu disabled.');
+    return;
+  }
+
+  const trayIcon = nativeImage.createFromPath(iconPath);
+  if (trayIcon.isEmpty()) {
+    log('WARN', 'Tray icon failed to load. Tray menu disabled.');
+    return;
+  }
+
+  appTray = new Tray(trayIcon);
+  appTray.setToolTip('SENSEQUALITY Optimizer');
+  appTray.on('click', () => showMainWindow());
+  appTray.on('double-click', () => showMainWindow());
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Open SENSEQUALITY Optimizer',
+      click: () => showMainWindow(),
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+  appTray.setContextMenu(contextMenu);
+}
 
 function isAdmin(): boolean {
   if (process.platform !== 'win32') return true;
@@ -139,6 +248,19 @@ function createWindow() {
     mainWindow?.show();
   });
 
+  mainWindow.on('close', (event) => {
+    if (isQuitting || !appSettings.closeToBackground) {
+      return;
+    }
+    event.preventDefault();
+    mainWindow?.hide();
+    log('INFO', 'Close intercepted; app remains running in background.');
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
   if (devUrl) {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
@@ -157,6 +279,13 @@ function createWindow() {
     }
   });
   ipcMain.on('window:close', () => mainWindow?.close());
+  ipcMain.handle('app:getCloseToBackground', () => appSettings.closeToBackground);
+  ipcMain.handle('app:setCloseToBackground', (_event, enabled: boolean) => {
+    appSettings.closeToBackground = Boolean(enabled);
+    saveAppSettings(appSettings);
+    log('INFO', `Close behavior updated: ${appSettings.closeToBackground ? 'background' : 'full-exit'}`);
+    return appSettings.closeToBackground;
+  });
 
   ipcMain.handle('system:isAdmin', () => isAdmin());
   ipcMain.handle('shell:openExternal', (_event, url: string) => {
@@ -186,10 +315,7 @@ if (!gotLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-    }
+    showMainWindow();
   });
 
   app.whenReady().then(async () => {
@@ -199,6 +325,8 @@ if (!gotLock) {
     log('INFO', `ELECTRON_RUN_AS_NODE: ${process.env.ELECTRON_RUN_AS_NODE ?? 'unset'}`);
     log('INFO', `Platform: ${process.platform} ${process.arch}, CWD: ${process.cwd()}`);
     log('INFO', `App path: ${app.getAppPath()}, User data: ${app.getPath('userData')}`);
+    appSettings = loadAppSettings();
+    log('INFO', `Close behavior: ${appSettings.closeToBackground ? 'background' : 'full-exit'}`);
 
     // Phase 1: Init telemetry (anonymous, consent-gated)
     initTelemetry();
@@ -222,8 +350,21 @@ if (!gotLock) {
 
     // Phase 4: Create window
     createWindow();
+    createTray();
   });
 }
+
+app.on('before-quit', () => {
+  isQuitting = true;
+  if (appTray) {
+    appTray.destroy();
+    appTray = null;
+  }
+});
+
+app.on('activate', () => {
+  showMainWindow();
+});
 
 app.on('window-all-closed', () => {
   log('INFO', 'All windows closed, quitting');

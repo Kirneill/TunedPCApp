@@ -95,7 +95,36 @@ if (Test-Path $BattleNetExe) {
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SECTION 4: REPLACE BO7 PLAYER FILES FROM TEMPLATE BACKUP
+# SECTION 4: ENSURE WINDOWS GAME MODE STAYS ENABLED (COD PRIORITY)
+# WHY: COD benefits from consistent scheduler priority and no DVR/background
+#      capture overhead. Re-apply every BO7 run to prevent drift.
+# ─────────────────────────────────────────────────────────────────────────────
+
+try {
+    $GameBarPath = "HKCU:\Software\Microsoft\GameBar"
+    if (-not (Test-Path $GameBarPath)) { New-Item -Path $GameBarPath -Force | Out-Null }
+
+    Set-ItemProperty -Path $GameBarPath -Name "AllowAutoGameMode" -Value 1 -Type DWord -Force
+    Set-ItemProperty -Path $GameBarPath -Name "AutoGameModeEnabled" -Value 1 -Type DWord -Force
+    Set-ItemProperty -Path $GameBarPath -Name "UseNexusForGameBarEnabled" -Value 0 -Type DWord -Force
+
+    $GameBarPolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"
+    if (-not (Test-Path $GameBarPolicyPath)) { New-Item -Path $GameBarPolicyPath -Force | Out-Null }
+    Set-ItemProperty -Path $GameBarPolicyPath -Name "AllowGameDVR" -Value 0 -Type DWord -Force
+
+    $GameDVRPath = "HKCU:\System\GameConfigStore"
+    if (-not (Test-Path $GameDVRPath)) { New-Item -Path $GameDVRPath -Force | Out-Null }
+    Set-ItemProperty -Path $GameDVRPath -Name "GameDVR_Enabled" -Value 0 -Type DWord -Force
+
+    Write-Host "  [OK] Game Mode re-applied for COD." -ForegroundColor Green
+    Write-Host "  [OK] Game DVR/background recording disabled." -ForegroundColor Green
+} catch {
+    Write-Host "  [WARN] Could not enforce Game Mode settings: $_" -ForegroundColor Yellow
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 5: REPLACE BO7 PLAYER FILES FROM TEMPLATE BACKUP
 # WHY: Ensure deterministic config baseline every run, then tune
 #      RendererWorkerCount to the local machine core count.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -155,7 +184,7 @@ if (-not (Test-Path $BackupDir)) {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SECTION 5: PRINT IN-GAME SETTINGS GUIDE
+# SECTION 6: PRINT IN-GAME SETTINGS GUIDE
 # ─────────────────────────────────────────────────────────────────────────────
 
 Write-Host ""

@@ -86,6 +86,8 @@ const api = {
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
   closeWindow: () => ipcRenderer.send('window:close'),
+  getCloseToBackground: (): Promise<boolean> => ipcRenderer.invoke('app:getCloseToBackground'),
+  setCloseToBackground: (enabled: boolean): Promise<boolean> => ipcRenderer.invoke('app:setCloseToBackground', enabled),
 
   // External links
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),

@@ -6,7 +6,19 @@ import LogViewer from '../ui/LogViewer';
 import WindowsUpdateModeCard from '../windows/WindowsUpdateModeCard';
 
 export default function AdvancedPage() {
-  const { toggles, userConfig, isRunning, setIsRunning, clearLog, progressLog, setAllToggles, telemetryEnabled, setTelemetryEnabled } = useAppStore();
+  const {
+    toggles,
+    userConfig,
+    isRunning,
+    setIsRunning,
+    clearLog,
+    progressLog,
+    setAllToggles,
+    telemetryEnabled,
+    setTelemetryEnabled,
+    closeToBackground,
+    setCloseToBackground,
+  } = useAppStore();
 
   const enabledIds = Object.entries(toggles)
     .filter(([id, enabled]) => id !== 'win-all' && enabled)
@@ -82,6 +94,40 @@ export default function AdvancedPage() {
       />
 
       <MonitorConfig />
+
+      {/* Close behavior toggle */}
+      <div className="bg-sq-surface border border-sq-border rounded-xl px-5 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-sq-text">Close Behavior</h3>
+            <p className="text-[11px] text-sq-text-dim mt-0.5">
+              {closeToBackground
+                ? 'When enabled, clicking X keeps the app running in the background.'
+                : 'When disabled, clicking X fully exits the app.'}
+            </p>
+          </div>
+          <div
+            className={`
+              w-12 h-7 rounded-full flex items-center px-1 transition-colors shrink-0 cursor-pointer
+              ${closeToBackground ? 'bg-sq-accent' : 'bg-sq-border'}
+            `}
+            onClick={async () => {
+              const next = !closeToBackground;
+              try {
+                const saved = await window.sensequality.setCloseToBackground(next);
+                setCloseToBackground(saved);
+              } catch (err) {
+                console.error('Failed to update close behavior:', err);
+              }
+            }}
+          >
+            <div className={`
+              w-5 h-5 rounded-full bg-white shadow-md transition-transform
+              ${closeToBackground ? 'translate-x-5' : 'translate-x-0'}
+            `} />
+          </div>
+        </div>
+      </div>
 
       {/* Telemetry toggle */}
       <div className="bg-sq-surface border border-sq-border rounded-xl px-5 py-4">

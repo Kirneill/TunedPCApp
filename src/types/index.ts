@@ -118,6 +118,8 @@ declare global {
       minimizeWindow: () => void;
       maximizeWindow: () => void;
       closeWindow: () => void;
+      getCloseToBackground: () => Promise<boolean>;
+      setCloseToBackground: (enabled: boolean) => Promise<boolean>;
       openExternal: (url: string) => Promise<void>;
       hasConsentDecision: () => Promise<boolean>;
       getTelemetryConsent: () => Promise<boolean>;
