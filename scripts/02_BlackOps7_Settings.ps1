@@ -10,16 +10,16 @@
     Call of Duty: Black Ops 7. Since BO7 uses the Ricochet anti-cheat system,
     this script modifies:
     - Windows compatibility flags for the game EXE (safe, OS-level)
-    - User-accessible config files in %LOCALAPPDATA%\Activision\Call of Duty\players
-      by restoring BO7BACKUP templates (.txt0, .txt1, .m) + dynamic RendererWorkerCount tuning
+    - Windows/Game Mode registry values that reduce gaming overhead
+    - In-app guidance output for manual max-FPS game settings
 
     It does NOT patch game files, memory, or anything Ricochet monitors.
 
 .NOTES
     IMPORTANT: BO7 encrypts and overwrites its config files on launch.
-    This script sets Windows-layer optimizations and restores player config
-    files from backup templates. Some in-game settings may still need manual
-    validation after game updates.
+    This script sets Windows-layer optimizations only. BO7 player config template
+    writes are disabled by design to prevent cloud/auto-detect sync from forcing
+    unwanted quality presets. In-game settings should be applied manually.
 
     Optimal Settings Reference (February 2026 - IW Engine):
     - These settings tested across RTX 3060 to RTX 4090 tier hardware
@@ -165,134 +165,17 @@ try {
 
 
 # -----------------------------------------------------------------------------
-# SECTION 5: RESTORE BO7 PLAYER FILES FROM BACKUP TEMPLATES
-# WHY: Place known baseline files (.txt0, .txt1, .m) into players folder,
-#      then tune RendererWorkerCount to the local machine core count.
+# SECTION 5: BO7 PLAYER TEMPLATE COPY (DISABLED BY DESIGN)
+# WHY: BO7 can resync/overwrite local config via cloud + auto-detection.
+#      Copying BO7BACKUP templates here caused quality to revert unexpectedly
+#      on some systems, so this step is intentionally skipped.
 # -----------------------------------------------------------------------------
 
-$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$BackupDir = Join-Path $ScriptRoot "BO7BACKUP"
-$PlayersDir = Join-Path $env:LOCALAPPDATA "Activision\Call of Duty\players"
-$RequiredCodFiles = @(
-    's.1.0.cod25.txt0',
-    's.1.0.cod25.txt1',
-    's.1.0.cod25.m'
-)
-$RequiredCodCopyStatus = @{}
-$RequiredCodCopyDetails = @{}
-$RendererWorkerIssues = @()
-$CodConfigFilesProcessed = 0
-$RendererWorkerPatched = 0
-$RendererWorkerUnchanged = 0
-
-if (-not (Test-Path $BackupDir)) {
-    Write-Host "[WARN] BO7 backup folder not found: $BackupDir" -ForegroundColor Yellow
-    Write-Host "       Skipping player config replacement." -ForegroundColor Yellow
-    Write-Check -Status 'FAIL' -Key 'COD_CONFIG_FILES_COPIED' -Detail 'BO7BACKUP folder missing'
-    Write-Check -Status 'WARN' -Key 'COD_RENDERER_WORKER_COUNT' -Detail 'No COD txt config files processed'
-} else {
-    if (-not (Test-Path $PlayersDir)) {
-        New-Item -ItemType Directory -Path $PlayersDir -Force | Out-Null
-    }
-
-    $CoreCount = (Get-CimInstance Win32_Processor | Measure-Object NumberOfCores -Sum).Sum
-    if (-not $CoreCount -or $CoreCount -lt 1) {
-        $CoreCount = [Environment]::ProcessorCount
-    }
-
-    $RendererWorkerCount = if ([int]$CoreCount -eq 8) { 7 } else { [int]$CoreCount }
-    if ($RendererWorkerCount -gt 16) {
-        Write-Host "[WARN] Detected $CoreCount cores; clamping RendererWorkerCount to 16 (game max)." -ForegroundColor Yellow
-        $RendererWorkerCount = 16
-    } elseif ($RendererWorkerCount -lt 1) {
-        Write-Host "[WARN] Invalid core count detected; using RendererWorkerCount = 1." -ForegroundColor Yellow
-        $RendererWorkerCount = 1
-    }
-
-    Write-Host "[INFO] CPU cores detected: $CoreCount | RendererWorkerCount target: $RendererWorkerCount" -ForegroundColor Cyan
-    Write-Host "[INFO] Restoring BO7 template files (.txt0, .txt1, .m)..." -ForegroundColor Cyan
-
-    foreach ($RequiredFile in $RequiredCodFiles) {
-        $RequiredCodCopyStatus[$RequiredFile] = $false
-        $RequiredCodCopyDetails[$RequiredFile] = 'Not processed'
-
-        $SourcePath = Join-Path $BackupDir $RequiredFile
-        $DestinationPath = Join-Path $PlayersDir $RequiredFile
-
-        if (-not (Test-Path $SourcePath)) {
-            $RequiredCodCopyDetails[$RequiredFile] = 'Required template missing in BO7BACKUP'
-            Write-Host "  [WARN] Missing backup template: $RequiredFile" -ForegroundColor Yellow
-            continue
-        }
-
-        try {
-            Copy-Item -Path $SourcePath -Destination $DestinationPath -Force -ErrorAction Stop
-            $SourceHash = (Get-FileHash -Path $SourcePath -Algorithm SHA256 -ErrorAction Stop).Hash
-            $DestinationHash = (Get-FileHash -Path $DestinationPath -Algorithm SHA256 -ErrorAction Stop).Hash
-
-            if ($SourceHash -eq $DestinationHash) {
-                $RequiredCodCopyStatus[$RequiredFile] = $true
-                $RequiredCodCopyDetails[$RequiredFile] = 'Replacement verified (hash match)'
-                Write-Host "  [OK] Replaced $RequiredFile and verified destination hash." -ForegroundColor Green
-            } else {
-                $RequiredCodCopyDetails[$RequiredFile] = 'Hash mismatch after copy'
-                Write-Host "  [WARN] $RequiredFile copied but hash mismatch detected." -ForegroundColor Yellow
-                continue
-            }
-
-            if ($RequiredFile -like '*.txt*') {
-                try {
-                    $CodConfigFilesProcessed++
-                    $Content = Get-Content -Path $DestinationPath -Raw -ErrorAction Stop
-                    if ($Content -match '(?m)^(RendererWorkerCount@[^=]+=\s*)(-?\d+)(\s*//.*)?$') {
-                        $CurrentRendererWorkerCount = [int]$Matches[2]
-                        $UpdatedContent = $Content -replace '(?m)^(RendererWorkerCount@[^=]+=\s*)-?\d+(\s*//.*)?$', "`$1$RendererWorkerCount`$2"
-
-                        if ($UpdatedContent -ne $Content) {
-                            Set-Content -Path $DestinationPath -Value $UpdatedContent -Encoding UTF8 -Force
-                            $RendererWorkerPatched++
-                            Write-Host "  [OK] Updated ${RequiredFile}: RendererWorkerCount $CurrentRendererWorkerCount -> $RendererWorkerCount" -ForegroundColor Green
-                        } else {
-                            $RendererWorkerUnchanged++
-                            Write-Host "  [OK] ${RequiredFile}: RendererWorkerCount already set to $RendererWorkerCount" -ForegroundColor Green
-                        }
-                    } else {
-                        $RendererWorkerIssues += "${RequiredFile}:RendererWorkerCount missing"
-                        Write-Host "  [WARN] RendererWorkerCount not found in $RequiredFile" -ForegroundColor Yellow
-                    }
-                } catch {
-                    $RendererWorkerIssues += "${RequiredFile}:$($_.Exception.Message)"
-                    Write-Host "  [WARN] Could not patch ${RequiredFile}: $($_.Exception.Message)" -ForegroundColor Yellow
-                }
-            }
-        } catch {
-            $RequiredCodCopyStatus[$RequiredFile] = $false
-            $RequiredCodCopyDetails[$RequiredFile] = "Copy failed: $($_.Exception.Message)"
-            Write-Host "  [WARN] Failed to replace ${RequiredFile}: $($_.Exception.Message)" -ForegroundColor Yellow
-        }
-    }
-
-    $RequiredFailures = @()
-    foreach ($RequiredFile in $RequiredCodFiles) {
-        if (-not $RequiredCodCopyStatus[$RequiredFile]) {
-            $RequiredFailures += "$RequiredFile -> $($RequiredCodCopyDetails[$RequiredFile])"
-        }
-    }
-
-    if ($RequiredFailures.Count -eq 0) {
-        Write-Check -Status 'OK' -Key 'COD_CONFIG_FILES_COPIED' -Detail '.txt0/.txt1/.m replaced successfully'
-    } else {
-        Write-Check -Status 'FAIL' -Key 'COD_CONFIG_FILES_COPIED' -Detail ($RequiredFailures -join '; ')
-    }
-
-    if ($CodConfigFilesProcessed -eq 0) {
-        Write-Check -Status 'WARN' -Key 'COD_RENDERER_WORKER_COUNT' -Detail 'No COD txt config files processed'
-    } elseif ($RendererWorkerIssues.Count -eq 0) {
-        Write-Check -Status 'OK' -Key 'COD_RENDERER_WORKER_COUNT' -Detail "Target=$RendererWorkerCount; patched=$RendererWorkerPatched; unchanged=$RendererWorkerUnchanged"
-    } else {
-        Write-Check -Status 'FAIL' -Key 'COD_RENDERER_WORKER_COUNT' -Detail ($RendererWorkerIssues -join '; ')
-    }
-}
+Write-Host "[INFO] BO7 player template copy step is disabled by design." -ForegroundColor Cyan
+Write-Host "       No .txt0/.txt1/.m files are copied into Activision\\Call of Duty\\players." -ForegroundColor DarkGray
+Write-Host "       Apply the recommended in-game settings manually for stable max FPS." -ForegroundColor DarkGray
+Write-Check -Status 'WARN' -Key 'COD_CONFIG_FILES_COPIED' -Detail 'Disabled by design; BO7BACKUP templates not copied'
+Write-Check -Status 'WARN' -Key 'COD_RENDERER_WORKER_COUNT' -Detail 'Disabled by design; RendererWorkerCount not patched'
 
 # -----------------------------------------------------------------------------
 # SECTION 6: PRINT IN-GAME SETTINGS GUIDE

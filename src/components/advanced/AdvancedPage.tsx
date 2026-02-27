@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useAppStore } from '../../store/appStore';
 import { windowsOptimizations, gameOptimizations } from '../../data/optimizations';
 import OptimizationSection from '../optimizations/OptimizationSection';
@@ -5,6 +6,7 @@ import MonitorConfig from '../dashboard/MonitorConfig';
 import LogViewer from '../ui/LogViewer';
 import WindowsUpdateModeCard from '../windows/WindowsUpdateModeCard';
 import RestorePointControls from '../windows/RestorePointControls';
+import CodFpsGuideModal from '../ui/CodFpsGuideModal';
 
 export default function AdvancedPage() {
   const {
@@ -20,6 +22,7 @@ export default function AdvancedPage() {
     closeToBackground,
     setCloseToBackground,
   } = useAppStore();
+  const [showCodFpsGuide, setShowCodFpsGuide] = useState(false);
 
   const enabledIds = Object.entries(toggles)
     .filter(([id, enabled]) => id !== 'win-all' && enabled)
@@ -30,7 +33,12 @@ export default function AdvancedPage() {
     setIsRunning(true);
     clearLog();
     try {
-      await window.sensequality.runSelected(enabledIds, userConfig);
+      const runResult = await window.sensequality.runSelected(enabledIds, userConfig);
+      const codSelected = enabledIds.includes('game-blackops7');
+      const codSucceeded = runResult.results['game-blackops7'] === true;
+      if (codSelected && codSucceeded) {
+        setShowCodFpsGuide(true);
+      }
     } catch (err) {
       console.error('Run failed:', err);
     } finally {
@@ -190,6 +198,7 @@ export default function AdvancedPage() {
       {progressLog.length > 0 && (
         <LogViewer entries={progressLog} maxHeight="240px" />
       )}
+      <CodFpsGuideModal open={showCodFpsGuide} onClose={() => setShowCodFpsGuide(false)} />
     </div>
   );
 }

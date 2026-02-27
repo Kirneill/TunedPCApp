@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useAppStore } from '../../store/appStore';
 import GameCard from './GameCard';
 import LogViewer from '../ui/LogViewer';
 import WindowsUpdateModeCard from '../windows/WindowsUpdateModeCard';
 import RestorePointControls from '../windows/RestorePointControls';
+import CodFpsGuideModal from '../ui/CodFpsGuideModal';
 
 const games = [
   {
@@ -53,6 +55,7 @@ export default function HomePage() {
     isRunning, setIsRunning, clearLog, progressLog, isLoading,
     setCurrentPage, setUserConfig,
   } = useAppStore();
+  const [showCodFpsGuide, setShowCodFpsGuide] = useState(false);
 
   const windowsEnabled = toggles['win-all'] ?? true;
   const enabledGameIds = games
@@ -99,7 +102,12 @@ export default function HomePage() {
     setIsRunning(true);
     clearLog();
     try {
-      await window.sensequality.runSelected(idsToRun, userConfig);
+      const runResult = await window.sensequality.runSelected(idsToRun, userConfig);
+      const codSelected = idsToRun.includes('game-blackops7');
+      const codSucceeded = runResult.results['game-blackops7'] === true;
+      if (codSelected && codSucceeded) {
+        setShowCodFpsGuide(true);
+      }
     } catch (err) {
       console.error('Run failed:', err);
     } finally {
@@ -257,6 +265,7 @@ export default function HomePage() {
           </div>
         )}
       </div>
+      <CodFpsGuideModal open={showCodFpsGuide} onClose={() => setShowCodFpsGuide(false)} />
     </div>
   );
 }
