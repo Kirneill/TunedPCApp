@@ -14,12 +14,17 @@ extraResources:
     to: scripts
     filter:
       - "*.ps1"
+      - "BO7BACKUP/**"
       - "!Gaming Research"
       - "!Gaming Research/**"
       - "!testimages"
       - "!testimages/**"
       - "!RUN_AS_ADMIN.bat"
       - "!00_MASTER_RUN_ALL.ps1"
+  - from: resources/icon.png
+    to: icon.png
+  - from: resources/icon.ico
+    to: icon.ico
   - from: EULA.txt
     to: EULA.txt
 

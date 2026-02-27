@@ -79,9 +79,13 @@ function saveAppSettings(settings: AppSettings) {
 function getTrayIconPath(): string | null {
   const candidates = [
     path.join(process.resourcesPath, 'icon.png'),
+    path.join(process.resourcesPath, 'icon.ico'),
     path.join(app.getAppPath(), 'resources', 'icon.png'),
+    path.join(app.getAppPath(), 'resources', 'icon.ico'),
     path.join(__dirname, '../resources/icon.png'),
+    path.join(__dirname, '../resources/icon.ico'),
     path.join(process.cwd(), 'resources/icon.png'),
+    path.join(process.cwd(), 'resources/icon.ico'),
   ];
 
   for (const iconPath of candidates) {
@@ -250,6 +254,10 @@ function createWindow() {
 
   mainWindow.on('close', (event) => {
     if (isQuitting || !appSettings.closeToBackground) {
+      return;
+    }
+    if (!appTray) {
+      log('WARN', 'Close-to-background requested but tray is unavailable; allowing full exit.');
       return;
     }
     event.preventDefault();

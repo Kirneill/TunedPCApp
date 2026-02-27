@@ -1,0 +1,273 @@
+================================================================================
+DOTA 2 WINDOWS INSTALLATION & REGISTRY PATHS — QUICK REFERENCE
+================================================================================
+
+APP ID: 570
+
+================================================================================
+1. STEAM INSTALLATION PATH (Registry)
+================================================================================
+
+PRIMARY:
+  HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam
+  Value Name: InstallPath
+  Type: REG_SZ
+  Example Value: C:\Program Files (x86)\Steam
+
+FALLBACK (if HKLM fails):
+  HKEY_CURRENT_USER\Software\Valve\Steam
+  Value Name: SteamPath
+  Type: REG_SZ
+
+================================================================================
+2. LIBRARY DETECTION
+================================================================================
+
+File: <SteamPath>\steamapps\libraryfolders.vdf
+Format: KeyValues (text)
+Action: Parse all library paths, check each for "dota 2 beta" directory
+
+Manifest Check:
+  <LibraryPath>\steamapps\appmanifest_570.acf
+  Contains: installdir field (usually "dota 2 beta")
+
+================================================================================
+3. DOTA 2 INSTALLATION DIRECTORY
+================================================================================
+
+Default Path:
+  <SteamPath>\steamapps\common\dota 2 beta\
+
+Custom Libraries:
+  Can be on ANY library path detected from libraryfolders.vdf
+  Check ALL libraries before concluding game not installed
+
+================================================================================
+4. CONFIG FILE PATHS
+================================================================================
+
+VIDEO SETTINGS (ALL graphics/video options):
+  <DotaPath>\game\dota\cfg\video.txt
+  Format: KeyValues (VDF-style)
+  Behavior: OVERWRITTEN by Dota 2 when game closes or settings change
+  Read-only: NO—game must be able to write to it
+
+AUTOEXEC CONFIGURATION (console commands):
+  <DotaPath>\game\dota\cfg\autoexec.cfg
+  Format: Plaintext (one command per line)
+  Behavior: Auto-executed at startup AFTER video.txt is parsed
+  Read-only: Safe to leave; game won't overwrite
+  Advantage: Persists across sessions and overrides video.txt
+
+STEAM CLOUD SYNC:
+  <SteamPath>\userdata\<SteamID64>\570\remote\cfg\
+  Effect: May override local files if Steam Cloud enabled
+  Warning: Warn users to disable Steam Cloud or expect sync conflicts
+
+================================================================================
+5. STEAM LAUNCH OPTIONS
+================================================================================
+
+File: <SteamPath>\config\localconfig.vdf
+Format: Binary KeyValues (NOT plaintext—requires VDF parser)
+Path to Value: UserLocalConfigStore > Software > Valve > Steam > Apps > 570 > LaunchOptions
+
+Recommended Options:
+  -novid -high -dx11 +fps_max 0 -prewarm
+
+Parsing Libraries:
+  Python: vdf (pip install vdf)
+  Node.js: vdf (npm install vdf)
+  .NET: VdfParser (NuGet)
+
+USER-FRIENDLY ALTERNATIVE:
+  Tell users to right-click Dota 2 > Properties > "Launch Options"
+  and paste the string manually (safer than binary VDF parsing)
+
+================================================================================
+6. EXECUTABLE NAME
+================================================================================
+
+Process Name:
+  dota2.exe
+
+Full Path:
+  <DotaPath>\game\bin\win64\dota2.exe
+
+For GPU Driver Profiles:
+  Use: dota2.exe (name only, NOT full path)
+  Works with: NVIDIA GeForce Experience, AMD Radeon Software
+
+================================================================================
+7. VIDEO.TXT OVERWRITE BEHAVIOR
+================================================================================
+
+When does the game write to video.txt?
+  1. When game closes normally
+  2. When user changes in-game graphics settings
+  3. On every game launch (preserves settings from last session)
+
+If you set video.txt read-only:
+  • Game cannot save settings changes
+  • User experience breaks (settings revert)
+  • RESULT: DO NOT set read-only
+
+Best practice:
+  • Write optimal video.txt
+  • Create autoexec.cfg with critical console commands
+  • Commands in autoexec override video.txt settings
+  • OR: Re-apply optimizations after each game session
+
+Steam Cloud issue:
+  • If Steam Cloud enabled, closing game uploads new settings
+  • Next launch downloads cloud version (overwrites local)
+  • Solution: Warn users or place critical settings in autoexec.cfg
+
+================================================================================
+8. WINDOWS REGISTRY PERFORMANCE TWEAKS
+================================================================================
+
+These are NOT Dota 2 specific but affect system performance:
+
+Nagle's Algorithm (Network):
+  HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{adapter-GUID}
+  TcpAckFrequency = 1 (REG_DWORD)
+  TCPNoDelay = 1 (REG_DWORD)
+
+GPU Scheduling:
+  HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers
+  HwSchMode = 2 (REG_DWORD)
+
+Multimedia Throttling:
+  HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile
+  SystemResponsiveness = 0 (REG_DWORD)
+  NetworkThrottlingIndex = 0xFFFFFFFF (REG_DWORD)
+
+MMCSS Games Priority:
+  HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games
+  GPU Priority = 8 (REG_DWORD)
+  Priority = 6 (REG_DWORD)
+  Scheduling Category = "High" (REG_SZ)
+
+================================================================================
+9. NVIDIA/AMD GPU PROFILE SETTINGS
+================================================================================
+
+For dota2.exe, apply these profiles:
+
+NVIDIA:
+  • Power Management Mode = Prefer Maximum Performance
+  • Texture Filtering - Quality = High Performance
+  • Threaded Optimization = On
+  • Vertical Sync = Off
+  • Low Latency Mode = Ultra
+  • Shader Cache Size = Unlimited
+
+AMD:
+  • Radeon Anti-Lag = Enabled
+  • Radeon Chill = Disabled
+  • Radeon Boost = Disabled
+  • Wait for Vertical Refresh = Off
+  • Texture Filtering Quality = Performance
+
+================================================================================
+10. IMPLEMENTATION PRIORITY
+================================================================================
+
+Must-Have:
+  ✓ Detect Dota 2 install via registry + library enumeration
+  ✓ Modify video.txt with KeyValues parser
+  ✓ Create autoexec.cfg with console commands
+  ✓ Return dota2.exe for GPU profile setup
+
+Nice-to-Have:
+  • Modify launch options (requires binary VDF parser)
+  • Detect Steam Cloud status and warn
+  • Registry performance tweaks
+  • GPU profile auto-application (NVIDIA/AMD APIs complex)
+
+Not Recommended:
+  • Set video.txt read-only
+  • Try to parse binary localconfig.vdf without robust library
+
+================================================================================
+11. ENVIRONMENT VARIABLE REFERENCES
+================================================================================
+
+No environment variables are used in Dota 2 config paths.
+All paths must be resolved explicitly:
+
+  1. Query registry for Steam path
+  2. Parse libraryfolders.vdf to enumerate libraries
+  3. Check each library for "dota 2 beta" directory
+  4. Construct full paths from discovered location
+
+Example PowerShell pattern:
+  $steamPath = (Get-ItemProperty -Path "HKLM:\SOFTWARE\WOW6432Node\Valve\Steam" `
+                                 -Name "InstallPath").InstallPath
+  $dotaPath = Join-Path $steamPath "steamapps\common\dota 2 beta"
+  $videoTxt = Join-Path $dotaPath "game\dota\cfg\video.txt"
+
+================================================================================
+12. STEAM CLOUD DETECTION
+================================================================================
+
+To check if Steam Cloud is enabled for Dota 2:
+  • Look in localconfig.vdf for app 570 cloud settings
+  • OR: Check Steam UI: Dota 2 > Properties > Updates > "Save games to Steam Cloud"
+  • Recommendation: Document to users and suggest disabling if using your optimizer
+
+If Steam Cloud enabled:
+  • User's changes upload to Valve's servers
+  • Other machines sync down the latest config
+  • Your optimizer's changes get overwritten on next cloud sync
+  • Solution: Re-apply after cloud sync, or warn users
+
+================================================================================
+TESTING CHECKLIST
+================================================================================
+
+Before deploying to users:
+
+Registry Detection:
+  [ ] Test on machine with Steam installed (HKLM path)
+  [ ] Test fallback to HKCU on restricted environments
+  [ ] Handle case where Steam not installed (graceful error)
+
+Library Enumeration:
+  [ ] Test with single library (default location)
+  [ ] Test with multiple custom libraries
+  [ ] Test when Dota 2 is in non-default library
+
+Config File Modification:
+  [ ] Backup video.txt before modifying
+  [ ] Verify KeyValues format preserved
+  [ ] Verify autoexec.cfg is readable by game on next launch
+  [ ] Check that in-game settings reflect optimizations
+  [ ] Verify game doesn't crash due to malformed config
+
+GPU Profiles:
+  [ ] Test NVIDIA driver profile with dota2.exe
+  [ ] Test AMD driver profile with dota2.exe
+  [ ] Verify performance improvement (FPS target achieved)
+
+Edge Cases:
+  [ ] Test when Dota 2 is not installed (fail gracefully)
+  [ ] Test when Steam path is on non-system drive
+  [ ] Test with Steam Cloud enabled (document limitation)
+  [ ] Test with read-only filesystem (fail gracefully)
+
+================================================================================
+REFERENCE DOCUMENTS
+================================================================================
+
+Full Technical Spec:
+  f:\CLAUDE\APPGaming\Gaming Research\Dota2_Installation_Paths_Registry_Keys.md
+
+Code Examples:
+  f:\CLAUDE\APPGaming\Gaming Research\Dota2_Implementation_Code_Reference.md
+
+FPS Optimization Settings:
+  f:\CLAUDE\APPGaming\Gaming Research\New Games\Dota2_FPS_Settings.md
+
+================================================================================
