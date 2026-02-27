@@ -34,6 +34,7 @@ export interface UpdaterActionResult {
 const GITHUB_OWNER = 'Kirneill';
 const GITHUB_REPO = 'TunedPCApp';
 const RELEASES_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`;
+const GITHUB_RELEASES_API_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases?per_page=50`;
 
 let getMainWindow: (() => BrowserWindow | null) | null = null;
 let listenersInitialized = false;
@@ -49,17 +50,30 @@ function normalizeVersion(version: string): string {
   return version.replace(/^v/i, '').trim();
 }
 
-function compareVersions(current: string, latest: string): boolean {
-  const c = normalizeVersion(current).split('.').map(Number);
-  const l = normalizeVersion(latest).split('.').map(Number);
+function parseVersionParts(version: string): number[] | null {
+  const parts = normalizeVersion(version).split('.');
+  if (parts.length === 0) return null;
+  const parsed = parts.map((part) => Number(part));
+  if (parsed.some((n) => !Number.isFinite(n) || n < 0)) return null;
+  return parsed;
+}
 
-  for (let i = 0; i < Math.max(c.length, l.length); i++) {
-    const cv = c[i] || 0;
-    const lv = l[i] || 0;
-    if (lv > cv) return true;
-    if (lv < cv) return false;
+function compareVersionNumbers(a: string, b: string): number {
+  const av = parseVersionParts(a);
+  const bv = parseVersionParts(b);
+  if (!av || !bv) return 0;
+
+  for (let i = 0; i < Math.max(av.length, bv.length); i++) {
+    const ai = av[i] || 0;
+    const bi = bv[i] || 0;
+    if (ai > bi) return 1;
+    if (ai < bi) return -1;
   }
-  return false;
+  return 0;
+}
+
+function compareVersions(current: string, latest: string): boolean {
+  return compareVersionNumbers(latest, current) > 0;
 }
 
 function extractReleaseNotes(value: unknown): string {
@@ -133,21 +147,55 @@ function createUpdateCheckError(primaryError: unknown, fallbackError?: unknown):
   return new Error(`Update check failed. Auto-updater: ${primaryText}. GitHub fallback: ${fallbackText}`);
 }
 
-async function checkForUpdateViaGitHub(): Promise<UpdateInfo> {
-  const currentVersion = normalizeVersion(app.getVersion());
-  const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
+interface GitHubReleaseRecord {
+  tag_name?: string;
+  html_url?: string;
+  body?: string;
+  draft?: boolean;
+  prerelease?: boolean;
+}
 
-  const result: UpdateInfo = {
-    hasUpdate: false,
-    currentVersion,
-    latestVersion: currentVersion,
-    releaseUrl: RELEASES_URL,
-    releaseNotes: '',
-  };
+interface LatestReleaseMeta {
+  tag: string;
+  version: string;
+  htmlUrl: string;
+  notes: string;
+}
+
+function buildTagFeedUrl(tag: string): string {
+  return `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/${encodeURIComponent(tag)}`;
+}
+
+function pickHighestStableRelease(records: GitHubReleaseRecord[]): LatestReleaseMeta | null {
+  let best: LatestReleaseMeta | null = null;
+
+  for (const record of records) {
+    if (record.draft || record.prerelease) continue;
+    const tag = typeof record.tag_name === 'string' ? record.tag_name.trim() : '';
+    const version = normalizeVersion(tag);
+    if (!tag || !parseVersionParts(version)) continue;
+
+    const candidate: LatestReleaseMeta = {
+      tag,
+      version,
+      htmlUrl: typeof record.html_url === 'string' ? record.html_url : RELEASES_URL,
+      notes: typeof record.body === 'string' ? record.body : '',
+    };
+
+    if (!best || compareVersionNumbers(candidate.version, best.version) > 0) {
+      best = candidate;
+    }
+  }
+
+  return best;
+}
+
+async function fetchLatestReleaseMeta(): Promise<LatestReleaseMeta> {
+  const currentVersion = normalizeVersion(app.getVersion());
 
   const response = await new Promise<string>((resolve, reject) => {
     const request = net.request({
-      url: apiUrl,
+      url: GITHUB_RELEASES_API_URL,
       method: 'GET',
     });
 
@@ -170,16 +218,31 @@ async function checkForUpdateViaGitHub(): Promise<UpdateInfo> {
     request.end();
   });
 
-  const release = JSON.parse(response);
-  const latestVersion = normalizeVersion(String(release.tag_name || ''));
-  const hasUpdate = compareVersions(currentVersion, latestVersion);
+  const releases = JSON.parse(response);
+  if (!Array.isArray(releases)) {
+    throw new Error('GitHub releases API returned an unexpected payload.');
+  }
 
-  result.latestVersion = latestVersion || currentVersion;
-  result.releaseUrl = typeof release.html_url === 'string' ? release.html_url : RELEASES_URL;
-  result.releaseNotes = typeof release.body === 'string' ? release.body : '';
-  result.hasUpdate = hasUpdate;
+  const latest = pickHighestStableRelease(releases as GitHubReleaseRecord[]);
+  if (!latest) {
+    throw new Error('No stable semantic-version release found.');
+  }
 
-  return result;
+  return latest;
+}
+
+async function checkForUpdateViaGitHub(): Promise<UpdateInfo> {
+  const currentVersion = normalizeVersion(app.getVersion());
+  const latest = await fetchLatestReleaseMeta();
+  const hasUpdate = compareVersions(currentVersion, latest.version);
+
+  return {
+    hasUpdate,
+    currentVersion,
+    latestVersion: latest.version,
+    releaseUrl: latest.htmlUrl || RELEASES_URL,
+    releaseNotes: latest.notes,
+  };
 }
 
 export function initUpdater(windowGetter: () => BrowserWindow | null): void {
@@ -300,6 +363,19 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
   }
 
   try {
+    // Force feed metadata to the highest stable semver tag so older clients can jump directly to newest.
+    try {
+      const latestMeta = await fetchLatestReleaseMeta();
+      if (compareVersions(app.getVersion(), latestMeta.version)) {
+        autoUpdater.setFeedURL({
+          provider: 'generic',
+          url: buildTagFeedUrl(latestMeta.tag),
+        });
+      }
+    } catch {
+      // If GitHub API probing fails, continue with default provider config.
+    }
+
     const checkResult = await autoUpdater.checkForUpdates();
     if (!checkResult?.updateInfo) {
       throw new Error('No update metadata was returned by the updater provider.');
