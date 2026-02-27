@@ -95,6 +95,9 @@ const CHECK_LABELS: Record<string, string> = {
   COD_RENDERER_WORKER_COUNT: 'COD RendererWorkerCount applied',
   COD_RENDER_SCALE_PRESERVED: 'COD render scale unchanged',
   COD_RENDER_SCALE_DETECTED: 'COD render scale detected',
+  ARC_EXE_FLAGS: 'Arc Raiders EXE compatibility flags',
+  ARC_CONFIG_FILES_WRITTEN: 'Arc Raiders config files written',
+  ARC_SETTINGS_APPLIED: 'Arc Raiders settings applied',
 };
 
 function parseScriptCheck(line: string): ScriptCheck | null {
@@ -384,6 +387,16 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       CS2_STRETCHED: config.cs2Stretched ? '1' : '0',
     };
 
+    if (id === 'game-arcraiders') {
+      try {
+        const detectedGames = await detectInstalledGames();
+        const arcGame = detectedGames.find((game) => game.id === 'arcraiders' && !!game.path);
+        if (arcGame?.path) {
+          envVars.ARC_RAIDERS_PATH = arcGame.path;
+        }
+      } catch {}
+    }
+
     log('start', `Run started for optimization: ${id}`, {
       component: 'Run',
       action: 'run-start',
@@ -485,6 +498,16 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       NVIDIA_GPU: config.nvidiaGpu ? '1' : '0',
       CS2_STRETCHED: config.cs2Stretched ? '1' : '0',
     };
+
+    if (ids.includes('game-arcraiders')) {
+      try {
+        const detectedGames = await detectInstalledGames();
+        const arcGame = detectedGames.find((game) => game.id === 'arcraiders' && !!game.path);
+        if (arcGame?.path) {
+          envVars.ARC_RAIDERS_PATH = arcGame.path;
+        }
+      } catch {}
+    }
 
     log('start', `Run started for ${ids.length} optimization(s).`, {
       component: 'Run',

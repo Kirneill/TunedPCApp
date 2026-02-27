@@ -53,13 +53,52 @@ Write-Host ""
 # SECTION 1: LOCATE ARC RAIDERS AND SET EXE FLAGS
 # -----------------------------------------------------------------------------
 
-$ArcRaidersPaths = @(
-    "$env:PROGRAMFILES(x86)\Steam\steamapps\common\ArcRaiders\ArcRaiders.exe",
-    "C:\Steam\steamapps\common\ArcRaiders\ArcRaiders.exe",
-    "D:\Steam\steamapps\common\ArcRaiders\ArcRaiders.exe",
-    "D:\Games\steamapps\common\ArcRaiders\ArcRaiders.exe",
-    "$env:PROGRAMFILES(x86)\Steam\steamapps\common\Arc Raiders\ArcRaiders.exe"
+function Add-UniquePath {
+    param(
+        [System.Collections.Generic.List[string]]$List,
+        [string]$Path
+    )
+    if ([string]::IsNullOrWhiteSpace($Path)) { return }
+    if (-not $List.Contains($Path)) { $List.Add($Path) }
+}
+
+$ArcRaidersPaths = New-Object 'System.Collections.Generic.List[string]'
+
+# If provided by host process, trust this first.
+$DetectedArcPath = $env:ARC_RAIDERS_PATH
+if (-not [string]::IsNullOrWhiteSpace($DetectedArcPath)) {
+    if ($DetectedArcPath.EndsWith('.exe', [System.StringComparison]::OrdinalIgnoreCase)) {
+        Add-UniquePath -List $ArcRaidersPaths -Path $DetectedArcPath
+    } else {
+        Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $DetectedArcPath "ArcRaiders.exe")
+        Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $DetectedArcPath "Binaries\Win64\ArcRaiders-Win64-Shipping.exe")
+    }
+}
+
+$CommonArcRoots = @(
+    "$env:PROGRAMFILES(x86)\Steam\steamapps\common\ArcRaiders",
+    "$env:PROGRAMFILES(x86)\Steam\steamapps\common\Arc Raiders",
+    "$env:PROGRAMFILES\Steam\steamapps\common\ArcRaiders",
+    "$env:PROGRAMFILES\Steam\steamapps\common\Arc Raiders",
+    "C:\Steam\steamapps\common\ArcRaiders",
+    "C:\Steam\steamapps\common\Arc Raiders",
+    "D:\Steam\steamapps\common\ArcRaiders",
+    "D:\Steam\steamapps\common\Arc Raiders",
+    "D:\SteamLibrary\steamapps\common\ArcRaiders",
+    "D:\SteamLibrary\steamapps\common\Arc Raiders",
+    "E:\Steam\steamapps\common\ArcRaiders",
+    "E:\Steam\steamapps\common\Arc Raiders",
+    "E:\SteamLibrary\steamapps\common\ArcRaiders",
+    "E:\SteamLibrary\steamapps\common\Arc Raiders",
+    "C:\Program Files\Epic Games\ArcRaiders",
+    "D:\Epic Games\ArcRaiders",
+    "E:\Epic Games\ArcRaiders"
 )
+
+foreach ($root in $CommonArcRoots) {
+    Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $root "ArcRaiders.exe")
+    Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $root "Binaries\Win64\ArcRaiders-Win64-Shipping.exe")
+}
 
 $AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
 if (-not (Test-Path $AppCompatLayers)) { New-Item -Path $AppCompatLayers -Force | Out-Null }
@@ -77,6 +116,9 @@ if (-not $foundExe) {
     Write-Host "[WARN] Arc Raiders executable not found in common Steam paths." -ForegroundColor Yellow
     Write-Host "       To set manually: Right-click ArcRaiders.exe > Properties >" -ForegroundColor Yellow
     Write-Host "       Compatibility > Check 'Disable fullscreen optimizations'" -ForegroundColor Yellow
+    Write-Host "[SQ_CHECK_WARN:ARC_EXE_FLAGS:EXE_NOT_FOUND]"
+} else {
+    Write-Host "[SQ_CHECK_OK:ARC_EXE_FLAGS]"
 }
 
 # -----------------------------------------------------------------------------
@@ -84,36 +126,39 @@ if (-not $foundExe) {
 # Unreal Engine 5 games support an Engine.ini override in the user folder
 # -----------------------------------------------------------------------------
 
-$UE5ConfigPaths = @(
-    "$env:LOCALAPPDATA\ArcRaiders\Saved\Config\Windows\Engine.ini",
-    "$env:LOCALAPPDATA\ArcRaiders\Saved\Config\WindowsClient\Engine.ini"
+$ConfigRootCandidates = @(
+    "$env:LOCALAPPDATA\ArcRaiders\Saved\Config",
+    "$env:LOCALAPPDATA\Arc Raiders\Saved\Config",
+    "$env:LOCALAPPDATA\ARCRaiders\Saved\Config",
+    "$env:LOCALAPPDATA\ArcRaidersGame\Saved\Config"
 )
 
-$UE5EngineIni = $null
-foreach ($p in $UE5ConfigPaths) {
-    if (Test-Path (Split-Path $p -Parent)) {
-        $UE5EngineIni = $p
-        break
+$PlatformDirs = @("Windows", "WindowsClient", "WindowsNoEditor", "WinGDK")
+$TargetConfigDirs = New-Object 'System.Collections.Generic.List[string]'
+
+foreach ($root in $ConfigRootCandidates) {
+    if (-not (Test-Path $root)) { continue }
+    foreach ($platform in $PlatformDirs) {
+        $dirPath = Join-Path $root $platform
+        if (Test-Path $dirPath) {
+            Add-UniquePath -List $TargetConfigDirs -Path $dirPath
+        }
     }
-    # Also try creating the directory and using first path
-    if ($null -eq $UE5EngineIni) { $UE5EngineIni = $UE5ConfigPaths[0] }
 }
 
-if ($UE5EngineIni) {
-    $ConfigDir = Split-Path $UE5EngineIni -Parent
-    if (-not (Test-Path $ConfigDir)) {
-        New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
-    }
+if ($TargetConfigDirs.Count -eq 0) {
+    $fallbackDir = "$env:LOCALAPPDATA\ArcRaiders\Saved\Config\WindowsClient"
+    New-Item -ItemType Directory -Path $fallbackDir -Force | Out-Null
+    Add-UniquePath -List $TargetConfigDirs -Path $fallbackDir
+    Write-Host "[INFO] No existing Arc config folders found. Created fallback: $fallbackDir" -ForegroundColor DarkCyan
+}
 
-    $BackupPath = "$UE5EngineIni.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
-    if (Test-Path $UE5EngineIni) {
-        Copy-Item $UE5EngineIni $BackupPath -Force
-        Write-Host "[BACKUP] Engine.ini backed up to: $BackupPath" -ForegroundColor Yellow
-    }
+$AnyConfigWritten = $false
+$WrittenCount = 0
 
-    # UE5 Engine.ini performance tweaks
-    # These are user-side engine config overrides (safe, no anti-cheat conflict)
-    $EngineIniContent = @"
+# UE5 Engine.ini performance tweaks
+# These are user-side engine config overrides (safe, no anti-cheat conflict)
+$EngineIniContent = @"
 [SystemSettings]
 ; Reduces shader compilation stutter on new areas
 r.ShaderPipelineCache.Mode=1
@@ -143,22 +188,60 @@ r.Tonemapper.GrainQuantization=0
 ; Reduce draw call overhead
 r.DynamicGlobalIlluminationMethod=0
 
-[/Script/Engine.GameUserSettings]
-bUseVSync=False
-FrameRateLimit=$MonitorRefresh.000000
-ResolutionSizeX=$MonitorWidth
-ResolutionSizeY=$MonitorHeight
-FullscreenMode=1
-
 [ConsoleVariables]
 ; Ensures engine tweaks load immediately
 r.Streaming.FullyLoadUsedTextures=1
 "@
 
+$GameUserSettingsContent = @"
+[/Script/Engine.GameUserSettings]
+bUseVSync=False
+FrameRateLimit=$MonitorRefresh.000000
+ResolutionSizeX=$MonitorWidth
+ResolutionSizeY=$MonitorHeight
+LastUserConfirmedResolutionSizeX=$MonitorWidth
+LastUserConfirmedResolutionSizeY=$MonitorHeight
+FullscreenMode=1
+LastConfirmedFullscreenMode=1
+PreferredFullscreenMode=1
+Version=5
+"@
+
+foreach ($ConfigDir in $TargetConfigDirs) {
+    $UE5EngineIni = Join-Path $ConfigDir "Engine.ini"
+    $GameUserSettingsIni = Join-Path $ConfigDir "GameUserSettings.ini"
+
+    if (-not (Test-Path $ConfigDir)) {
+        New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
+    }
+
+    $engineBackupPath = "$UE5EngineIni.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
+    if (Test-Path $UE5EngineIni) {
+        Copy-Item $UE5EngineIni $engineBackupPath -Force
+        Write-Host "[BACKUP] Engine.ini backed up to: $engineBackupPath" -ForegroundColor Yellow
+    }
+
+    $gusBackupPath = "$GameUserSettingsIni.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
+    if (Test-Path $GameUserSettingsIni) {
+        Copy-Item $GameUserSettingsIni $gusBackupPath -Force
+        Write-Host "[BACKUP] GameUserSettings.ini backed up to: $gusBackupPath" -ForegroundColor Yellow
+    }
+
     Set-Content -Path $UE5EngineIni -Value $EngineIniContent -Encoding UTF8 -Force
-    Write-Host "  [OK] UE5 Engine.ini written to: $UE5EngineIni" -ForegroundColor Green
+    Set-Content -Path $GameUserSettingsIni -Value $GameUserSettingsContent -Encoding UTF8 -Force
+    Write-Host "  [OK] Engine.ini written to: $UE5EngineIni" -ForegroundColor Green
+    Write-Host "  [OK] GameUserSettings.ini written to: $GameUserSettingsIni" -ForegroundColor Green
+    $AnyConfigWritten = $true
+    $WrittenCount++
+}
+
+if ($AnyConfigWritten) {
+    Write-Host "[SQ_CHECK_OK:ARC_CONFIG_FILES_WRITTEN:$WrittenCount]"
 } else {
-    Write-Host "[INFO] Arc Raiders config directory not found. Launch game once first, then re-run." -ForegroundColor DarkCyan
+    Write-Host "[SQ_CHECK_FAIL:ARC_CONFIG_FILES_WRITTEN:NO_WRITES]"
+    Write-Host "[SQ_CHECK_FAIL:ARC_SETTINGS_APPLIED:NO_CONFIG_WRITES]"
+    Write-Host "[FAIL] Arc Raiders config files could not be written." -ForegroundColor Red
+    exit 1
 }
 
 # -----------------------------------------------------------------------------
@@ -262,5 +345,6 @@ Write-Host "  - Frame Generation (DLSS/FSR): Always OFF for competitive - adds l
 Write-Host "  - The game is well-optimized for UE5 - mid-range can hit 144fps at 1080p" -ForegroundColor DarkGray
 
 Write-Host ""
-Write-Host "[DONE] Arc Raiders Engine.ini written. Apply remaining settings in-game." -ForegroundColor Green
+Write-Host "[DONE] Arc Raiders config files written. Apply remaining settings in-game." -ForegroundColor Green
+Write-Host "[SQ_CHECK_OK:ARC_SETTINGS_APPLIED]"
 Write-Host ""
