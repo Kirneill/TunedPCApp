@@ -17,6 +17,7 @@ export default function TitleBar() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<{ tone: 'info' | 'success' | 'error'; message: string } | null>(null);
+  const [appVersion, setAppVersion] = useState('v?');
 
   const handleSignOut = async () => {
     await window.sensequality.signOut();
@@ -52,6 +53,28 @@ export default function TitleBar() {
     return () => window.clearTimeout(timer);
   }, [updateStatus]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    window.sensequality.getAppVersion()
+      .then((version) => {
+        if (!mounted) return;
+        const normalized = version.trim();
+        if (!normalized) {
+          setAppVersion('v?');
+          return;
+        }
+        setAppVersion(normalized.startsWith('v') ? normalized : `v${normalized}`);
+      })
+      .catch(() => {
+        if (mounted) setAppVersion('v?');
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="drag-region flex items-center justify-between h-11 bg-sq-surface/80 backdrop-blur-sm border-b border-sq-border px-4 select-none shrink-0">
       {/* Logo */}
@@ -85,6 +108,12 @@ export default function TitleBar() {
 
       {/* User + Window controls */}
       <div className="flex items-center no-drag relative">
+        <div
+          className="mr-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold tracking-[0.08em] border border-sq-border bg-sq-surface text-sq-text-muted"
+          title="Installed app version"
+        >
+          {appVersion}
+        </div>
         <button
           onClick={handleCheckForUpdates}
           disabled={checkingUpdate}
