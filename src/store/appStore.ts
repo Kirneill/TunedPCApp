@@ -88,7 +88,7 @@ function getStorageKey(): string {
 // Load persisted config from localStorage
 function loadPersistedConfig(userId?: string): Partial<{
   toggles: Record<string, boolean>;
-  userConfig: UserConfig;
+  userConfig: Partial<UserConfig>;
   windowsUpdateMode: 'on' | 'off';
 }> {
   try {
@@ -122,8 +122,31 @@ const DEFAULT_TOGGLES: Record<string, boolean> = {
   'game-arcraiders': true,
 };
 
+const DEFAULT_USER_CONFIG: UserConfig = {
+  monitorWidth: 1920,
+  monitorHeight: 1080,
+  monitorRefresh: 240,
+  nvidiaGpu: true,
+  gpuMode: 'auto',
+  selectedGpuId: '',
+  cs2Stretched: false,
+};
+
 function normalizePersistedToggles(toggles?: Record<string, boolean>): Record<string, boolean> {
   return { ...DEFAULT_TOGGLES, ...(toggles || {}) };
+}
+
+function normalizePersistedUserConfig(userConfig?: Partial<UserConfig>): UserConfig {
+  if (!userConfig) return { ...DEFAULT_USER_CONFIG };
+  const gpuMode = userConfig.gpuMode === 'manual' ? 'manual' : 'auto';
+  const selectedGpuId = typeof userConfig.selectedGpuId === 'string' ? userConfig.selectedGpuId : '';
+
+  return {
+    ...DEFAULT_USER_CONFIG,
+    ...userConfig,
+    gpuMode,
+    selectedGpuId,
+  };
 }
 
 const persisted = loadPersistedConfig();
@@ -148,13 +171,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggles: normalizePersistedToggles(persisted.toggles),
   windowsUpdateMode: persisted.windowsUpdateMode || 'on',
 
-  userConfig: persisted.userConfig || {
-    monitorWidth: 1920,
-    monitorHeight: 1080,
-    monitorRefresh: 240,
-    nvidiaGpu: true,
-    cs2Stretched: false,
-  },
+  userConfig: normalizePersistedUserConfig(persisted.userConfig),
 
   isRunning: false,
   progressLog: [],
@@ -178,7 +195,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Reload config for this user
       const userConfig = loadPersistedConfig(user.id);
       set({ toggles: normalizePersistedToggles(userConfig.toggles) });
-      if (userConfig.userConfig) set({ userConfig: userConfig.userConfig });
+      if (userConfig.userConfig) set({ userConfig: normalizePersistedUserConfig(userConfig.userConfig) });
       if (userConfig.windowsUpdateMode) set({ windowsUpdateMode: userConfig.windowsUpdateMode });
     } else {
       storageUserId = '';

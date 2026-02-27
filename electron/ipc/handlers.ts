@@ -14,6 +14,8 @@ interface UserConfig {
   monitorHeight: number;
   monitorRefresh: number;
   nvidiaGpu: boolean;
+  gpuMode: 'auto' | 'manual';
+  selectedGpuId: string;
   cs2Stretched: boolean;
 }
 
@@ -76,6 +78,98 @@ interface RunLogOptions {
 }
 
 type RunLogFn = (type: LogType, message: string, options?: RunLogOptions) => void;
+
+type CheckStatus = 'ok' | 'fail' | 'warn';
+
+interface ScriptCheck {
+  key: string;
+  status: CheckStatus;
+  detail: string;
+}
+
+const CHECK_LABELS: Record<string, string> = {
+  COD_EXE_FLAGS: 'COD EXE compatibility flags',
+  COD_GAME_MODE_ON: 'Windows Game Mode is ON',
+  COD_GAME_DVR_OFF: 'Game DVR is OFF',
+  COD_CONFIG_FILES_COPIED: 'COD config templates copied',
+  COD_RENDERER_WORKER_COUNT: 'COD RendererWorkerCount applied',
+  COD_RENDER_SCALE_PRESERVED: 'COD render scale unchanged',
+  COD_RENDER_SCALE_DETECTED: 'COD render scale detected',
+};
+
+function parseScriptCheck(line: string): ScriptCheck | null {
+  const match = line.match(/^\[SQ_CHECK_(OK|FAIL|WARN):([A-Z0-9_]+)(?::(.*))?\]$/);
+  if (!match) return null;
+  return {
+    key: match[2],
+    status: match[1] === 'OK' ? 'ok' : (match[1] === 'FAIL' ? 'fail' : 'warn'),
+    detail: (match[3] || '').trim(),
+  };
+}
+
+function mergeScriptCheck(checks: Record<string, ScriptCheck>, next: ScriptCheck) {
+  const current = checks[next.key];
+  if (!current) {
+    checks[next.key] = next;
+    return;
+  }
+
+  const priority: Record<CheckStatus, number> = { fail: 3, warn: 2, ok: 1 };
+  if (priority[next.status] >= priority[current.status]) {
+    checks[next.key] = next;
+  }
+}
+
+function summarizeScriptChecks(log: RunLogFn, checks: Record<string, ScriptCheck>, script: string): { hasFailures: boolean; failedKeys: string[] } {
+  const values = Object.values(checks);
+  if (values.length === 0) {
+    return { hasFailures: false, failedKeys: [] };
+  }
+
+  log('start', `Verification summary (${script}):`, {
+    component: 'Validation',
+    action: 'validation-start',
+    script,
+  });
+
+  const ordered = values.sort((a, b) => a.key.localeCompare(b.key));
+  const failedKeys: string[] = [];
+
+  for (const check of ordered) {
+    const label = CHECK_LABELS[check.key] || check.key;
+    const suffix = check.detail ? ` (${check.detail})` : '';
+    if (check.status === 'ok') {
+      log('success', `${label}: PASS${suffix}`, {
+        component: 'Validation',
+        action: 'validation-item',
+        script,
+        success: true,
+      });
+      continue;
+    }
+
+    if (check.status === 'warn') {
+      log('warning', `${label}: WARN${suffix}`, {
+        component: 'Validation',
+        action: 'validation-item',
+        script,
+        errorCode: `CHECK_WARN_${check.key}`,
+      });
+      continue;
+    }
+
+    failedKeys.push(check.key);
+    log('error', `${label}: FAIL${suffix}`, {
+      component: 'Validation',
+      action: 'validation-item',
+      script,
+      success: false,
+      errorCode: `CHECK_FAIL_${check.key}`,
+    });
+  }
+
+  return { hasFailures: failedKeys.length > 0, failedKeys };
+}
 
 function toLogLevel(type: LogType): 'INFO' | 'WARN' | 'ERROR' {
   if (type === 'error') return 'ERROR';
@@ -304,7 +398,13 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       action: 'script-start',
       script: mapping.script,
     });
+    const scriptChecks: Record<string, ScriptCheck> = {};
     const result = await runPowerShellScript(scriptPath, envVars, (line) => {
+      const check = parseScriptCheck(line);
+      if (check) {
+        mergeScriptCheck(scriptChecks, check);
+        return;
+      }
       log('info', line, {
         component: 'Optimization',
         action: 'script-output',
@@ -312,14 +412,19 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       });
     });
 
-    log(result.success ? 'success' : 'error',
-      result.success ? `Completed: ${id}` : `Failed: ${id}`,
+    const validationSummary = summarizeScriptChecks(log, scriptChecks, mapping.script);
+    const finalSuccess = result.success && !validationSummary.hasFailures;
+
+    log(finalSuccess ? 'success' : 'error',
+      finalSuccess ? `Completed: ${id}` : `Failed: ${id}`,
       {
         component: 'Optimization',
         action: 'script-exit',
         script: mapping.script,
-        success: result.success,
-        errorCode: result.success ? null : `SCRIPT_EXIT_${result.exitCode}`,
+        success: finalSuccess,
+        errorCode: finalSuccess
+          ? null
+          : (result.success ? 'SCRIPT_VALIDATION_FAILED' : `SCRIPT_EXIT_${result.exitCode}`),
       }
     );
 
@@ -332,19 +437,25 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
         errorCode: result.success ? null : `SCRIPT_STDERR_${result.exitCode}`,
       });
     }
+    const combinedErrors = [...result.errors];
+    if (validationSummary.hasFailures) {
+      combinedErrors.push(`Validation failed: ${validationSummary.failedKeys.join(', ')}`);
+    }
     log('complete', `Run finished for ${id}.`, {
       component: 'Summary',
       action: 'run-finish',
-      success: result.success,
-      errorCode: result.success ? null : `SCRIPT_EXIT_${result.exitCode}`,
+      success: finalSuccess,
+      errorCode: finalSuccess
+        ? null
+        : (result.success ? 'SCRIPT_VALIDATION_FAILED' : `SCRIPT_EXIT_${result.exitCode}`),
     });
 
-    if (!result.success) {
-      const failureText = result.errors.join(' | ') || `Script exited with code ${result.exitCode}`;
+    if (!finalSuccess) {
+      const failureText = combinedErrors.join(' | ') || `Script exited with code ${result.exitCode}`;
       void trackFailureStage('script-exit', failureText, undefined, [id]);
     }
 
-    return { success: result.success, errors: result.errors };
+    return { success: finalSuccess, errors: combinedErrors };
   });
 
   // Run selected optimizations
@@ -355,6 +466,7 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
     const runLogger = createRunLogger(win, runId);
     const log = runLogger.log;
     const results: Record<string, boolean> = {};
+    const failureReasons: Record<string, string> = {};
 
     // Group Windows optimizations:
     // - Section-based IDs run through script 01 with SKIP_* env flags
@@ -383,6 +495,7 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
     if (!restorePointReady) {
       for (const id of ids) {
         results[id] = false;
+        failureReasons[id] = 'Restore point creation failed before any changes were applied.';
       }
       log('complete', 'Aborted: restore point creation failed.', {
         component: 'Summary',
@@ -441,6 +554,12 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       // Assign per-section results; fall back to overall script result for sections without markers
       for (const id of windowsSectionIds) {
         results[id] = sectionResults[id] !== undefined ? sectionResults[id] : result.success;
+        if (!results[id]) {
+          const stderrHint = result.errors[0] || '';
+          failureReasons[id] = stderrHint
+            ? `Windows optimization section failed. ${stderrHint}`
+            : 'Windows optimization section failed.';
+        }
       }
 
       const winFailed = windowsSectionIds.filter(id => !results[id]);
@@ -500,6 +619,10 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       });
 
       results[id] = result.success;
+      if (!result.success) {
+        const stderrHint = result.errors[0] || '';
+        failureReasons[id] = stderrHint ? stderrHint : 'Script failed.';
+      }
       log(result.success ? 'success' : 'error',
         result.success ? `${id} applied!` : `${id} had errors`,
         {
@@ -536,7 +659,13 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
         script: mapping.script,
       });
       const scriptPath = getScriptPath(mapping.script);
+      const scriptChecks: Record<string, ScriptCheck> = {};
       const result = await runPowerShellScript(scriptPath, envVars, (line) => {
+        const check = parseScriptCheck(line);
+        if (check) {
+          mergeScriptCheck(scriptChecks, check);
+          return;
+        }
         log('info', line, {
           component: 'Game',
           action: 'script-output',
@@ -544,15 +673,28 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
         });
       });
 
-      results[id] = result.success;
-      log(result.success ? 'success' : 'error',
-        result.success ? `${id.replace('game-', '')} optimized!` : `${id.replace('game-', '')} had errors`,
+      const validationSummary = summarizeScriptChecks(log, scriptChecks, mapping.script);
+      const finalSuccess = result.success && !validationSummary.hasFailures;
+      const gameName = id.replace('game-', '');
+
+      results[id] = finalSuccess;
+      if (!finalSuccess) {
+        const validationReason = validationSummary.hasFailures
+          ? `Validation failed: ${validationSummary.failedKeys.join(', ')}`
+          : '';
+        const stderrHint = result.errors[0] || '';
+        failureReasons[id] = [validationReason, stderrHint].filter(Boolean).join(' | ') || 'Game optimization failed.';
+      }
+      log(finalSuccess ? 'success' : 'error',
+        finalSuccess ? `${gameName} optimized!` : `${gameName} had errors`,
         {
           component: 'Game',
           action: 'script-exit',
           script: mapping.script,
-          success: result.success,
-          errorCode: result.success ? null : `SCRIPT_EXIT_${result.exitCode}`,
+          success: finalSuccess,
+          errorCode: finalSuccess
+            ? null
+            : (result.success ? 'SCRIPT_VALIDATION_FAILED' : `SCRIPT_EXIT_${result.exitCode}`),
         }
       );
       if (result.errors.length > 0) {
@@ -564,14 +706,35 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
           errorCode: result.success ? null : `SCRIPT_STDERR_${result.exitCode}`,
         });
       }
-      if (!result.success) {
-        const failureText = result.errors.join(' | ') || `Script exited with code ${result.exitCode}`;
+      if (!finalSuccess) {
+        const validationError = validationSummary.hasFailures
+          ? [`Validation failed: ${validationSummary.failedKeys.join(', ')}`]
+          : [];
+        const failureText = [...result.errors, ...validationError].join(' | ') || `Script exited with code ${result.exitCode}`;
         void trackFailureStage('script-exit', failureText, undefined, [id]);
       }
     }
 
     const allSuccess = Object.values(results).every(Boolean);
     const errorCount = Object.values(results).filter(v => !v).length;
+    if (!allSuccess) {
+      const failedIds = Object.keys(results).filter((id) => !results[id]);
+      log('error', `Failed optimizations (${failedIds.length}):`, {
+        component: 'Summary',
+        action: 'run-failure-list',
+        success: false,
+        errorCode: 'RUN_PARTIAL_FAILURE',
+      });
+      for (const failedId of failedIds) {
+        const reason = failureReasons[failedId] || 'No detailed error captured. Check script output above.';
+        log('error', `${failedId}: ${reason}`, {
+          component: 'Summary',
+          action: 'run-failure-item',
+          success: false,
+          errorCode: 'RUN_ITEM_FAILED',
+        });
+      }
+    }
     log('complete',
       allSuccess ? 'All optimizations applied successfully!' : 'Completed with some errors',
       {

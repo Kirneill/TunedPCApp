@@ -6,9 +6,19 @@ export interface LogEntry {
   runId?: string;
 }
 
+export interface GpuAdapter {
+  id: string;
+  name: string;
+  vendor: 'nvidia' | 'amd' | 'intel' | 'other';
+  vramGB: number;
+  isIntegrated: boolean;
+}
+
 export interface SystemInfo {
   gpu: string;
   gpuVram: string;
+  gpuAdapters: GpuAdapter[];
+  primaryGpuId: string;
   cpu: string;
   cpuCores: number;
   cpuThreads: number;
@@ -39,6 +49,8 @@ export interface UserConfig {
   monitorHeight: number;
   monitorRefresh: number;
   nvidiaGpu: boolean;
+  gpuMode: 'auto' | 'manual';
+  selectedGpuId: string;
   cs2Stretched: boolean;
 }
 

@@ -19,7 +19,7 @@ export default function App() {
     setIsOffline, setMachines, clearAuthState,
     setSystemInfo, setDetectedGames, setIsAdmin, setIsLoading,
     addLogEntry, setShowConsentModal, setTelemetryEnabled,
-    setUpdateInfo, setUpdaterState, setCloseToBackground,
+    setUpdateInfo, setUpdaterState, setCloseToBackground, setUserConfig,
   } = useAppStore();
 
   // StrictMode guard — prevent double-init in dev
@@ -32,8 +32,26 @@ export default function App() {
       const sysInfo = await window.sensequality.getSystemInfo();
       setSystemInfo(sysInfo);
 
-      if (sysInfo.isNvidia) {
-        useAppStore.getState().setUserConfig({ nvidiaGpu: true });
+      const currentConfig = useAppStore.getState().userConfig;
+      const adapters = sysInfo.gpuAdapters || [];
+      const primaryAdapter = adapters.find((adapter) => adapter.id === sysInfo.primaryGpuId) || adapters[0];
+      const manualAdapter = adapters.find((adapter) => adapter.id === currentConfig.selectedGpuId);
+      const effectiveAdapter = currentConfig.gpuMode === 'manual'
+        ? (manualAdapter || primaryAdapter)
+        : primaryAdapter;
+
+      const gpuUpdates: Partial<typeof currentConfig> = {};
+      if (currentConfig.gpuMode === 'manual' && !manualAdapter && primaryAdapter) {
+        gpuUpdates.selectedGpuId = primaryAdapter.id;
+      }
+      if (effectiveAdapter) {
+        gpuUpdates.nvidiaGpu = effectiveAdapter.vendor === 'nvidia';
+      } else {
+        gpuUpdates.nvidiaGpu = sysInfo.isNvidia;
+      }
+
+      if (Object.keys(gpuUpdates).length > 0) {
+        setUserConfig(gpuUpdates);
       }
 
       const regResult = await window.sensequality.registerMachine({

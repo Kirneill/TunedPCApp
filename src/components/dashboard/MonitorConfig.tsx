@@ -2,7 +2,13 @@ import { useAppStore } from '../../store/appStore';
 import Card from '../ui/Card';
 
 export default function MonitorConfig() {
-  const { userConfig, setUserConfig, isRunning } = useAppStore();
+  const { userConfig, setUserConfig, systemInfo, isRunning } = useAppStore();
+  const gpuAdapters = systemInfo?.gpuAdapters || [];
+  const primaryGpu = gpuAdapters.find((adapter) => adapter.id === systemInfo?.primaryGpuId) || gpuAdapters[0];
+  const manualGpu = gpuAdapters.find((adapter) => adapter.id === userConfig.selectedGpuId);
+  const effectiveGpu = userConfig.gpuMode === 'manual'
+    ? (manualGpu || primaryGpu)
+    : primaryGpu;
 
   const inputClass = `
     w-full bg-sq-bg border border-sq-border rounded-lg px-3 py-1.5 text-sm text-sq-text
@@ -44,18 +50,67 @@ export default function MonitorConfig() {
           />
         </div>
         <div>
-          <label className="block text-[11px] text-sq-text-muted mb-1">GPU Brand</label>
+          <label className="block text-[11px] text-sq-text-muted mb-1">GPU Mode</label>
           <select
-            value={userConfig.nvidiaGpu ? 'nvidia' : 'amd'}
-            onChange={(e) => setUserConfig({ nvidiaGpu: e.target.value === 'nvidia' })}
+            value={userConfig.gpuMode}
+            onChange={(e) => {
+              const mode = e.target.value === 'manual' ? 'manual' : 'auto';
+              if (mode === 'manual') {
+                const nextManual = manualGpu || primaryGpu;
+                setUserConfig({
+                  gpuMode: mode,
+                  selectedGpuId: nextManual?.id || '',
+                  nvidiaGpu: nextManual?.vendor === 'nvidia',
+                });
+                return;
+              }
+
+              setUserConfig({
+                gpuMode: mode,
+                nvidiaGpu: primaryGpu?.vendor === 'nvidia',
+              });
+            }}
             disabled={isRunning}
             className={inputClass}
           >
-            <option value="nvidia">NVIDIA</option>
-            <option value="amd">AMD</option>
+            <option value="auto">Auto (Prefer Discrete)</option>
+            <option value="manual" disabled={gpuAdapters.length === 0}>Manual Select</option>
           </select>
         </div>
       </div>
+
+      {userConfig.gpuMode === 'manual' && (
+        <div className="mt-3">
+          <label className="block text-[11px] text-sq-text-muted mb-1">Manual GPU Selection</label>
+          <select
+            value={manualGpu?.id || ''}
+            onChange={(e) => {
+              const selected = gpuAdapters.find((adapter) => adapter.id === e.target.value);
+              setUserConfig({
+                selectedGpuId: e.target.value,
+                nvidiaGpu: selected?.vendor === 'nvidia',
+              });
+            }}
+            disabled={isRunning || gpuAdapters.length === 0}
+            className={inputClass}
+          >
+            {gpuAdapters.length === 0 && <option value="">No GPU adapters detected</option>}
+            {gpuAdapters.map((adapter) => (
+              <option key={adapter.id} value={adapter.id}>
+                {adapter.name}{adapter.isIntegrated ? ' (Integrated)' : ' (Discrete)'}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <p className="mt-3 text-[11px] text-sq-text-dim leading-relaxed">
+        Active GPU target: {effectiveGpu ? effectiveGpu.name : 'Unknown'}.
+        {' '}
+        {effectiveGpu
+          ? `Detected as ${effectiveGpu.isIntegrated ? 'integrated' : 'discrete'} ${effectiveGpu.vendor.toUpperCase()}.`
+          : 'Detection fallback is in use.'}
+      </p>
       <div className="mt-3 flex items-center gap-2">
         <input
           type="checkbox"

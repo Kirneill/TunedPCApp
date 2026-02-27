@@ -16,8 +16,17 @@ export default function SystemInfoCard() {
     );
   }
 
+  const primaryGpu = systemInfo.gpuAdapters.find((adapter) => adapter.id === systemInfo.primaryGpuId);
+  const gpuSubtitleParts = [systemInfo.gpuVram];
+  if (primaryGpu) {
+    gpuSubtitleParts.push(primaryGpu.isIntegrated ? 'Integrated' : 'Discrete');
+  }
+  if (systemInfo.gpuAdapters.length > 1) {
+    gpuSubtitleParts.push(`${systemInfo.gpuAdapters.length} GPUs detected`);
+  }
+
   const items = [
-    { label: 'GPU', value: systemInfo.gpu, sub: systemInfo.gpuVram },
+    { label: 'GPU', value: systemInfo.gpu, sub: gpuSubtitleParts.join(' • ') },
     { label: 'CPU', value: systemInfo.cpu, sub: `${systemInfo.cpuCores}C / ${systemInfo.cpuThreads}T` },
     { label: 'RAM', value: `${systemInfo.ramGB} GB`, sub: '' },
     { label: 'OS', value: systemInfo.os, sub: `Build ${systemInfo.osBuild}` },

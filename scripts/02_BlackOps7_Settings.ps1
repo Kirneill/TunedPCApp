@@ -36,6 +36,22 @@ Write-Host "  February 2026 | IW Engine | Ricochet Anti-Cheat" -ForegroundColor 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host ""
 
+$script:ValidationFailed = $false
+
+function Write-Check {
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet('OK', 'FAIL', 'WARN')][string]$Status,
+        [Parameter(Mandatory = $true)][string]$Key,
+        [string]$Detail = ''
+    )
+
+    $suffix = if ([string]::IsNullOrWhiteSpace($Detail)) { '' } else { ":$Detail" }
+    Write-Host "[SQ_CHECK_${Status}:$Key$suffix]"
+    if ($Status -eq 'FAIL') {
+        $script:ValidationFailed = $true
+    }
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION 1: LOCATE BLACK OPS 7 EXECUTABLE
 # ─────────────────────────────────────────────────────────────────────────────
@@ -62,6 +78,7 @@ if (-not $GameExe) {
     Write-Host "       If installed in a custom location, set EXE flags manually:" -ForegroundColor Yellow
     Write-Host "       Right-click BlackOps7.exe > Properties > Compatibility >" -ForegroundColor Yellow
     Write-Host "       Enable High DPI override for the executable" -ForegroundColor Yellow
+    Write-Check -Status 'WARN' -Key 'COD_EXE_FLAGS' -Detail 'BlackOps7.exe not found in common paths'
 } else {
     Write-Host "[INFO] Found Black Ops 7 at: $GameExe" -ForegroundColor Green
 
@@ -72,13 +89,19 @@ if (-not $GameExe) {
     #      Theme disabling avoids extra OS visual injection overhead.
     # ─────────────────────────────────────────────────────────────────────────
 
-    $AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
-    if (-not (Test-Path $AppCompatLayers)) { New-Item -Path $AppCompatLayers -Force | Out-Null }
+    try {
+        $AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
+        if (-not (Test-Path $AppCompatLayers)) { New-Item -Path $AppCompatLayers -Force | Out-Null }
 
-    # DISABLETHEMES: Prevents Windows from injecting visual theme DLL into the process
-    # HIGHDPIAWARE: Lets game handle DPI rather than Windows scaling it
-    Set-ItemProperty -Path $AppCompatLayers -Name $GameExe -Value "~ DISABLETHEMES HIGHDPIAWARE" -Type String -Force
-    Write-Host "  [OK] EXE compatibility flags set (DPI-aware, themes disabled)." -ForegroundColor Green
+        # DISABLETHEMES: Prevents Windows from injecting visual theme DLL into the process
+        # HIGHDPIAWARE: Lets game handle DPI rather than Windows scaling it
+        Set-ItemProperty -Path $AppCompatLayers -Name $GameExe -Value "~ DISABLETHEMES HIGHDPIAWARE" -Type String -Force
+        Write-Host "  [OK] EXE compatibility flags set (DPI-aware, themes disabled)." -ForegroundColor Green
+        Write-Check -Status 'OK' -Key 'COD_EXE_FLAGS' -Detail 'DISABLETHEMES + HIGHDPIAWARE'
+    } catch {
+        Write-Host "  [WARN] Failed to set EXE compatibility flags: $_" -ForegroundColor Yellow
+        Write-Check -Status 'FAIL' -Key 'COD_EXE_FLAGS' -Detail 'Unable to write AppCompatFlags'
+    }
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -116,10 +139,28 @@ try {
     if (-not (Test-Path $GameDVRPath)) { New-Item -Path $GameDVRPath -Force | Out-Null }
     Set-ItemProperty -Path $GameDVRPath -Name "GameDVR_Enabled" -Value 0 -Type DWord -Force
 
+    $allowAutoGameMode = (Get-ItemProperty -Path $GameBarPath -Name "AllowAutoGameMode" -ErrorAction Stop).AllowAutoGameMode
+    $autoGameModeEnabled = (Get-ItemProperty -Path $GameBarPath -Name "AutoGameModeEnabled" -ErrorAction Stop).AutoGameModeEnabled
+    $allowGameDVR = (Get-ItemProperty -Path $GameBarPolicyPath -Name "AllowGameDVR" -ErrorAction Stop).AllowGameDVR
+    $gameDvrEnabled = (Get-ItemProperty -Path $GameDVRPath -Name "GameDVR_Enabled" -ErrorAction Stop).GameDVR_Enabled
+
     Write-Host "  [OK] Game Mode re-applied for COD." -ForegroundColor Green
     Write-Host "  [OK] Game DVR/background recording disabled." -ForegroundColor Green
+    if ($allowAutoGameMode -eq 1 -and $autoGameModeEnabled -eq 1) {
+        Write-Check -Status 'OK' -Key 'COD_GAME_MODE_ON' -Detail 'AllowAutoGameMode=1, AutoGameModeEnabled=1'
+    } else {
+        Write-Check -Status 'FAIL' -Key 'COD_GAME_MODE_ON' -Detail "AllowAutoGameMode=$allowAutoGameMode, AutoGameModeEnabled=$autoGameModeEnabled"
+    }
+
+    if ($allowGameDVR -eq 0 -and $gameDvrEnabled -eq 0) {
+        Write-Check -Status 'OK' -Key 'COD_GAME_DVR_OFF' -Detail 'AllowGameDVR=0, GameDVR_Enabled=0'
+    } else {
+        Write-Check -Status 'FAIL' -Key 'COD_GAME_DVR_OFF' -Detail "AllowGameDVR=$allowGameDVR, GameDVR_Enabled=$gameDvrEnabled"
+    }
 } catch {
     Write-Host "  [WARN] Could not enforce Game Mode settings: $_" -ForegroundColor Yellow
+    Write-Check -Status 'FAIL' -Key 'COD_GAME_MODE_ON' -Detail 'Registry write failed'
+    Write-Check -Status 'FAIL' -Key 'COD_GAME_DVR_OFF' -Detail 'Registry write failed'
 }
 
 
@@ -132,10 +173,20 @@ try {
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackupDir = Join-Path $ScriptRoot "BO7BACKUP"
 $PlayersDir = Join-Path $env:LOCALAPPDATA "Activision\Call of Duty\players"
+$RequiredCodFiles = @(
+    's.1.0.cod25.txt0',
+    's.1.0.cod25.txt1'
+)
+$RequiredCodCopyStatus = @{}
+$RequiredCodCopyDetails = @{}
+$RendererWorkerIssues = @()
+$FilesCopied = 0
+$CodConfigFilesProcessed = 0
 
 if (-not (Test-Path $BackupDir)) {
     Write-Host "[WARN] BO7 backup folder not found: $BackupDir" -ForegroundColor Yellow
     Write-Host "       Skipping player config replacement." -ForegroundColor Yellow
+    Write-Check -Status 'FAIL' -Key 'COD_CONFIG_FILES_COPIED' -Detail 'BO7BACKUP folder missing'
 } else {
     if (-not (Test-Path $PlayersDir)) {
         New-Item -ItemType Directory -Path $PlayersDir -Force | Out-Null
@@ -160,25 +211,90 @@ if (-not (Test-Path $BackupDir)) {
     $BackupFiles = Get-ChildItem -Path $BackupDir -File -ErrorAction SilentlyContinue
     if (-not $BackupFiles) {
         Write-Host "[WARN] No backup files found in $BackupDir" -ForegroundColor Yellow
+        Write-Check -Status 'FAIL' -Key 'COD_CONFIG_FILES_COPIED' -Detail 'No template files found'
     } else {
+        $BackupByName = @{}
+        foreach ($BackupFile in $BackupFiles) {
+            $BackupByName[$BackupFile.Name] = $BackupFile
+        }
+
+        foreach ($RequiredFile in $RequiredCodFiles) {
+            $RequiredCodCopyStatus[$RequiredFile] = $false
+            $RequiredCodCopyDetails[$RequiredFile] = 'Not processed'
+        }
+
         foreach ($BackupFile in $BackupFiles) {
             $DestinationPath = Join-Path $PlayersDir $BackupFile.Name
 
             # Always replace target files when script runs.
             Copy-Item -Path $BackupFile.FullName -Destination $DestinationPath -Force
+            $FilesCopied++
+
+            if ($RequiredCodFiles -contains $BackupFile.Name) {
+                try {
+                    $SourceHash = (Get-FileHash -Path $BackupFile.FullName -Algorithm SHA256 -ErrorAction Stop).Hash
+                    $DestinationHash = (Get-FileHash -Path $DestinationPath -Algorithm SHA256 -ErrorAction Stop).Hash
+
+                    if ($SourceHash -eq $DestinationHash) {
+                        $RequiredCodCopyStatus[$BackupFile.Name] = $true
+                        $RequiredCodCopyDetails[$BackupFile.Name] = 'Replacement verified (hash match)'
+                        Write-Host "  [OK] Replaced $($BackupFile.Name) and verified destination hash." -ForegroundColor Green
+                    } else {
+                        $RequiredCodCopyStatus[$BackupFile.Name] = $false
+                        $RequiredCodCopyDetails[$BackupFile.Name] = 'Hash mismatch after copy'
+                        Write-Host "  [WARN] $($BackupFile.Name) copied but hash mismatch detected." -ForegroundColor Yellow
+                    }
+                } catch {
+                    $RequiredCodCopyStatus[$BackupFile.Name] = $false
+                    $RequiredCodCopyDetails[$BackupFile.Name] = "Hash verification failed: $($_.Exception.Message)"
+                    Write-Host "  [WARN] Failed hash verification for $($BackupFile.Name): $_" -ForegroundColor Yellow
+                }
+            }
 
             if ($BackupFile.Name -like 's.1.0.cod25.txt*') {
+                $CodConfigFilesProcessed++
                 $Content = Get-Content -Path $DestinationPath -Raw
+
                 if ($Content -match '(?m)^RendererWorkerCount@[^=]+=\s*-?\d+') {
-                    $UpdatedContent = $Content -replace '(?m)^(RendererWorkerCount@[^=]+=\s*)-?\d+(\s*//.*)?$', "`$1$RendererWorkerCount`$2"
-                    Set-Content -Path $DestinationPath -Value $UpdatedContent -Encoding UTF8 -Force
+                    $Content = $Content -replace '(?m)^(RendererWorkerCount@[^=]+=\s*)-?\d+(\s*//.*)?$', "`$1$RendererWorkerCount`$2"
                     Write-Host "  [OK] Updated $($BackupFile.Name): RendererWorkerCount=$RendererWorkerCount" -ForegroundColor Green
                 } else {
                     Write-Host "  [WARN] RendererWorkerCount not found in $($BackupFile.Name)" -ForegroundColor Yellow
+                    $RendererWorkerIssues += "$($BackupFile.Name):RendererWorkerCount missing"
                 }
+
+                Set-Content -Path $DestinationPath -Value $Content -Encoding UTF8 -Force
             } else {
                 Write-Host "  [OK] Replaced $($BackupFile.Name)" -ForegroundColor Green
             }
+        }
+
+        foreach ($RequiredFile in $RequiredCodFiles) {
+            if (-not $BackupByName.ContainsKey($RequiredFile)) {
+                $RequiredCodCopyStatus[$RequiredFile] = $false
+                $RequiredCodCopyDetails[$RequiredFile] = 'Required template missing in BO7BACKUP'
+            }
+        }
+
+        $RequiredFailures = @()
+        foreach ($RequiredFile in $RequiredCodFiles) {
+            if (-not $RequiredCodCopyStatus[$RequiredFile]) {
+                $RequiredFailures += "$RequiredFile -> $($RequiredCodCopyDetails[$RequiredFile])"
+            }
+        }
+
+        if ($RequiredFailures.Count -eq 0) {
+            Write-Check -Status 'OK' -Key 'COD_CONFIG_FILES_COPIED' -Detail '.txt0/.txt1 replaced successfully'
+        } else {
+            Write-Check -Status 'FAIL' -Key 'COD_CONFIG_FILES_COPIED' -Detail ($RequiredFailures -join '; ')
+        }
+
+        if ($CodConfigFilesProcessed -eq 0) {
+            Write-Check -Status 'WARN' -Key 'COD_RENDERER_WORKER_COUNT' -Detail 'No COD txt config files processed'
+        } elseif ($RendererWorkerIssues.Count -eq 0) {
+            Write-Check -Status 'OK' -Key 'COD_RENDERER_WORKER_COUNT' -Detail "Set to $RendererWorkerCount"
+        } else {
+            Write-Check -Status 'FAIL' -Key 'COD_RENDERER_WORKER_COUNT' -Detail ($RendererWorkerIssues -join '; ')
         }
     }
 }
@@ -288,3 +404,8 @@ Write-Host "  Killcam                : OFF (reduces lag compensation artifacts)"
 Write-Host ""
 Write-Host "[DONE] Apply the above settings manually in Black Ops 7's settings menu." -ForegroundColor Green
 Write-Host ""
+
+if ($script:ValidationFailed) {
+    Write-Host "[FAIL] One or more COD verification checks failed." -ForegroundColor Red
+    exit 1
+}
