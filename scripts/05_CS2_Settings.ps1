@@ -27,10 +27,10 @@
     and should NOT be used. Source 2 handles these automatically.
 #>
 
-# ─── HEADLESS MODE ────────────────────────────────────────────────────────────
+# --- HEADLESS MODE ------------------------------------------------------------
 $Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
 
-# ─── USER CONFIGURATION - EDIT THESE VALUES ──────────────────────────────────
+# --- USER CONFIGURATION - EDIT THESE VALUES ----------------------------------
 # When run from SENSEQUALITY app, these are overridden by environment variables.
 
 if ($Headless -and $env:MONITOR_REFRESH) {
@@ -51,7 +51,7 @@ $SteamLibraryPaths = @(
     "E:\Steam\steamapps\common\Counter-Strike Global Offensive",
     "D:\Games\steamapps\common\Counter-Strike Global Offensive"
 )
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "  Counter-Strike 2 (CS2) - Optimization Script" -ForegroundColor Cyan
@@ -62,9 +62,9 @@ Write-Host "  Stretched Resolution   : $UseStretchedRes" -ForegroundColor White
 Write-Host "  Monitor Refresh        : ${MonitorRefreshRate}Hz" -ForegroundColor White
 Write-Host ""
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 1: FIND CS2 INSTALLATION
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 $CS2Path = $null
 foreach ($path in $SteamLibraryPaths) {
@@ -87,7 +87,7 @@ if ($CS2Path) {
         Write-Host "[BACKUP] autoexec.cfg backed up to: $BackupPath" -ForegroundColor Yellow
     }
 
-    # ─────────────────────────────────────────────────────────────────────────
+    # -------------------------------------------------------------------------
     # SECTION 2: WRITE OPTIMIZED AUTOEXEC.CFG
     # WHY FOR EACH SETTING:
     # - fps_max: Cap at refresh+10 for stable frame pacing with GPU headroom
@@ -97,7 +97,7 @@ if ($CS2Path) {
     # - r_dynamic 0: Disables dynamic lighting - FPS boost, no competitive loss
     # - snd_mixahead 0.05: Reduces audio buffer for lower sound latency
     # - sensitivity: Just a placeholder - set your own value
-    # ─────────────────────────────────────────────────────────────────────────
+    # -------------------------------------------------------------------------
 
     Write-Host "[INFO] Writing autoexec.cfg..." -ForegroundColor DarkCyan
 
@@ -210,7 +210,7 @@ echo "Autoexec loaded - CS2 Competitive Config (Feb 2026)"
     Write-Host "       [CS2 Install]\game\csgo\cfg\autoexec.cfg" -ForegroundColor Yellow
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 3: SET STEAM LAUNCH OPTIONS FOR CS2
 # WHY:
 # -novid: Skips intro video on launch (saves ~5 seconds per launch)
@@ -219,7 +219,7 @@ echo "Autoexec loaded - CS2 Competitive Config (Feb 2026)"
 # -fullscreen: Forces fullscreen mode on launch
 # NOTE: -tickrate and -freq/-rate are DEPRECATED in CS2 Source 2
 #       and should NOT be included - they have no effect or can cause issues
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 Write-Host ""
 Write-Host "[INFO] Attempting to set CS2 Steam launch options..." -ForegroundColor DarkCyan
@@ -235,9 +235,9 @@ Set-ItemProperty -Path $SteamAppsKey -Name "LaunchOptions" -Value $LaunchOptions
 Write-Host "  [OK] Launch options set: $LaunchOptions" -ForegroundColor Green
 Write-Host "  [NOTE] Verify in Steam > Right-click CS2 > Properties > Launch Options" -ForegroundColor DarkGray
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 4: EXE COMPATIBILITY FLAGS
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 $CS2ExePaths = @(
     "$env:PROGRAMFILES(x86)\Steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\cs2.exe",
@@ -255,9 +255,9 @@ foreach ($exePath in $CS2ExePaths) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 5: PRINT IN-GAME SETTINGS GUIDE
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Yellow

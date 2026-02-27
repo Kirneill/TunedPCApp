@@ -17,6 +17,82 @@ const GAMES = [
   { id: 'arcraiders', name: 'Arc Raiders', scriptId: '06' },
 ];
 
+interface EpicInstallation {
+  AppName?: string;
+  DisplayName?: string;
+  InstallLocation?: string;
+}
+
+function firstExistingPath(paths: string[]): string | null {
+  for (const p of paths) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+  return null;
+}
+
+function readEpicLauncherInstallations(): EpicInstallation[] {
+  const launcherInstalledPath = 'C:\\ProgramData\\Epic\\UnrealEngineLauncher\\LauncherInstalled.dat';
+  if (!fs.existsSync(launcherInstalledPath)) return [];
+
+  try {
+    const raw = fs.readFileSync(launcherInstalledPath, 'utf-8');
+    const parsed = JSON.parse(raw) as { InstallationList?: EpicInstallation[] };
+    return Array.isArray(parsed.InstallationList) ? parsed.InstallationList : [];
+  } catch {
+    return [];
+  }
+}
+
+function findEpicInstallPath(matchers: RegExp[]): string | null {
+  const installations = readEpicLauncherInstallations();
+  for (const install of installations) {
+    const appName = install.AppName || '';
+    const displayName = install.DisplayName || '';
+    const installLocation = install.InstallLocation || '';
+
+    if (!installLocation) continue;
+    if (matchers.some((matcher) => matcher.test(appName) || matcher.test(displayName))) {
+      return installLocation;
+    }
+  }
+  return null;
+}
+
+function findEpicManifestInstallPath(matchers: RegExp[]): string | null {
+  const manifestDir = 'C:\\ProgramData\\Epic\\EpicGamesLauncher\\Data\\Manifests';
+  if (!fs.existsSync(manifestDir)) return null;
+
+  try {
+    const files = fs.readdirSync(manifestDir).filter((f) => f.endsWith('.item'));
+    for (const file of files) {
+      const fullPath = path.join(manifestDir, file);
+      const content = fs.readFileSync(fullPath, 'utf-8');
+
+      try {
+        const parsed = JSON.parse(content) as {
+          DisplayName?: string;
+          AppName?: string;
+          InstallLocation?: string;
+        };
+        const name = `${parsed.DisplayName || ''} ${parsed.AppName || ''}`;
+        if (matchers.some((matcher) => matcher.test(name)) && parsed.InstallLocation) {
+          return parsed.InstallLocation;
+        }
+      } catch {
+        if (!matchers.some((matcher) => matcher.test(content))) continue;
+        const locationMatch = content.match(/"InstallLocation"\s*:\s*"([^"]+)"/);
+        if (locationMatch) {
+          return locationMatch[1].replace(/\\\\/g, '\\');
+        }
+      }
+    }
+  } catch {}
+
+  return null;
+}
+
 async function findSteamGames(): Promise<Map<string, string>> {
   const found = new Map<string, string>();
 
@@ -61,28 +137,30 @@ async function findSteamGames(): Promise<Map<string, string>> {
 }
 
 async function findFortnite(): Promise<string | null> {
-  const configPath = path.join(
-    process.env.LOCALAPPDATA || '',
-    'FortniteGame', 'Saved', 'Config', 'WindowsClient', 'GameUserSettings.ini'
-  );
-  if (fs.existsSync(configPath)) {
-    return path.dirname(configPath);
+  const localAppData = process.env.LOCALAPPDATA || '';
+  if (localAppData) {
+    const configCandidates = [
+      path.join(localAppData, 'FortniteGame', 'Saved', 'Config', 'WindowsClient'),
+      path.join(localAppData, 'FortniteGame', 'Saved', 'Config', 'Windows'),
+    ];
+    const configPath = firstExistingPath(configCandidates);
+    if (configPath) return configPath;
   }
 
-  // Check Epic manifests
-  const manifestDir = 'C:\\ProgramData\\Epic\\EpicGamesLauncher\\Data\\Manifests';
-  if (fs.existsSync(manifestDir)) {
-    try {
-      const files = fs.readdirSync(manifestDir).filter(f => f.endsWith('.item'));
-      for (const file of files) {
-        const content = fs.readFileSync(path.join(manifestDir, file), 'utf-8');
-        if (content.includes('Fortnite')) {
-          const match = content.match(/"InstallLocation"\s*:\s*"([^"]+)"/);
-          if (match) return match[1].replace(/\\\\/g, '\\');
-        }
-      }
-    } catch {}
-  }
+  const epicInstall = findEpicInstallPath([/fortnite/i]);
+  if (epicInstall) return epicInstall;
+
+  const manifestInstall = findEpicManifestInstallPath([/fortnite/i]);
+  if (manifestInstall) return manifestInstall;
+
+  const commonInstallPaths = [
+    'C:\\Program Files\\Epic Games\\Fortnite',
+    'D:\\Epic Games\\Fortnite',
+    'E:\\Epic Games\\Fortnite',
+    'C:\\Games\\Fortnite',
+  ];
+  const commonInstall = firstExistingPath(commonInstallPaths);
+  if (commonInstall) return commonInstall;
 
   return null;
 }
@@ -135,11 +213,41 @@ async function findBlackOps7(): Promise<string | null> {
 }
 
 async function findArcRaiders(): Promise<string | null> {
-  const configPath = path.join(
-    process.env.LOCALAPPDATA || '',
-    'ArcRaiders', 'Saved', 'Config', 'Windows'
-  );
-  if (fs.existsSync(configPath)) return configPath;
+  const localAppData = process.env.LOCALAPPDATA || '';
+  if (localAppData) {
+    const configCandidates = [
+      path.join(localAppData, 'ArcRaiders', 'Saved', 'Config', 'Windows'),
+      path.join(localAppData, 'ArcRaiders', 'Saved', 'Config', 'WindowsClient'),
+      path.join(localAppData, 'ArcRaiders', 'Saved', 'Config', 'WinGDK'),
+    ];
+    const configPath = firstExistingPath(configCandidates);
+    if (configPath) return configPath;
+  }
+
+  const epicInstall = findEpicInstallPath([/arc\s*raiders/i, /arcraiders/i]);
+  if (epicInstall) return epicInstall;
+
+  const manifestInstall = findEpicManifestInstallPath([/arc\s*raiders/i, /arcraiders/i]);
+  if (manifestInstall) return manifestInstall;
+
+  const commonInstallPaths = [
+    'C:\\Program Files (x86)\\Steam\\steamapps\\common\\ArcRaiders',
+    'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arc Raiders',
+    'D:\\Steam\\steamapps\\common\\ArcRaiders',
+    'D:\\Steam\\steamapps\\common\\Arc Raiders',
+    'D:\\SteamLibrary\\steamapps\\common\\ArcRaiders',
+    'D:\\SteamLibrary\\steamapps\\common\\Arc Raiders',
+    'E:\\Steam\\steamapps\\common\\ArcRaiders',
+    'E:\\Steam\\steamapps\\common\\Arc Raiders',
+    'E:\\SteamLibrary\\steamapps\\common\\ArcRaiders',
+    'E:\\SteamLibrary\\steamapps\\common\\Arc Raiders',
+    'C:\\Program Files\\Epic Games\\ArcRaiders',
+    'D:\\Epic Games\\ArcRaiders',
+    'E:\\Epic Games\\ArcRaiders',
+  ];
+  const commonInstall = firstExistingPath(commonInstallPaths);
+  if (commonInstall) return commonInstall;
+
   return null;
 }
 

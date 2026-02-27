@@ -50,7 +50,7 @@ export default function HomePage() {
   const {
     toggles, setToggle, userConfig, detectedGames, systemInfo,
     isRunning, setIsRunning, clearLog, progressLog, isLoading,
-    setCurrentPage,
+    setCurrentPage, setUserConfig,
   } = useAppStore();
 
   const windowsEnabled = toggles['win-all'] ?? true;
@@ -67,6 +67,31 @@ export default function HomePage() {
     ...(windowsEnabled ? allWindowsIds : []),
     ...enabledGameIds,
   ];
+
+  const gpuAdapters = systemInfo?.gpuAdapters || [];
+  const primaryGpu = gpuAdapters.find((adapter) => adapter.id === systemInfo?.primaryGpuId) || gpuAdapters[0];
+  const manualGpu = gpuAdapters.find((adapter) => adapter.id === userConfig.selectedGpuId);
+  const effectiveGpu = userConfig.gpuMode === 'manual'
+    ? (manualGpu || primaryGpu)
+    : primaryGpu;
+  const gpuSelectValue = userConfig.gpuMode === 'manual' && manualGpu ? manualGpu.id : 'auto';
+
+  const handleGpuSelection = (value: string) => {
+    if (value === 'auto') {
+      setUserConfig({
+        gpuMode: 'auto',
+        nvidiaGpu: primaryGpu?.vendor === 'nvidia',
+      });
+      return;
+    }
+
+    const selected = gpuAdapters.find((adapter) => adapter.id === value);
+    setUserConfig({
+      gpuMode: 'manual',
+      selectedGpuId: selected?.id || '',
+      nvidiaGpu: selected?.vendor === 'nvidia',
+    });
+  };
 
   const handleOptimize = async () => {
     if (isRunning || idsToRun.length === 0) return;
@@ -92,9 +117,31 @@ export default function HomePage() {
             <span>Detecting system...</span>
           ) : systemInfo ? (
             <>
-              <span title={systemInfo.gpu}>
-                <span className="text-sq-text font-medium">GPU</span> {systemInfo.gpu}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sq-text font-medium">GPU</span>
+                {gpuAdapters.length > 1 ? (
+                  <select
+                    value={gpuSelectValue}
+                    onChange={(e) => handleGpuSelection(e.target.value)}
+                    disabled={isRunning}
+                    className="bg-sq-bg border border-sq-border rounded px-2 py-0.5 text-[11px] text-sq-text focus:outline-none focus:border-sq-accent disabled:opacity-60"
+                    title={effectiveGpu?.name || systemInfo.gpu}
+                  >
+                    <option value="auto">
+                      Auto ({primaryGpu ? primaryGpu.name : systemInfo.gpu})
+                    </option>
+                    {gpuAdapters.map((adapter) => (
+                      <option key={adapter.id} value={adapter.id}>
+                        {adapter.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span title={effectiveGpu?.name || systemInfo.gpu}>
+                    {effectiveGpu?.name || systemInfo.gpu}
+                  </span>
+                )}
+              </div>
               <span title={systemInfo.cpu}>
                 <span className="text-sq-text font-medium">CPU</span> {systemInfo.cpu}
               </span>

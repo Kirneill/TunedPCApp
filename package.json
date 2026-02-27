@@ -1,6 +1,6 @@
 {
   "name": "sensequality-optimizer",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "SENSEQUALITY PC Gaming Optimizer",
   "main": "dist-electron/main.js",
   "scripts": {

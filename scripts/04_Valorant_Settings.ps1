@@ -24,10 +24,10 @@
     This script only touches user config and Windows compatibility flags.
 #>
 
-# ─── HEADLESS MODE ────────────────────────────────────────────────────────────
+# --- HEADLESS MODE ------------------------------------------------------------
 $Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
 
-# ─── USER CONFIGURATION - EDIT THESE VALUES ──────────────────────────────────
+# --- USER CONFIGURATION - EDIT THESE VALUES ----------------------------------
 # When run from SENSEQUALITY app, these are overridden by environment variables.
 
 if ($Headless -and $env:MONITOR_WIDTH) {
@@ -40,7 +40,7 @@ if ($Headless -and $env:MONITOR_WIDTH) {
     $MonitorRefresh = 240
 }
 $FrameRateLimit = $MonitorRefresh - 3    # Refresh rate minus 3 for frame stability
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "  VALORANT - Optimization Script" -ForegroundColor Cyan
@@ -48,9 +48,9 @@ Write-Host "  February 2026 | UE4 Engine | Vanguard Anti-Cheat" -ForegroundColor
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 1: BACKUP AND WRITE VALORANT CONFIG
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 $ConfigPath = "$env:LOCALAPPDATA\VALORANT\Saved\Config\Windows\GameUserSettings.ini"
 $BackupPath = "$env:LOCALAPPDATA\VALORANT\Saved\Config\Windows\GameUserSettings.ini.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
@@ -124,12 +124,12 @@ bSaveTeammatesPositions=True
 Set-Content -Path $ConfigPath -Value $ValorantConfig -Encoding UTF8 -Force
 Write-Host "  [OK] Config written to: $ConfigPath" -ForegroundColor Green
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 2: EXE COMPATIBILITY FLAGS FOR VALORANT
 # NOTE: Valorant has Vanguard anti-cheat. We ONLY set Windows-layer flags
 #       that Windows itself applies before the process starts.
 #       These are standard OS features, not modifications to game files.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 $ValorantExePaths = @(
     "C:\Riot Games\VALORANT\live\VALORANT.exe",
@@ -150,9 +150,9 @@ foreach ($exePath in $ValorantExePaths) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 3: PRINT FULL IN-GAME SETTINGS GUIDE
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Yellow

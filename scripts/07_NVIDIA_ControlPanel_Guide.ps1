@@ -34,9 +34,9 @@ if ($GPUInfo) {
     Write-Host ""
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # NVIDIA CONTROL PANEL GUIDE
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 if ($IsNvidia -or (-not $IsAMD)) {
     Write-Host "======================================================" -ForegroundColor Yellow
@@ -49,7 +49,7 @@ if ($IsNvidia -or (-not $IsAMD)) {
     Write-Host ""
 
     Write-Host "  SETTING                          | VALUE              | WHY" -ForegroundColor White
-    Write-Host "  ─────────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "  -----------------------------------------------------------------" -ForegroundColor DarkGray
     Write-Host "  Image Scaling                    | OFF                | Use in-game DLSS instead" -ForegroundColor White
     Write-Host "  Ambient Occlusion                | OFF                | FPS cost, hurts visibility" -ForegroundColor White
     Write-Host "  Anisotropic Filtering            | Application-ctrl   | Let game manage" -ForegroundColor White
@@ -100,9 +100,9 @@ if ($IsNvidia -or (-not $IsAMD)) {
     Write-Host "  Clean install (DDU) recommended after major driver jumps." -ForegroundColor White
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # AMD ADRENALIN GUIDE
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 if ($IsAMD) {
     Write-Host ""
@@ -114,7 +114,7 @@ if ($IsAMD) {
     Write-Host "  Navigate to: Gaming > Graphics (Global Settings)" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  SETTING                          | VALUE              | WHY" -ForegroundColor White
-    Write-Host "  ─────────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "  -----------------------------------------------------------------" -ForegroundColor DarkGray
     Write-Host "  Anti-Aliasing                    | Use App Settings   | Game controls AA" -ForegroundColor White
     Write-Host "  Anti-Aliasing Method             | Multisampling      | Less blurry than temporal" -ForegroundColor White
     Write-Host "  Morphological AA (MLAA)          | Disabled           | Use in-game AA" -ForegroundColor White
@@ -140,9 +140,9 @@ if ($IsAMD) {
     Write-Host "  GPU Tuning                 : Auto (for stability) or manual OC" -ForegroundColor White
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # WINDOWS DISPLAY SETTINGS
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Cyan

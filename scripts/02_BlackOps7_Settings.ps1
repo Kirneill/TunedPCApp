@@ -26,7 +26,7 @@
     - Anti-cheat safe: only OS-level registry flags and user config files modified
 #>
 
-# ─── HEADLESS MODE ────────────────────────────────────────────────────────────
+# --- HEADLESS MODE ------------------------------------------------------------
 $Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
 
 if (-not $Headless) { Clear-Host }
@@ -52,9 +52,9 @@ function Write-Check {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 1: LOCATE BLACK OPS 7 EXECUTABLE
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 $PossiblePaths = @(
     "C:\Program Files (x86)\Call of Duty\BlackOps7.exe",
@@ -82,12 +82,12 @@ if (-not $GameExe) {
 } else {
     Write-Host "[INFO] Found Black Ops 7 at: $GameExe" -ForegroundColor Green
 
-    # ─────────────────────────────────────────────────────────────────────────
+    # -------------------------------------------------------------------------
     # SECTION 2: EXE COMPATIBILITY FLAGS (Safe, OS-Level Only)
     # WHY: Applies safe Windows compatibility flags for BO7.
     #      High DPI override prevents scaling artifacts.
     #      Theme disabling avoids extra OS visual injection overhead.
-    # ─────────────────────────────────────────────────────────────────────────
+    # -------------------------------------------------------------------------
 
     try {
         $AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
@@ -104,9 +104,9 @@ if (-not $GameExe) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 3: APPLY DPI OVERRIDE FOR COD LAUNCHER
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 $BattleNetExe = "C:\Program Files (x86)\Battle.net\Battle.net.exe"
 if (Test-Path $BattleNetExe) {
@@ -117,11 +117,11 @@ if (Test-Path $BattleNetExe) {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 4: ENSURE WINDOWS GAME MODE STAYS ENABLED (COD PRIORITY)
 # WHY: COD benefits from consistent scheduler priority and no DVR/background
 #      capture overhead. Re-apply every BO7 run to prevent drift.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 try {
     $GameBarPath = "HKCU:\Software\Microsoft\GameBar"
@@ -164,11 +164,11 @@ try {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 5: REPLACE BO7 PLAYER FILES FROM TEMPLATE BACKUP
 # WHY: Ensure deterministic config baseline every run, then tune
 #      RendererWorkerCount to the local machine core count.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackupDir = Join-Path $ScriptRoot "BO7BACKUP"
@@ -299,9 +299,9 @@ if (-not (Test-Path $BackupDir)) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 6: PRINT IN-GAME SETTINGS GUIDE
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Yellow

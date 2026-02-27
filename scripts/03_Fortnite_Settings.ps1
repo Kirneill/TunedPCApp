@@ -25,10 +25,10 @@
     section below before running this script.
 #>
 
-# ─── HEADLESS MODE ────────────────────────────────────────────────────────────
+# --- HEADLESS MODE ------------------------------------------------------------
 $Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
 
-# ─── USER CONFIGURATION - EDIT THESE VALUES ──────────────────────────────────
+# --- USER CONFIGURATION - EDIT THESE VALUES ----------------------------------
 # When run from SENSEQUALITY app, these are overridden by environment variables.
 # When run standalone, edit the values below.
 
@@ -42,7 +42,7 @@ if ($Headless -and $env:MONITOR_WIDTH) {
     $MonitorRefresh   = 240    # Your monitor refresh rate in Hz (e.g., 144, 165, 240, 360)
 }
 $FrameRateLimit   = $MonitorRefresh - 3    # Cap FPS at RefreshRate - 3 for frame stability
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "  Fortnite Chapter 6 - Optimization Script" -ForegroundColor Cyan
@@ -54,9 +54,9 @@ Write-Host "  Refresh Rate      : ${MonitorRefresh}Hz" -ForegroundColor White
 Write-Host "  FPS Cap           : $FrameRateLimit" -ForegroundColor White
 Write-Host ""
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 1: LOCATE AND BACKUP CONFIG FILE
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 $ConfigPath = "$env:LOCALAPPDATA\FortniteGame\Saved\Config\WindowsClient\GameUserSettings.ini"
 $BackupPath = "$env:LOCALAPPDATA\FortniteGame\Saved\Config\WindowsClient\GameUserSettings.ini.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
@@ -73,7 +73,7 @@ if (Test-Path $ConfigPath) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 2: WRITE OPTIMIZED GameUserSettings.ini
 # WHY FOR EACH SETTING:
 
@@ -84,7 +84,7 @@ if (Test-Path $ConfigPath) {
 # - FrameRateLimit: Capping 3fps below max provides stable frame pacing
 # - WindowMode=1: Fullscreen exclusive for lowest latency display path
 # - ResolutionQuality=100: Full native render (no upscaling at 1080p target)
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 Write-Host ""
 Write-Host "[INFO] Writing optimized Fortnite config..." -ForegroundColor DarkCyan
@@ -158,21 +158,21 @@ Set-Content -Path $ConfigPath -Value $FNConfig -Encoding UTF8 -Force
 
 Write-Host "  [OK] Config written to: $ConfigPath" -ForegroundColor Green
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 3: SET CONFIG FILE AS READ-ONLY
 # WHY: Fortnite sometimes overwrites user config on launch.
 #      Setting read-only prevents automatic overwrite.
 #      NOTE: Fortnite will warn about this but still loads the settings.
 #      Re-run this script after any game update that resets your settings.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $true
 Write-Host "  [OK] Config set as read-only to prevent overwrite on launch." -ForegroundColor Green
 Write-Host "  [NOTE] If Fortnite resets settings after an update, re-run this script." -ForegroundColor DarkGray
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 4: EXE COMPATIBILITY FLAGS
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 $FNExePaths = @(
     "$env:LOCALAPPDATA\FortniteGame\Binaries\Win64\FortniteClient-Win64-Shipping.exe",
@@ -189,9 +189,9 @@ foreach ($exePath in $FNExePaths) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 5: PRINT REMAINING IN-GAME SETTINGS GUIDE
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Yellow

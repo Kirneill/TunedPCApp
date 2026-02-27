@@ -24,10 +24,10 @@
     Patch 1.0.7 significantly improved shadow LOD transitions.
 #>
 
-# ─── HEADLESS MODE ────────────────────────────────────────────────────────────
+# --- HEADLESS MODE ------------------------------------------------------------
 $Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
 
-# ─── USER CONFIGURATION - EDIT THESE VALUES ──────────────────────────────────
+# --- USER CONFIGURATION - EDIT THESE VALUES ----------------------------------
 # When run from SENSEQUALITY app, these are overridden by environment variables.
 
 if ($Headless -and $env:MONITOR_WIDTH) {
@@ -41,7 +41,7 @@ if ($Headless -and $env:MONITOR_WIDTH) {
     $MonitorRefresh = 240
     $NvidiaGPU      = $true   # $true for NVIDIA DLSS, $false for AMD FSR
 }
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "  Arc Raiders - Optimization Script" -ForegroundColor Cyan
@@ -49,9 +49,9 @@ Write-Host "  February 2026 | Unreal Engine 5" -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 1: LOCATE ARC RAIDERS AND SET EXE FLAGS
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 $ArcRaidersPaths = @(
     "$env:PROGRAMFILES(x86)\Steam\steamapps\common\ArcRaiders\ArcRaiders.exe",
@@ -79,10 +79,10 @@ if (-not $foundExe) {
     Write-Host "       Compatibility > Check 'Disable fullscreen optimizations'" -ForegroundColor Yellow
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 2: UE5 ENGINE CONFIG OVERRIDE
 # Unreal Engine 5 games support an Engine.ini override in the user folder
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 $UE5ConfigPaths = @(
     "$env:LOCALAPPDATA\ArcRaiders\Saved\Config\Windows\Engine.ini",
@@ -161,9 +161,9 @@ r.Streaming.FullyLoadUsedTextures=1
     Write-Host "[INFO] Arc Raiders config directory not found. Launch game once first, then re-run." -ForegroundColor DarkCyan
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 3: PRINT FULL IN-GAME SETTINGS GUIDE
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Yellow

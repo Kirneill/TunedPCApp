@@ -29,15 +29,15 @@
     Reboot after completion for all changes to take effect.
 #>
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # HEADLESS MODE: When run from SENSEQUALITY app, skip interactive prompts
 # and read skip flags from environment variables
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 $Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SAFETY: Create backup folder and export registry snapshots before any changes
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 $BackupDir = "$env:USERPROFILE\Documents\GamingOptimization_Backup_$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss')"
 New-Item -ItemType Directory -Path $BackupDir -Force | Out-Null
@@ -78,19 +78,19 @@ Write-Host "       $BackupDir" -ForegroundColor DarkCyan
 Write-Host ""
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 1: POWER PLAN - Ultimate Performance
 # WHY: Prevents CPU/GPU clock throttling under sustained gaming load.
 #      Ultimate Performance is the highest-priority plan available.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 if ($env:SKIP_POWER_PLAN -eq '1') {
-    Write-Host "[1/12] POWER PLAN — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[1/12] POWER PLAN - SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:POWER_PLAN]"
 } else {
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
     Write-Host "[1/12] POWER PLAN" -ForegroundColor White
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
     try {
         # Unlock the hidden "Ultimate Performance" power plan (GUID: e9a42b02-d5df-448d-aa00-03f14749eb61)
@@ -111,21 +111,21 @@ if ($env:SKIP_POWER_PLAN -eq '1') {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 2: HARDWARE-ACCELERATED GPU SCHEDULING (HAGS)
 # WHY: Reduces CPU overhead for GPU command scheduling.
 #      Beneficial on NVIDIA RTX 30/40 series and AMD RDNA 2/3 with recent drivers.
 #      Note: Disable if you experience increased VRAM usage or stutters on 8GB VRAM GPUs.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 if ($env:SKIP_HAGS -eq '1') {
-    Write-Host "[2/12] HAGS — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[2/12] HAGS - SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:HAGS]"
 } else {
     Write-Host ""
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
     Write-Host "[2/12] HARDWARE-ACCELERATED GPU SCHEDULING (HAGS)" -ForegroundColor White
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
     try {
         $HagsPath = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
@@ -143,21 +143,21 @@ if ($env:SKIP_HAGS -eq '1') {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 3: WINDOWS GAME MODE
 # WHY: When enabled, Game Mode focuses system resources on the active game,
 #      reduces background process interference, and signals the OS scheduler
 #      to prioritize the game. Should be ON for single-monitor gaming setups.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 if ($env:SKIP_GAME_MODE -eq '1') {
-    Write-Host "[3/12] GAME MODE — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[3/12] GAME MODE - SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:GAME_MODE]"
 } else {
     Write-Host ""
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
     Write-Host "[3/12] WINDOWS GAME MODE" -ForegroundColor White
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
     try {
         $GameBarPath = "HKCU:\Software\Microsoft\GameBar"
@@ -187,22 +187,22 @@ if ($env:SKIP_GAME_MODE -eq '1') {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 4: WINDOWS MULTIMEDIA SCHEDULER - GAME PRIORITY
 # WHY: The Windows Multimedia Class Scheduler Service (MMCSS) controls CPU
 #      time allocated to games vs background processes. Setting Scheduling
 #      Category to High and SystemResponsiveness to 10 maximizes game CPU time.
 #      Values below 10 are auto-rounded up to 20 by Windows, so 10 is optimal.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 if ($env:SKIP_MMCSS -eq '1') {
-    Write-Host "[4/12] MMCSS — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[4/12] MMCSS - SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:MMCSS]"
 } else {
     Write-Host ""
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
     Write-Host "[4/12] MULTIMEDIA SCHEDULER & SYSTEM RESPONSIVENESS" -ForegroundColor White
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
     try {
         $ProfilePath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
@@ -233,22 +233,22 @@ if ($env:SKIP_MMCSS -eq '1') {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 5: NETWORK OPTIMIZATION - NAGLE'S ALGORITHM & LATENCY
 # WHY: Nagle's Algorithm batches small TCP packets to save bandwidth, but
 #      this introduces 10-200ms of additional latency in online games.
 #      Disabling it sends packets immediately, reducing ping and rubber-banding.
 #      NetworkThrottlingIndex removal ensures full bandwidth for game traffic.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 if ($env:SKIP_NETWORK -eq '1') {
-    Write-Host "[5/12] NETWORK — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[5/12] NETWORK - SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:NETWORK]"
 } else {
     Write-Host ""
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
     Write-Host "[5/12] NETWORK OPTIMIZATION (Nagle's Algorithm + Latency)" -ForegroundColor White
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
     try {
         $TcpipInterfacesPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces"
@@ -286,21 +286,21 @@ if ($env:SKIP_NETWORK -eq '1') {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 6: VISUAL EFFECTS - PERFORMANCE MODE
 # WHY: Windows visual effects (animations, shadows, transparency) consume
 #      CPU/GPU cycles even when gaming. Setting to "Best Performance" mode
 #      eliminates this background rendering overhead.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 if ($env:SKIP_VISUAL_FX -eq '1') {
-    Write-Host "[6/12] VISUAL FX — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[6/12] VISUAL FX - SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:VISUAL_FX]"
 } else {
     Write-Host ""
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
     Write-Host "[6/12] WINDOWS VISUAL EFFECTS (Best Performance)" -ForegroundColor White
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
     try {
         $VisualFXPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects"
@@ -328,7 +328,7 @@ if ($env:SKIP_VISUAL_FX -eq '1') {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 7: FULLSCREEN OPTIMIZATIONS - DISABLE GLOBALLY
 # WHY: Windows Fullscreen Optimizations intercept exclusive fullscreen mode
 #      and run the game in a borderless window internally. This adds latency
@@ -336,16 +336,16 @@ if ($env:SKIP_VISUAL_FX -eq '1') {
 #      fullscreen with direct GPU-to-display buffer access.
 #      NOTE: Some games (notably Valorant) work better with this enabled.
 #      Per-game overrides are handled in individual game scripts.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 if ($env:SKIP_FULLSCREEN -eq '1') {
-    Write-Host "[7/12] FULLSCREEN — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[7/12] FULLSCREEN - SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:FULLSCREEN]"
 } else {
     Write-Host ""
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
     Write-Host "[7/12] FULLSCREEN OPTIMIZATIONS (Global Disable)" -ForegroundColor White
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
     try {
         $AppCompatPath = "HKCU:\System\GameConfigStore"
@@ -366,21 +366,21 @@ if ($env:SKIP_FULLSCREEN -eq '1') {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 8: MOUSE SETTINGS - DISABLE ACCELERATION
 # WHY: Mouse acceleration (Enhance Pointer Precision) makes cursor movement
 #      speed-dependent rather than distance-dependent. This destroys muscle
 #      memory consistency critical for competitive FPS aiming.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 if ($env:SKIP_MOUSE -eq '1') {
-    Write-Host "[8/12] MOUSE — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[8/12] MOUSE - SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:MOUSE]"
 } else {
     Write-Host ""
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
     Write-Host "[8/12] MOUSE ACCELERATION (Disable)" -ForegroundColor White
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
     try {
         $MousePath = "HKCU:\Control Panel\Mouse"
@@ -400,21 +400,21 @@ if ($env:SKIP_MOUSE -eq '1') {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 9: TIMER RESOLUTION & SLEEP STATES
 # WHY: Windows default timer resolution is 15.6ms. Setting it to 0.5ms (via
 #      games that call timeBeginPeriod) improves frame scheduling precision.
 #      Disabling CPU C-States (deep sleep) prevents wake latency spikes.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 if ($env:SKIP_CPU_POWER -eq '1') {
-    Write-Host "[9/12] CPU POWER — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[9/12] CPU POWER - SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:CPU_POWER]"
 } else {
     Write-Host ""
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
     Write-Host "[9/12] CPU POWER STATES & ADDITIONAL TWEAKS" -ForegroundColor White
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
     try {
         $UltimatePerfGUID = "e9a42b02-d5df-448d-aa00-03f14749eb61"
@@ -436,22 +436,22 @@ if ($env:SKIP_CPU_POWER -eq '1') {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 10: DISABLE BACKGROUND APPS
 # WHY: UWP/Store apps run background tasks (sync, update checks, telemetry)
 #      that steal CPU time and trigger disk I/O during gaming. Disabling the
 #      global background-access toggle stops all Store apps from running
 #      background tasks unless you grant them individually.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 if ($env:SKIP_BG_APPS -eq '1') {
-    Write-Host "[10/12] BACKGROUND APPS — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[10/12] BACKGROUND APPS - SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:BG_APPS]"
 } else {
     Write-Host ""
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
     Write-Host "[10/12] DISABLE BACKGROUND APPS" -ForegroundColor White
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
     try {
         $BgAppsPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications"
@@ -472,23 +472,23 @@ if ($env:SKIP_BG_APPS -eq '1') {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 11: DISABLE MULTIPLANE OVERLAY (MPO)
 # WHY: MPO allows the DWM compositor to send independent "planes" to the
 #      display hardware, which can cause micro-stutters, black flickers, and
-#      frame pacing issues — particularly on multi-monitor setups and with
+#      frame pacing issues - particularly on multi-monitor setups and with
 #      hardware-accelerated apps (browsers, Discord). Disabling it forces
 #      single-plane composition, which is more predictable for gaming.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 if ($env:SKIP_MPO -eq '1') {
-    Write-Host "[11/12] MPO — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[11/12] MPO - SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:MPO]"
 } else {
     Write-Host ""
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
     Write-Host "[11/12] DISABLE MULTIPLANE OVERLAY (MPO)" -ForegroundColor White
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
     try {
         $DwmPath = "HKLM:\SOFTWARE\Microsoft\Windows\Dwm"
@@ -505,7 +505,7 @@ if ($env:SKIP_MPO -eq '1') {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SECTION 12: VISUAL EFFECTS EXTRAS
 # WHY: Beyond the "Best Performance" toggle in Section 6, there are additional
 #      UI elements that steal focus or consume DWM resources:
@@ -513,16 +513,16 @@ if ($env:SKIP_MPO -eq '1') {
 #      - KeyboardDelay: default repeat delay is higher than needed
 #      - Chat/TaskView/Search icons: taskbar icons that trigger background
 #        processes and can steal focus during fullscreen gaming
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 if ($env:SKIP_VISUAL_EXTRAS -eq '1') {
-    Write-Host "[12/12] VISUAL EXTRAS — SKIPPED" -ForegroundColor DarkGray
+    Write-Host "[12/12] VISUAL EXTRAS - SKIPPED" -ForegroundColor DarkGray
     Write-Host "[SQ_SKIP:VISUAL_EXTRAS]"
 } else {
     Write-Host ""
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
     Write-Host "[12/12] VISUAL EFFECTS EXTRAS" -ForegroundColor White
-    Write-Host "──────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
     try {
         # Speed up context menus (default is 400ms)
@@ -560,9 +560,9 @@ if ($env:SKIP_VISUAL_EXTRAS -eq '1') {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # COMPLETION SUMMARY
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Green

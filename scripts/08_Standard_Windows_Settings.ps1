@@ -83,6 +83,43 @@ function Set-ServiceStartupTypeSafe {
     }
 }
 
+function Invoke-ProcessWithTimeout {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+        [string[]]$ArgumentList = @(),
+        [int]$TimeoutSeconds = 300,
+        [string]$Label = $FilePath
+    )
+
+    try {
+        $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -PassThru -WindowStyle Hidden -ErrorAction Stop
+    } catch {
+        Write-Host "  [WARN] Failed to start $Label: $_" -ForegroundColor Yellow
+        $script:SectionFailures++
+        return $false
+    }
+
+    $completed = $process.WaitForExit($TimeoutSeconds * 1000)
+    if (-not $completed) {
+        try {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        } catch {}
+        Write-Host "  [WARN] $Label timed out after $TimeoutSeconds seconds and was skipped." -ForegroundColor Yellow
+        $script:SectionFailures++
+        return $false
+    }
+
+    if ($process.ExitCode -ne 0) {
+        Write-Host "  [WARN] $Label exited with code $($process.ExitCode)." -ForegroundColor Yellow
+        $script:SectionFailures++
+        return $false
+    }
+
+    Write-Host "  [OK] $Label completed." -ForegroundColor Green
+    return $true
+}
+
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "  WINUTIL STANDARD SETTINGS" -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Cyan
@@ -375,10 +412,12 @@ Invoke-Section -Name "[7/11] Disable Telemetry" -Script {
 }
 
 Invoke-Section -Name "[8/11] Cleanup (Disk + Temp)" -Script {
-    cleanmgr.exe /d C: /VERYLOWDISK | Out-Null
-    Dism.exe /online /Cleanup-Image /StartComponentCleanup /ResetBase | Out-Null
+    Write-Host "  [INFO] Running cleanup with timeout safeguards..." -ForegroundColor DarkCyan
+    Invoke-ProcessWithTimeout -FilePath "cleanmgr.exe" -ArgumentList @("/d", "C:", "/VERYLOWDISK") -TimeoutSeconds 180 -Label "Disk Cleanup (cleanmgr)"
+    Invoke-ProcessWithTimeout -FilePath "Dism.exe" -ArgumentList @("/online", "/Cleanup-Image", "/StartComponentCleanup") -TimeoutSeconds 900 -Label "Component Cleanup (DISM)"
     Remove-Item -Path "$Env:Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -Path "$Env:SystemRoot\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "  [OK] Temporary files cleaned." -ForegroundColor Green
 }
 
 Invoke-Section -Name "[9/11] Enable End Task on Taskbar Right-Click" -Script {
