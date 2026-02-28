@@ -14,6 +14,7 @@
     WHAT THIS SCRIPT DOES:
     - Backs up existing GameUserSettings.ini
     - Writes optimized competitive settings to GameUserSettings.ini
+    - Ensures config files remain writable so in-game settings can save
     - Sets Windows EXE flags for the Fortnite executable
     - Prints the full in-game settings guide
 
@@ -84,7 +85,7 @@ Write-Host ""
 # -----------------------------------------------------------------------------
 
 # Fortnite may use WindowsClient or Windows depending on patch/install path.
-# We write+lock both to prevent launch-time resets.
+# We write both active targets and ensure they are NOT read-only.
 $ConfigRoot = Join-Path $env:LOCALAPPDATA "FortniteGame\Saved\Config"
 $TargetConfigPaths = New-Object 'System.Collections.Generic.List[string]'
 
@@ -185,9 +186,9 @@ LastUserConfirmedDesiredScreenHeight=$MonitorHeight
 
 $TotalTargets = $TargetConfigPaths.Count
 $WriteSuccessCount = 0
-$ReadOnlySuccessCount = 0
+$WritableSuccessCount = 0
 $WriteFailures = @()
-$ReadOnlyFailures = @()
+$WritableFailures = @()
 
 foreach ($ConfigPath in $TargetConfigPaths) {
     $ConfigDir = Split-Path $ConfigPath -Parent
@@ -225,18 +226,18 @@ foreach ($ConfigPath in $TargetConfigPaths) {
     }
 
     try {
-        Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $true -ErrorAction Stop
+        Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $false -ErrorAction Stop
         $isReadOnly = (Get-Item -Path $ConfigPath -ErrorAction Stop).IsReadOnly
-        if ($isReadOnly) {
-            $ReadOnlySuccessCount++
-            Write-Host "  [OK] Read-only lock enabled: $ConfigPath" -ForegroundColor Green
+        if (-not $isReadOnly) {
+            $WritableSuccessCount++
+            Write-Host "  [OK] Config writable (read-only cleared): $ConfigPath" -ForegroundColor Green
         } else {
-            $ReadOnlyFailures += "$ConfigPath (IsReadOnly false)"
-            Write-Host "  [WARN] Read-only lock check failed: $ConfigPath" -ForegroundColor Yellow
+            $WritableFailures += "$ConfigPath (IsReadOnly true)"
+            Write-Host "  [WARN] Writable check failed (still read-only): $ConfigPath" -ForegroundColor Yellow
         }
     } catch {
-        $ReadOnlyFailures += "$ConfigPath ($($_.Exception.Message))"
-        Write-Host "  [FAIL] Could not set read-only: $ConfigPath" -ForegroundColor Red
+        $WritableFailures += "$ConfigPath ($($_.Exception.Message))"
+        Write-Host "  [FAIL] Could not clear read-only: $ConfigPath" -ForegroundColor Red
     }
 }
 
@@ -246,17 +247,17 @@ if ($WriteSuccessCount -eq $TotalTargets) {
     Write-Check -Status 'FAIL' -Key 'FN_CONFIG_FILES_WRITTEN' -Detail (($WriteFailures -join '; '))
 }
 
-if ($ReadOnlySuccessCount -eq $TotalTargets) {
-    Write-Check -Status 'OK' -Key 'FN_CONFIG_READONLY' -Detail "$ReadOnlySuccessCount/$TotalTargets"
+if ($WritableSuccessCount -eq $TotalTargets) {
+    Write-Check -Status 'OK' -Key 'FN_CONFIG_WRITABLE' -Detail "$WritableSuccessCount/$TotalTargets"
 } else {
-    Write-Check -Status 'FAIL' -Key 'FN_CONFIG_READONLY' -Detail (($ReadOnlyFailures -join '; '))
+    Write-Check -Status 'FAIL' -Key 'FN_CONFIG_WRITABLE' -Detail (($WritableFailures -join '; '))
 }
 
 # -----------------------------------------------------------------------------
 # SECTION 3: PERSISTENCE NOTE
 # -----------------------------------------------------------------------------
 
-Write-Host "  [NOTE] Config was applied to WindowsClient + Windows paths and set read-only." -ForegroundColor DarkGray
+Write-Host "  [NOTE] Config was applied and read-only was cleared so Fortnite can save in-game changes." -ForegroundColor DarkGray
 Write-Host "  [NOTE] If Epic Cloud sync is enabled, cloud data may still override local files." -ForegroundColor DarkGray
 
 # -----------------------------------------------------------------------------

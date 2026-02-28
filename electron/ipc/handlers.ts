@@ -101,7 +101,7 @@ const CHECK_LABELS: Record<string, string> = {
   ARC_CONFIG_FILES_WRITTEN: 'Arc Raiders config files written',
   ARC_SETTINGS_APPLIED: 'Arc Raiders settings applied',
   FN_CONFIG_FILES_WRITTEN: 'Fortnite config files written',
-  FN_CONFIG_READONLY: 'Fortnite config read-only lock',
+  FN_CONFIG_WRITABLE: 'Fortnite config writable state',
   APEX_VIDEOCONFIG_WRITTEN: 'Apex videoconfig.txt written',
   APEX_VIDEOCONFIG_READONLY: 'Apex videoconfig.txt read-only lock',
   APEX_AUTOEXEC_WRITTEN: 'Apex autoexec.cfg written',
