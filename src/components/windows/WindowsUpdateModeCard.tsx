@@ -62,10 +62,10 @@ export default function WindowsUpdateModeCard({ compact = false }: WindowsUpdate
   };
 
   return (
-    <div className="bg-sq-surface border border-sq-border rounded-xl p-4">
+    <div className="sq-panel-muted border border-sq-border rounded-xl p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-sm font-bold text-sq-text">Windows Update Mode</h3>
+          <h3 className="text-sm font-bold text-sq-text tracking-wide">Windows Update Mode</h3>
           <p className="text-[11px] text-sq-text-muted mt-0.5 leading-relaxed">
             {isOn
               ? 'ON (recommended): updates stay enabled with a security profile (driver updates blocked, auto-restart disabled while signed in, feature updates deferred 365 days, quality updates deferred 4 days).'
@@ -77,10 +77,10 @@ export default function WindowsUpdateModeCard({ compact = false }: WindowsUpdate
           onClick={handleToggle}
           disabled={isRunning || isApplying}
           className={`
-            px-4 ${compact ? 'py-2' : 'py-2.5'} rounded-lg text-xs font-semibold tracking-wide transition-colors shrink-0
+            sq-focus-ring px-4 ${compact ? 'py-2' : 'py-2.5'} rounded-lg text-xs font-semibold tracking-wide transition-colors shrink-0 border
             ${isOn
-              ? 'bg-sq-warning/20 text-sq-warning border border-sq-warning/40 hover:bg-sq-warning/30'
-              : 'bg-sq-accent text-white border border-sq-accent hover:bg-sq-accent-hover'}
+              ? 'bg-sq-warning/18 text-sq-warning border-sq-warning/40 hover:bg-sq-warning/26'
+              : 'bg-gradient-to-r from-sq-accent to-sq-accent-dim text-white border-sq-accent/55 hover:brightness-110'}
             ${(isRunning || isApplying) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
           `}
         >

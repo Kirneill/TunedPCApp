@@ -60,10 +60,10 @@ export default function RestorePointControls({ compact = false }: RestorePointCo
   };
 
   return (
-    <div className="bg-sq-surface border border-sq-border rounded-xl p-4">
+    <div className="sq-panel-muted border border-sq-border rounded-xl p-4">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <h3 className="text-sm font-bold text-sq-text">System Restore Point</h3>
+          <h3 className="text-sm font-bold text-sq-text tracking-wide">System Restore Point</h3>
           <p className="text-[11px] text-sq-text-muted mt-0.5 leading-relaxed">
             {autoEnabled
               ? 'Auto-create before optimization is ON.'
@@ -76,10 +76,10 @@ export default function RestorePointControls({ compact = false }: RestorePointCo
             onClick={handleCreateNow}
             disabled={isRunning || isCreating}
             className={`
-              px-4 ${compact ? 'py-2' : 'py-2.5'} rounded-lg text-xs font-semibold tracking-wide transition-colors border
+              sq-focus-ring px-4 ${compact ? 'py-2' : 'py-2.5'} rounded-lg text-xs font-semibold tracking-wide transition-colors border
               ${isRunning || isCreating
                 ? 'opacity-50 cursor-not-allowed border-sq-border text-sq-text-muted'
-                : 'cursor-pointer border-sq-accent text-white bg-sq-accent hover:bg-sq-accent-hover'}
+                : 'cursor-pointer border-sq-accent/55 text-white bg-gradient-to-r from-sq-accent to-sq-accent-dim hover:brightness-110'}
             `}
           >
             {isCreating ? 'CREATING...' : 'CREATE NOW'}

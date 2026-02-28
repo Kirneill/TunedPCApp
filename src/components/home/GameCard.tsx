@@ -8,9 +8,10 @@ interface GameCardProps {
   gradient: string;
   letter: string;
   installed: boolean;
+  compact?: boolean;
 }
 
-export default function GameCard({ id, toggleId, name, subtitle, gradient, letter, installed }: GameCardProps) {
+export default function GameCard({ id, toggleId, name, subtitle, gradient, letter, installed, compact = false }: GameCardProps) {
   const { toggles, setToggle, isRunning } = useAppStore();
   const enabled = toggles[toggleId] ?? false;
 
@@ -25,10 +26,10 @@ export default function GameCard({ id, toggleId, name, subtitle, gradient, lette
       }}
     >
       {/* Background gradient */}
-      <div className={`flex-1 min-h-[200px] ${gradient} relative`}>
+      <div className={`flex-1 ${compact ? 'min-h-[120px]' : 'min-h-[200px]'} ${gradient} relative`}>
         {/* Large letter as placeholder */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-8xl font-black text-white/8 select-none">{letter}</span>
+          <span className={`${compact ? 'text-6xl' : 'text-8xl'} font-black text-white/8 select-none`}>{letter}</span>
         </div>
 
         {/* Toggle indicator */}
@@ -51,13 +52,26 @@ export default function GameCard({ id, toggleId, name, subtitle, gradient, lette
           </div>
         )}
 
+        {/* Install status */}
+        <div className="absolute bottom-3 left-3">
+          <span className={`
+            px-2 py-1 rounded text-[10px] font-semibold tracking-wide border
+            ${installed
+              ? 'text-sq-success border-sq-success/40 bg-black/45 backdrop-blur-sm'
+              : 'text-sq-warning border-sq-warning/40 bg-black/45 backdrop-blur-sm'
+            }
+          `}>
+            {installed ? 'FOUND' : 'NOT FOUND'}
+          </span>
+        </div>
+
         {/* Bottom gradient fade */}
         <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-sq-surface to-transparent" />
       </div>
 
       {/* Info */}
-      <div className="bg-sq-surface px-4 pb-4 -mt-1">
-        <h3 className="text-base font-bold text-sq-text leading-tight">{name}</h3>
+      <div className={`bg-sq-surface px-4 ${compact ? 'pb-3' : 'pb-4'} -mt-1`}>
+        <h3 className={`${compact ? 'text-sm' : 'text-base'} font-bold text-sq-text leading-tight`}>{name}</h3>
         <p className="text-[11px] text-sq-text-muted mt-0.5">{subtitle}</p>
       </div>
     </div>

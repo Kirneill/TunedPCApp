@@ -9,10 +9,10 @@ interface CardProps {
 
 export default function Card({ title, children, className = '', badge }: CardProps) {
   return (
-    <div className={`bg-sq-surface border border-sq-border rounded-xl ${className}`}>
+    <div className={`sq-panel border sq-subtle-divider rounded-xl ${className}`}>
       {title && (
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-sq-border">
-          <h3 className="text-sm font-semibold text-sq-text">{title}</h3>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b sq-subtle-divider">
+          <h3 className="text-sm font-semibold tracking-wide text-sq-text">{title}</h3>
           {badge}
         </div>
       )}
