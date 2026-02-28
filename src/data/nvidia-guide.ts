@@ -10,7 +10,7 @@ export const nvidiaGlobalSettings: GpuGuideSetting[] = [
   {
     setting: 'Low Latency Mode',
     value: 'On',
-    reason: 'Reduces pre-rendered frames queue. Set to OFF for games with NVIDIA Reflex (Fortnite, Valorant, CS2).',
+    reason: 'Reduces pre-rendered frames queue. Set to OFF for games with NVIDIA Reflex (Fortnite, Valorant, CS2, Apex Legends).',
   },
   {
     setting: 'Max Frame Rate',
@@ -59,6 +59,7 @@ export const nvidiaPerGameOverrides: { game: string; setting: string; value: str
   { game: 'Fortnite', setting: 'Low Latency Mode', value: 'Off', reason: 'Use in-game NVIDIA Reflex On+Boost instead' },
   { game: 'Valorant', setting: 'Low Latency Mode', value: 'Off', reason: 'Use in-game NVIDIA Reflex On+Boost instead' },
   { game: 'CS2', setting: 'Low Latency Mode', value: 'Off', reason: 'Use in-game NVIDIA Reflex On+Boost instead' },
+  { game: 'Apex Legends', setting: 'Low Latency Mode', value: 'Off', reason: 'Use in-game NVIDIA Reflex Enabled + Boost instead' },
   { game: 'Arc Raiders', setting: 'Low Latency Mode', value: 'Off', reason: 'Use in-game NVIDIA Reflex if available' },
   { game: 'Black Ops 7', setting: 'Low Latency Mode', value: 'On', reason: 'Game may not have NVIDIA Reflex; use driver-level instead' },
 ];

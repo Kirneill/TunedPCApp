@@ -57,11 +57,60 @@ function Write-Check {
 # -----------------------------------------------------------------------------
 
 $PossiblePaths = @(
+    # Legacy executable naming
     "C:\Program Files (x86)\Call of Duty\BlackOps7.exe",
     "C:\Program Files\Call of Duty\BlackOps7.exe",
     "D:\Call of Duty\BlackOps7.exe",
     "E:\Call of Duty\BlackOps7.exe",
-    "C:\Program Files (x86)\Steam\steamapps\common\Call of Duty HQ\BlackOps7.exe"
+    "C:\Program Files (x86)\Steam\steamapps\common\Call of Duty HQ\BlackOps7.exe",
+    # COD HQ / Battle.net executable naming
+    "C:\Program Files (x86)\Call of Duty\_retail_\cod.exe",
+    "C:\Program Files (x86)\Call of Duty\_retail_\cod24\cod24-cod.exe",
+    "C:\Program Files (x86)\Call of Duty\_retail_\cod25\cod25-cod.exe",
+    "C:\Program Files\Call of Duty\_retail_\cod.exe",
+    "C:\Program Files\Call of Duty\_retail_\cod24\cod24-cod.exe",
+    "C:\Program Files\Call of Duty\_retail_\cod25\cod25-cod.exe",
+    "D:\Call of Duty\_retail_\cod.exe",
+    "D:\Call of Duty\_retail_\cod24\cod24-cod.exe",
+    "D:\Call of Duty\_retail_\cod25\cod25-cod.exe",
+    "E:\Call of Duty\_retail_\cod.exe",
+    "E:\Call of Duty\_retail_\cod24\cod24-cod.exe",
+    "E:\Call of Duty\_retail_\cod25\cod25-cod.exe",
+    # Steam COD HQ executable naming
+    "C:\Program Files (x86)\Steam\steamapps\common\Call of Duty HQ\cod.exe",
+    "C:\Program Files (x86)\Steam\steamapps\common\Call of Duty HQ\cod24\cod24-cod.exe",
+    "C:\Program Files (x86)\Steam\steamapps\common\Call of Duty HQ\cod25\cod25-cod.exe",
+    "D:\Steam\steamapps\common\Call of Duty HQ\cod.exe",
+    "D:\Steam\steamapps\common\Call of Duty HQ\cod24\cod24-cod.exe",
+    "D:\Steam\steamapps\common\Call of Duty HQ\cod25\cod25-cod.exe",
+    "D:\SteamLibrary\steamapps\common\Call of Duty HQ\cod.exe",
+    "D:\SteamLibrary\steamapps\common\Call of Duty HQ\cod24\cod24-cod.exe",
+    "D:\SteamLibrary\steamapps\common\Call of Duty HQ\cod25\cod25-cod.exe",
+    "E:\Steam\steamapps\common\Call of Duty HQ\cod.exe",
+    "E:\Steam\steamapps\common\Call of Duty HQ\cod24\cod24-cod.exe",
+    "E:\Steam\steamapps\common\Call of Duty HQ\cod25\cod25-cod.exe",
+    "E:\SteamLibrary\steamapps\common\Call of Duty HQ\cod.exe",
+    "E:\SteamLibrary\steamapps\common\Call of Duty HQ\cod24\cod24-cod.exe",
+    "E:\SteamLibrary\steamapps\common\Call of Duty HQ\cod25\cod25-cod.exe",
+    # Xbox Game Pass executable naming
+    "C:\XboxGames\Call of Duty\Content\cod.exe",
+    "C:\XboxGames\Call of Duty\Content\cod24\cod24-cod.exe",
+    "C:\XboxGames\Call of Duty\Content\cod25\cod25-cod.exe",
+    "C:\XboxGames\Call of Duty_1\Content\cod.exe",
+    "C:\XboxGames\Call of Duty_1\Content\cod24\cod24-cod.exe",
+    "C:\XboxGames\Call of Duty_1\Content\cod25\cod25-cod.exe",
+    "D:\XboxGames\Call of Duty\Content\cod.exe",
+    "D:\XboxGames\Call of Duty\Content\cod24\cod24-cod.exe",
+    "D:\XboxGames\Call of Duty\Content\cod25\cod25-cod.exe",
+    "D:\XboxGames\Call of Duty_1\Content\cod.exe",
+    "D:\XboxGames\Call of Duty_1\Content\cod24\cod24-cod.exe",
+    "D:\XboxGames\Call of Duty_1\Content\cod25\cod25-cod.exe",
+    "E:\XboxGames\Call of Duty\Content\cod.exe",
+    "E:\XboxGames\Call of Duty\Content\cod24\cod24-cod.exe",
+    "E:\XboxGames\Call of Duty\Content\cod25\cod25-cod.exe",
+    "E:\XboxGames\Call of Duty_1\Content\cod.exe",
+    "E:\XboxGames\Call of Duty_1\Content\cod24\cod24-cod.exe",
+    "E:\XboxGames\Call of Duty_1\Content\cod25\cod25-cod.exe"
 )
 
 $GameExe = $null
@@ -73,12 +122,43 @@ foreach ($path in $PossiblePaths) {
 }
 
 if (-not $GameExe) {
-    Write-Host "[WARN] Black Ops 7 executable not found in common locations." -ForegroundColor Yellow
+    $XboxRoots = @("C:\XboxGames", "D:\XboxGames", "E:\XboxGames")
+    foreach ($XboxRoot in $XboxRoots) {
+        if (-not (Test-Path $XboxRoot)) { continue }
+
+        $InstallDirs = Get-ChildItem -Path $XboxRoot -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like 'Call of Duty*' }
+        foreach ($InstallDir in $InstallDirs) {
+            $DynamicCandidates = @(
+                (Join-Path $InstallDir.FullName "Content\cod.exe"),
+                (Join-Path $InstallDir.FullName "Content\cod24\cod24-cod.exe"),
+                (Join-Path $InstallDir.FullName "Content\cod25\cod25-cod.exe"),
+                (Join-Path $InstallDir.FullName "Content\_retail_\cod.exe"),
+                (Join-Path $InstallDir.FullName "Content\_retail_\cod24\cod24-cod.exe"),
+                (Join-Path $InstallDir.FullName "Content\_retail_\cod25\cod25-cod.exe")
+            )
+
+            foreach ($DynamicPath in $DynamicCandidates) {
+                if (Test-Path $DynamicPath) {
+                    $GameExe = $DynamicPath
+                    break
+                }
+            }
+
+            if ($GameExe) { break }
+        }
+
+        if ($GameExe) { break }
+    }
+}
+
+if (-not $GameExe) {
+    Write-Host "[WARN] BO7/COD executable not found in common locations." -ForegroundColor Yellow
     Write-Host "       Skipping EXE compatibility flags." -ForegroundColor Yellow
     Write-Host "       If installed in a custom location, set EXE flags manually:" -ForegroundColor Yellow
-    Write-Host "       Right-click BlackOps7.exe > Properties > Compatibility >" -ForegroundColor Yellow
+    Write-Host "       Right-click cod.exe (or codXX-cod.exe) > Properties > Compatibility >" -ForegroundColor Yellow
     Write-Host "       Enable High DPI override for the executable" -ForegroundColor Yellow
-    Write-Check -Status 'WARN' -Key 'COD_EXE_FLAGS' -Detail 'BlackOps7.exe not found in common paths'
+    Write-Check -Status 'WARN' -Key 'COD_EXE_FLAGS' -Detail 'No BO7/COD executable found in known paths'
 } else {
     Write-Host "[INFO] Found Black Ops 7 at: $GameExe" -ForegroundColor Green
 

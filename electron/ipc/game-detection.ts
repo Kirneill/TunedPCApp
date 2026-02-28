@@ -14,6 +14,7 @@ const GAMES = [
   { id: 'fortnite', name: 'Fortnite', scriptId: '03' },
   { id: 'valorant', name: 'Valorant', scriptId: '04' },
   { id: 'cs2', name: 'Counter-Strike 2', scriptId: '05' },
+  { id: 'apexlegends', name: 'Apex Legends', scriptId: '12' },
   { id: 'arcraiders', name: 'Arc Raiders', scriptId: '06' },
 ];
 
@@ -96,7 +97,7 @@ function findEpicManifestInstallPath(matchers: RegExp[]): string | null {
 async function findSteamGames(): Promise<Map<string, string>> {
   const found = new Map<string, string>();
 
-  // CS2 appid = 730
+  // CS2 appid = 730, Apex Legends appid = 1172470
   const steamPaths = [
     'C:\\Program Files (x86)\\Steam',
     'C:\\Program Files\\Steam',
@@ -121,6 +122,10 @@ async function findSteamGames(): Promise<Map<string, string>> {
             if (fs.existsSync(cs2Path)) {
               found.set('cs2', cs2Path);
             }
+            const apexPath = path.join(libPath, 'steamapps', 'common', 'Apex Legends');
+            if (fs.existsSync(apexPath)) {
+              found.set('apexlegends', apexPath);
+            }
           }
         }
       } catch {}
@@ -130,6 +135,10 @@ async function findSteamGames(): Promise<Map<string, string>> {
     const cs2Direct = path.join(steamPath, 'steamapps', 'common', 'Counter-Strike Global Offensive');
     if (fs.existsSync(cs2Direct)) {
       found.set('cs2', cs2Direct);
+    }
+    const apexDirect = path.join(steamPath, 'steamapps', 'common', 'Apex Legends');
+    if (fs.existsSync(apexDirect)) {
+      found.set('apexlegends', apexDirect);
     }
   }
 
@@ -191,25 +200,82 @@ async function findValorant(): Promise<string | null> {
 }
 
 async function findBlackOps7(): Promise<string | null> {
-  // Check registry for Battle.net
-  const result = await runPowerShellCommand(
-    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Blizzard Entertainment\\Battle.net\\Games\\call_of_duty_bops7' -ErrorAction SilentlyContinue).InstallPath`
-  );
-  if (result.success && result.output.length > 0 && result.output[0]) {
-    return result.output[0];
+  // Check Battle.net registry variants
+  const registryQueries = [
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Blizzard Entertainment\\Battle.net\\Games\\call_of_duty_bops7' -ErrorAction SilentlyContinue).InstallPath`,
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Blizzard Entertainment\\Battle.net\\Games\\call_of_duty' -ErrorAction SilentlyContinue).InstallPath`,
+  ];
+  for (const query of registryQueries) {
+    const result = await runPowerShellCommand(query);
+    if (result.success && result.output.length > 0 && result.output[0]) {
+      return result.output[0];
+    }
   }
 
-  // Check common paths
-  const commonPaths = [
+  // Check direct executable paths across Battle.net/Steam/Game Pass layouts
+  const exeCandidates = [
+    'C:\\Program Files (x86)\\Call of Duty\\_retail_\\cod.exe',
+    'C:\\Program Files (x86)\\Call of Duty\\_retail_\\cod24\\cod24-cod.exe',
+    'C:\\Program Files (x86)\\Call of Duty\\_retail_\\cod25\\cod25-cod.exe',
+    'C:\\Program Files\\Call of Duty\\_retail_\\cod.exe',
+    'D:\\Call of Duty\\_retail_\\cod.exe',
+    'E:\\Call of Duty\\_retail_\\cod.exe',
+    'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Call of Duty HQ\\cod.exe',
+    'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Call of Duty HQ\\cod24\\cod24-cod.exe',
+    'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Call of Duty HQ\\cod25\\cod25-cod.exe',
+    'D:\\Steam\\steamapps\\common\\Call of Duty HQ\\cod.exe',
+    'D:\\SteamLibrary\\steamapps\\common\\Call of Duty HQ\\cod.exe',
+    'E:\\Steam\\steamapps\\common\\Call of Duty HQ\\cod.exe',
+    'E:\\SteamLibrary\\steamapps\\common\\Call of Duty HQ\\cod.exe',
+    'C:\\XboxGames\\Call of Duty\\Content\\cod.exe',
+    'C:\\XboxGames\\Call of Duty_1\\Content\\cod.exe',
+    'C:\\XboxGames\\Call of Duty\\Content\\cod24\\cod24-cod.exe',
+    'C:\\XboxGames\\Call of Duty_1\\Content\\cod24\\cod24-cod.exe',
+    'C:\\XboxGames\\Call of Duty\\Content\\cod25\\cod25-cod.exe',
+    'C:\\XboxGames\\Call of Duty_1\\Content\\cod25\\cod25-cod.exe',
+    'D:\\XboxGames\\Call of Duty\\Content\\cod.exe',
+    'D:\\XboxGames\\Call of Duty_1\\Content\\cod.exe',
+    'E:\\XboxGames\\Call of Duty\\Content\\cod.exe',
+    'E:\\XboxGames\\Call of Duty_1\\Content\\cod.exe',
+  ];
+  for (const exePath of exeCandidates) {
+    if (fs.existsSync(exePath)) return path.dirname(exePath);
+  }
+
+  // Dynamic Xbox Game Pass scan for "Call of Duty*" installs
+  const xboxRoots = ['C:\\XboxGames', 'D:\\XboxGames', 'E:\\XboxGames'];
+  for (const root of xboxRoots) {
+    if (!fs.existsSync(root)) continue;
+    try {
+      const installDirs = fs.readdirSync(root, { withFileTypes: true })
+        .filter((d) => d.isDirectory() && /^Call of Duty/i.test(d.name))
+        .map((d) => path.join(root, d.name));
+
+      for (const installDir of installDirs) {
+        const dynamicCandidates = [
+          path.join(installDir, 'Content', 'cod.exe'),
+          path.join(installDir, 'Content', 'cod24', 'cod24-cod.exe'),
+          path.join(installDir, 'Content', 'cod25', 'cod25-cod.exe'),
+          path.join(installDir, 'Content', '_retail_', 'cod.exe'),
+          path.join(installDir, 'Content', '_retail_', 'cod24', 'cod24-cod.exe'),
+          path.join(installDir, 'Content', '_retail_', 'cod25', 'cod25-cod.exe'),
+        ];
+        const hit = firstExistingPath(dynamicCandidates);
+        if (hit) return path.dirname(hit);
+      }
+    } catch {}
+  }
+
+  // Fallback root checks
+  const commonRoots = [
     'C:\\Program Files (x86)\\Call of Duty',
+    'C:\\Program Files\\Call of Duty',
     'D:\\Call of Duty',
+    'E:\\Call of Duty',
     'C:\\Games\\Call of Duty',
   ];
-  for (const p of commonPaths) {
-    if (fs.existsSync(p)) return p;
-  }
-
-  return null;
+  const fallback = firstExistingPath(commonRoots);
+  return fallback || null;
 }
 
 async function findArcRaiders(): Promise<string | null> {
@@ -251,6 +317,40 @@ async function findArcRaiders(): Promise<string | null> {
   return null;
 }
 
+async function findApexLegends(steamGames: Map<string, string>): Promise<string | null> {
+  const steamPath = steamGames.get('apexlegends');
+  if (steamPath) return steamPath;
+
+  const registryQueries = [
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Respawn\\Apex' -ErrorAction SilentlyContinue).'Install Dir'`,
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Respawn\\Apex' -ErrorAction SilentlyContinue).InstallDir`,
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Respawn\\Apex' -ErrorAction SilentlyContinue).'Install Dir'`,
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Respawn\\Apex' -ErrorAction SilentlyContinue).InstallDir`,
+  ];
+  for (const query of registryQueries) {
+    const result = await runPowerShellCommand(query);
+    if (result.success && result.output.length > 0 && result.output[0] && fs.existsSync(result.output[0])) {
+      return result.output[0];
+    }
+  }
+
+  const commonInstallPaths = [
+    'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Apex Legends',
+    'C:\\Program Files\\Steam\\steamapps\\common\\Apex Legends',
+    'D:\\Steam\\steamapps\\common\\Apex Legends',
+    'D:\\SteamLibrary\\steamapps\\common\\Apex Legends',
+    'E:\\Steam\\steamapps\\common\\Apex Legends',
+    'E:\\SteamLibrary\\steamapps\\common\\Apex Legends',
+    'C:\\Program Files\\EA Games\\Apex Legends',
+    'D:\\EA Games\\Apex Legends',
+    'E:\\EA Games\\Apex Legends',
+    'C:\\Program Files (x86)\\Origin Games\\Apex',
+    'D:\\Origin Games\\Apex',
+    'E:\\Origin Games\\Apex',
+  ];
+  return firstExistingPath(commonInstallPaths);
+}
+
 export async function detectInstalledGames(): Promise<DetectedGame[]> {
   const [steamGames, fortnitePath, valorantPath, bo7Path, arcPath] = await Promise.all([
     findSteamGames(),
@@ -259,6 +359,7 @@ export async function detectInstalledGames(): Promise<DetectedGame[]> {
     findBlackOps7(),
     findArcRaiders(),
   ]);
+  const apexPath = await findApexLegends(steamGames);
 
   return GAMES.map((game) => {
     let installed = false;
@@ -280,6 +381,10 @@ export async function detectInstalledGames(): Promise<DetectedGame[]> {
       case 'blackops7':
         installed = !!bo7Path;
         gamePath = bo7Path || undefined;
+        break;
+      case 'apexlegends':
+        installed = !!apexPath;
+        gamePath = apexPath || undefined;
         break;
       case 'arcraiders':
         installed = !!arcPath;

@@ -45,6 +45,7 @@ const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   'game-fortnite': { script: '03_Fortnite_Settings.ps1' },
   'game-valorant': { script: '04_Valorant_Settings.ps1' },
   'game-cs2': { script: '05_CS2_Settings.ps1' },
+  'game-apexlegends': { script: '12_ApexLegends_Settings.ps1' },
   'game-arcraiders': { script: '06_ArcRaiders_Settings.ps1' },
 };
 
@@ -99,6 +100,10 @@ const CHECK_LABELS: Record<string, string> = {
   ARC_EXE_FLAGS: 'Arc Raiders EXE compatibility flags',
   ARC_CONFIG_FILES_WRITTEN: 'Arc Raiders config files written',
   ARC_SETTINGS_APPLIED: 'Arc Raiders settings applied',
+  APEX_VIDEOCONFIG_WRITTEN: 'Apex videoconfig.txt written',
+  APEX_VIDEOCONFIG_READONLY: 'Apex videoconfig.txt read-only lock',
+  APEX_AUTOEXEC_WRITTEN: 'Apex autoexec.cfg written',
+  APEX_EXE_FLAGS: 'Apex r5apex.exe compatibility flags',
 };
 
 function parseScriptCheck(line: string): ScriptCheck | null {
@@ -412,13 +417,13 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       CS2_STRETCHED: config.cs2Stretched ? '1' : '0',
     };
 
-    if (id === 'game-arcraiders') {
+    if (id === 'game-arcraiders' || id === 'game-apexlegends') {
       try {
         const detectedGames = await detectInstalledGames();
         const arcGame = detectedGames.find((game) => game.id === 'arcraiders' && !!game.path);
-        if (arcGame?.path) {
-          envVars.ARC_RAIDERS_PATH = arcGame.path;
-        }
+        const apexGame = detectedGames.find((game) => game.id === 'apexlegends' && !!game.path);
+        if (arcGame?.path) envVars.ARC_RAIDERS_PATH = arcGame.path;
+        if (apexGame?.path) envVars.APEX_PATH = apexGame.path;
       } catch {}
     }
 
@@ -532,13 +537,13 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       CS2_STRETCHED: config.cs2Stretched ? '1' : '0',
     };
 
-    if (ids.includes('game-arcraiders')) {
+    if (ids.includes('game-arcraiders') || ids.includes('game-apexlegends')) {
       try {
         const detectedGames = await detectInstalledGames();
         const arcGame = detectedGames.find((game) => game.id === 'arcraiders' && !!game.path);
-        if (arcGame?.path) {
-          envVars.ARC_RAIDERS_PATH = arcGame.path;
-        }
+        const apexGame = detectedGames.find((game) => game.id === 'apexlegends' && !!game.path);
+        if (arcGame?.path) envVars.ARC_RAIDERS_PATH = arcGame.path;
+        if (apexGame?.path) envVars.APEX_PATH = apexGame.path;
       } catch {}
     }
 

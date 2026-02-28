@@ -40,6 +40,14 @@ const games = [
     letter: 'CS2',
   },
   {
+    id: 'apexlegends',
+    toggleId: 'game-apexlegends',
+    name: 'Apex Legends',
+    subtitle: 'Max FPS Config + Read-Only Lock',
+    gradient: 'bg-gradient-to-br from-red-900 via-orange-950 to-black',
+    letter: 'APX',
+  },
+  {
     id: 'arcraiders',
     toggleId: 'game-arcraiders',
     name: 'Arc Raiders',
@@ -213,7 +221,7 @@ export default function HomePage() {
         <RestorePointControls compact />
 
         {/* Game cards grid — grows to fill available space */}
-        <div className="flex-1 grid grid-cols-5 gap-4 min-h-0">
+        <div className="flex-1 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 min-h-0">
           {games.map((game) => (
             <GameCard
               key={game.id}

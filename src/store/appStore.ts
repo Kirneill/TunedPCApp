@@ -119,6 +119,7 @@ const DEFAULT_TOGGLES: Record<string, boolean> = {
   'game-fortnite': true,
   'game-valorant': true,
   'game-cs2': true,
+  'game-apexlegends': true,
   'game-arcraiders': true,
 };
 

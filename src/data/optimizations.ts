@@ -153,6 +153,15 @@ export const gameOptimizations: OptimizationItem[] = [
     gameId: 'cs2',
   },
   {
+    id: 'game-apexlegends',
+    label: 'Apex Legends',
+    description: 'Writes max-FPS videoconfig.txt, locks it read-only, creates autoexec.cfg, and applies r5apex.exe EXE flags.',
+    category: 'game',
+    risk: 'safe',
+    requiresReboot: false,
+    gameId: 'apexlegends',
+  },
+  {
     id: 'game-arcraiders',
     label: 'Arc Raiders',
     description: 'Optimizes Engine.ini — Shadows MEDIUM minimum (player shadows), DLSS/FSR Quality, Frame Gen OFF.',
