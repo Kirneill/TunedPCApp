@@ -10,6 +10,7 @@ import ConsentModal from './components/ui/ConsentModal';
 import AuthGate from './components/auth/AuthGate';
 import MaxDevicesScreen from './components/auth/MaxDevicesScreen';
 import UpdateBanner from './components/ui/UpdateBanner';
+import Sidebar from './components/layout/Sidebar';
 import appLogo from './assets/app-logo.ico';
 
 export default function App() {
@@ -274,9 +275,12 @@ export default function App() {
     <div className="flex flex-col h-full bg-sq-bg">
       <TitleBar />
       <UpdateBanner />
-      <main className="flex-1 overflow-y-auto">
-        {renderPage()}
-      </main>
+      <div className="flex-1 min-h-0 flex">
+        <Sidebar />
+        <main className="flex-1 overflow-y-auto">
+          {renderPage()}
+        </main>
+      </div>
       <ConsentModal />
     </div>
   );

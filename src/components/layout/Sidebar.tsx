@@ -1,19 +1,24 @@
 import { useAppStore } from '../../store/appStore';
 
-type Page = 'dashboard' | 'bios-guide' | 'gpu-guide' | 'backups';
+type Page = 'dashboard' | 'advanced' | 'bios-guide' | 'gpu-guide' | 'backups';
 
 const navItems: { id: Page; label: string; icon: string }[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: '⚡' },
-  { id: 'bios-guide', label: 'BIOS Guide', icon: '🔧' },
-  { id: 'gpu-guide', label: 'GPU Guide', icon: '🎮' },
-  { id: 'backups', label: 'Backups', icon: '💾' },
+  { id: 'dashboard', label: 'Optimizer', icon: 'OP' },
+  { id: 'advanced', label: 'Advanced', icon: 'AD' },
+  { id: 'bios-guide', label: 'BIOS Guide', icon: 'BI' },
+  { id: 'gpu-guide', label: 'GPU Guide', icon: 'GPU' },
+  { id: 'backups', label: 'Backups', icon: 'BK' },
 ];
 
 export default function Sidebar() {
   const { currentPage, setCurrentPage, isRunning } = useAppStore();
 
   return (
-    <aside className="w-48 bg-sq-surface border-r border-sq-border flex flex-col shrink-0">
+    <aside className="w-52 bg-sq-surface border-r border-sq-border flex flex-col shrink-0">
+      <div className="px-4 pt-4 pb-3 border-b border-sq-border">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-sq-text-dim">Navigation</div>
+      </div>
+
       <nav className="flex-1 py-4 px-2 space-y-1">
         {navItems.map((item) => (
           <button
@@ -29,7 +34,9 @@ export default function Sidebar() {
               ${isRunning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
             `}
           >
-            <span className="text-base">{item.icon}</span>
+            <span className="text-[10px] font-bold min-w-[2.25rem] text-center px-1.5 py-1 rounded border border-sq-border bg-sq-bg text-sq-text-muted">
+              {item.icon}
+            </span>
             <span>{item.label}</span>
           </button>
         ))}
@@ -37,7 +44,7 @@ export default function Sidebar() {
 
       <div className="px-3 py-4 border-t border-sq-border">
         <div className="text-[10px] text-sq-text-dim uppercase tracking-wider mb-1">SENSEQUALITY</div>
-        <div className="text-[10px] text-sq-text-dim">v1.0.4</div>
+        <div className="text-[10px] text-sq-text-dim">Sidebar Navigation</div>
       </div>
     </aside>
   );
