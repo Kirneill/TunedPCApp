@@ -44,6 +44,31 @@ if ($Headless -and $env:MONITOR_WIDTH) {
 $FrameRateLimit   = $MonitorRefresh - 3    # Cap FPS at RefreshRate - 3 for frame stability
 # -----------------------------------------------------------------------------
 
+$script:ValidationFailed = $false
+
+function Write-Check {
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet('OK', 'FAIL', 'WARN')][string]$Status,
+        [Parameter(Mandatory = $true)][string]$Key,
+        [string]$Detail = ''
+    )
+
+    $suffix = if ([string]::IsNullOrWhiteSpace($Detail)) { '' } else { ":$Detail" }
+    Write-Host "[SQ_CHECK_${Status}:$Key$suffix]"
+    if ($Status -eq 'FAIL') {
+        $script:ValidationFailed = $true
+    }
+}
+
+function Add-UniquePath {
+    param(
+        [System.Collections.Generic.List[string]]$List,
+        [string]$Path
+    )
+    if ([string]::IsNullOrWhiteSpace($Path)) { return }
+    if (-not $List.Contains($Path)) { $List.Add($Path) }
+}
+
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "  Fortnite Chapter 6 - Optimization Script" -ForegroundColor Cyan
 Write-Host "  February 2026 | UE5 Performance Mode" -ForegroundColor Cyan
@@ -55,22 +80,26 @@ Write-Host "  FPS Cap           : $FrameRateLimit" -ForegroundColor White
 Write-Host ""
 
 # -----------------------------------------------------------------------------
-# SECTION 1: LOCATE AND BACKUP CONFIG FILE
+# SECTION 1: LOCATE TARGET CONFIG PATHS
 # -----------------------------------------------------------------------------
 
-$ConfigPath = "$env:LOCALAPPDATA\FortniteGame\Saved\Config\WindowsClient\GameUserSettings.ini"
-$BackupPath = "$env:LOCALAPPDATA\FortniteGame\Saved\Config\WindowsClient\GameUserSettings.ini.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
+# Fortnite may use WindowsClient or Windows depending on patch/install path.
+# We write+lock both to prevent launch-time resets.
+$ConfigRoot = Join-Path $env:LOCALAPPDATA "FortniteGame\Saved\Config"
+$TargetConfigPaths = New-Object 'System.Collections.Generic.List[string]'
 
-if (Test-Path $ConfigPath) {
-    Copy-Item $ConfigPath $BackupPath -Force
-    Write-Host "[BACKUP] Existing config backed up to:" -ForegroundColor Yellow
-    Write-Host "         $BackupPath" -ForegroundColor Yellow
-} else {
-    Write-Host "[INFO] No existing config found. Creating fresh optimized config." -ForegroundColor DarkCyan
-    $ConfigDir = Split-Path $ConfigPath -Parent
-    if (-not (Test-Path $ConfigDir)) {
-        New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
-    }
+$PrimaryCandidates = @(
+    (Join-Path $ConfigRoot "WindowsClient\GameUserSettings.ini"),
+    (Join-Path $ConfigRoot "Windows\GameUserSettings.ini")
+)
+
+foreach ($candidate in $PrimaryCandidates) {
+    Add-UniquePath -List $TargetConfigPaths -Path $candidate
+}
+
+$LegacyCandidate = Join-Path $ConfigRoot "WindowsNoEditor\GameUserSettings.ini"
+if (Test-Path $LegacyCandidate) {
+    Add-UniquePath -List $TargetConfigPaths -Path $LegacyCandidate
 }
 
 # -----------------------------------------------------------------------------
@@ -154,21 +183,81 @@ LastUserConfirmedDesiredScreenWidth=$MonitorWidth
 LastUserConfirmedDesiredScreenHeight=$MonitorHeight
 "@
 
-Set-Content -Path $ConfigPath -Value $FNConfig -Encoding UTF8 -Force
+$TotalTargets = $TargetConfigPaths.Count
+$WriteSuccessCount = 0
+$ReadOnlySuccessCount = 0
+$WriteFailures = @()
+$ReadOnlyFailures = @()
 
-Write-Host "  [OK] Config written to: $ConfigPath" -ForegroundColor Green
+foreach ($ConfigPath in $TargetConfigPaths) {
+    $ConfigDir = Split-Path $ConfigPath -Parent
+
+    if (-not (Test-Path $ConfigDir)) {
+        New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
+    }
+
+    if (Test-Path $ConfigPath) {
+        try {
+            Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
+            $BackupPath = "$ConfigPath.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
+            Copy-Item $ConfigPath $BackupPath -Force -ErrorAction Stop
+            Write-Host "[BACKUP] Existing config backed up to: $BackupPath" -ForegroundColor Yellow
+        } catch {
+            Write-Host "[WARN] Backup failed for ${ConfigPath}: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "[INFO] Creating new config file: $ConfigPath" -ForegroundColor DarkCyan
+    }
+
+    try {
+        Set-Content -Path $ConfigPath -Value $FNConfig -Encoding UTF8 -Force -ErrorAction Stop
+        $raw = Get-Content -Path $ConfigPath -Raw -ErrorAction SilentlyContinue
+        if ($raw -match 'sg\.ShadowQuality=0' -and $raw -match 'FrameRateLimit=') {
+            $WriteSuccessCount++
+            Write-Host "  [OK] Config written to: $ConfigPath" -ForegroundColor Green
+        } else {
+            $WriteFailures += "$ConfigPath (expected keys missing)"
+            Write-Host "  [WARN] Config write verification failed: $ConfigPath" -ForegroundColor Yellow
+        }
+    } catch {
+        $WriteFailures += "$ConfigPath ($($_.Exception.Message))"
+        Write-Host "  [FAIL] Could not write config: $ConfigPath" -ForegroundColor Red
+    }
+
+    try {
+        Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $true -ErrorAction Stop
+        $isReadOnly = (Get-Item -Path $ConfigPath -ErrorAction Stop).IsReadOnly
+        if ($isReadOnly) {
+            $ReadOnlySuccessCount++
+            Write-Host "  [OK] Read-only lock enabled: $ConfigPath" -ForegroundColor Green
+        } else {
+            $ReadOnlyFailures += "$ConfigPath (IsReadOnly false)"
+            Write-Host "  [WARN] Read-only lock check failed: $ConfigPath" -ForegroundColor Yellow
+        }
+    } catch {
+        $ReadOnlyFailures += "$ConfigPath ($($_.Exception.Message))"
+        Write-Host "  [FAIL] Could not set read-only: $ConfigPath" -ForegroundColor Red
+    }
+}
+
+if ($WriteSuccessCount -eq $TotalTargets) {
+    Write-Check -Status 'OK' -Key 'FN_CONFIG_FILES_WRITTEN' -Detail "$WriteSuccessCount/$TotalTargets"
+} else {
+    Write-Check -Status 'FAIL' -Key 'FN_CONFIG_FILES_WRITTEN' -Detail (($WriteFailures -join '; '))
+}
+
+if ($ReadOnlySuccessCount -eq $TotalTargets) {
+    Write-Check -Status 'OK' -Key 'FN_CONFIG_READONLY' -Detail "$ReadOnlySuccessCount/$TotalTargets"
+} else {
+    Write-Check -Status 'FAIL' -Key 'FN_CONFIG_READONLY' -Detail (($ReadOnlyFailures -join '; '))
+}
 
 # -----------------------------------------------------------------------------
-# SECTION 3: SET CONFIG FILE AS READ-ONLY
-# WHY: Fortnite sometimes overwrites user config on launch.
-#      Setting read-only prevents automatic overwrite.
-#      NOTE: Fortnite will warn about this but still loads the settings.
-#      Re-run this script after any game update that resets your settings.
+# SECTION 3: PERSISTENCE NOTE
 # -----------------------------------------------------------------------------
 
-Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $true
-Write-Host "  [OK] Config set as read-only to prevent overwrite on launch." -ForegroundColor Green
-Write-Host "  [NOTE] If Fortnite resets settings after an update, re-run this script." -ForegroundColor DarkGray
+Write-Host "  [NOTE] Config was applied to WindowsClient + Windows paths and set read-only." -ForegroundColor DarkGray
+Write-Host "  [NOTE] If Epic Cloud sync is enabled, cloud data may still override local files." -ForegroundColor DarkGray
 
 # -----------------------------------------------------------------------------
 # SECTION 4: EXE COMPATIBILITY FLAGS
@@ -254,5 +343,10 @@ Write-Host "  All FNCS/competitive pros: Performance Mode, all settings Low/Off"
 Write-Host "  Bugha, Mero, Clix: 1920x1080, Performance Mode, 0% Music, Reflex On" -ForegroundColor White
 
 Write-Host ""
+if ($script:ValidationFailed) {
+    Write-Host "[FAIL] Fortnite optimization completed with validation failures." -ForegroundColor Red
+    exit 1
+}
+
 Write-Host "[DONE] Fortnite config written. Apply remaining settings in-game." -ForegroundColor Green
 Write-Host ""
