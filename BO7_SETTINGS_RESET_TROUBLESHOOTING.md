@@ -37,7 +37,9 @@ Previous BO7 script logic copied templates and then rewrote `.txt` files using `
 1. Run BO7 optimization from app.
 2. Compare source and destination hashes:
    - Source: `scripts/BO7BACKUP/s.1.0.cod25.txt0|txt1|m`
-   - Destination: `%LOCALAPPDATA%\Activision\Call of Duty\players\...`
+   - Destinations:
+     - `%LOCALAPPDATA%\Activision\Call of Duty\players\...`
+     - `X:\XboxGames\Call of Duty*\Content\Call of Duty\players\...` (if present)
 3. If hashes differ, the app is mutating files after copy (regression).
 4. If hashes match but BO7 still changes settings, BO7/runtime/cloud is overwriting after launch.
 
@@ -45,15 +47,22 @@ PowerShell hash check example:
 
 ```powershell
 $src = "C:\Path\To\scripts\BO7BACKUP"
-$dst = "$env:LOCALAPPDATA\Activision\Call of Duty\players"
-"s.1.0.cod25.txt0","s.1.0.cod25.txt1","s.1.0.cod25.m" | ForEach-Object {
-  $s = Join-Path $src $_
-  $d = Join-Path $dst $_
-  [pscustomobject]@{
-    File = $_
-    SrcHash = (Get-FileHash $s -Algorithm SHA256).Hash
-    DstHash = (Get-FileHash $d -Algorithm SHA256).Hash
-    Match = ((Get-FileHash $s -Algorithm SHA256).Hash -eq (Get-FileHash $d -Algorithm SHA256).Hash)
+$targets = @(
+  "$env:LOCALAPPDATA\Activision\Call of Duty\players",
+  "C:\XboxGames\Call of Duty_1\Content\Call of Duty\players"
+) | Where-Object { Test-Path $_ }
+
+foreach ($dst in $targets) {
+  "s.1.0.cod25.txt0","s.1.0.cod25.txt1","s.1.0.cod25.m" | ForEach-Object {
+    $s = Join-Path $src $_
+    $d = Join-Path $dst $_
+    [pscustomobject]@{
+      Target = $dst
+      File = $_
+      SrcHash = (Get-FileHash $s -Algorithm SHA256).Hash
+      DstHash = (Get-FileHash $d -Algorithm SHA256).Hash
+      Match = ((Get-FileHash $s -Algorithm SHA256).Hash -eq (Get-FileHash $d -Algorithm SHA256).Hash)
+    }
   }
 }
 ```

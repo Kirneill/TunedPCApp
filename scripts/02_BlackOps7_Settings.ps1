@@ -252,14 +252,34 @@ try {
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackupDir = Join-Path $ScriptRoot "BO7BACKUP"
-$PlayersDir = Join-Path $env:LOCALAPPDATA "Activision\Call of Duty\players"
+$PlayersDirs = @()
+$PlayersDirs += (Join-Path $env:LOCALAPPDATA "Activision\Call of Duty\players")
+
+# Also target Xbox install-local players folders (Game Pass installs).
+$XboxRoots = @("C:\XboxGames", "D:\XboxGames", "E:\XboxGames")
+foreach ($XboxRoot in $XboxRoots) {
+    if (-not (Test-Path $XboxRoot)) { continue }
+
+    $InstallDirs = Get-ChildItem -Path $XboxRoot -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like 'Call of Duty*' }
+
+    foreach ($InstallDir in $InstallDirs) {
+        $XboxPlayersCandidate = Join-Path $InstallDir.FullName "Content\Call of Duty\players"
+        $XboxPlayersParent = Split-Path -Parent $XboxPlayersCandidate
+
+        if (Test-Path $XboxPlayersParent) {
+            $PlayersDirs += $XboxPlayersCandidate
+        }
+    }
+}
+
+$PlayersDirs = $PlayersDirs | Select-Object -Unique
 $RequiredCodFiles = @(
     's.1.0.cod25.txt0',
     's.1.0.cod25.txt1',
     's.1.0.cod25.m'
 )
-$RequiredCodCopyStatus = @{}
-$RequiredCodCopyDetails = @{}
+$RequiredCodCopyFailures = @()
 
 if (-not (Test-Path $BackupDir)) {
     Write-Host "[WARN] BO7 backup folder not found: $BackupDir" -ForegroundColor Yellow
@@ -267,63 +287,55 @@ if (-not (Test-Path $BackupDir)) {
     Write-Check -Status 'FAIL' -Key 'COD_CONFIG_FILES_COPIED' -Detail 'BO7BACKUP folder missing'
     Write-Check -Status 'WARN' -Key 'COD_RENDERER_WORKER_COUNT' -Detail 'Skipped to preserve template bytes'
 } else {
-    if (-not (Test-Path $PlayersDir)) {
-        New-Item -ItemType Directory -Path $PlayersDir -Force | Out-Null
+    Write-Host "[INFO] BO7 players targets:" -ForegroundColor Cyan
+    foreach ($PlayersDir in $PlayersDirs) {
+        Write-Host "  - $PlayersDir" -ForegroundColor Cyan
     }
-
-    Write-Host "[INFO] BO7 players target: $PlayersDir" -ForegroundColor Cyan
     Write-Host "[INFO] Restoring BO7 template files (.txt0, .txt1, .m) byte-for-byte..." -ForegroundColor Cyan
 
-    foreach ($RequiredFile in $RequiredCodFiles) {
-        $RequiredCodCopyStatus[$RequiredFile] = $false
-        $RequiredCodCopyDetails[$RequiredFile] = 'Not processed'
-
-        $SourcePath = Join-Path $BackupDir $RequiredFile
-        $DestinationPath = Join-Path $PlayersDir $RequiredFile
-
-        if (-not (Test-Path $SourcePath)) {
-            $RequiredCodCopyDetails[$RequiredFile] = 'Required template missing in BO7BACKUP'
-            Write-Host "  [WARN] Missing backup template: $RequiredFile" -ForegroundColor Yellow
-            continue
+    foreach ($PlayersDir in $PlayersDirs) {
+        if (-not (Test-Path $PlayersDir)) {
+            New-Item -ItemType Directory -Path $PlayersDir -Force | Out-Null
         }
 
-        try {
-            if (Test-Path $DestinationPath) {
-                Set-ItemProperty -Path $DestinationPath -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
-                Remove-Item -Path $DestinationPath -Force -ErrorAction Stop
+        foreach ($RequiredFile in $RequiredCodFiles) {
+            $SourcePath = Join-Path $BackupDir $RequiredFile
+            $DestinationPath = Join-Path $PlayersDir $RequiredFile
+
+            if (-not (Test-Path $SourcePath)) {
+                $RequiredCodCopyFailures += "$PlayersDir -> $RequiredFile -> Required template missing in BO7BACKUP"
+                Write-Host "  [WARN] Missing backup template: $RequiredFile" -ForegroundColor Yellow
+                continue
             }
 
-            Copy-Item -Path $SourcePath -Destination $DestinationPath -Force -ErrorAction Stop
+            try {
+                if (Test-Path $DestinationPath) {
+                    Set-ItemProperty -Path $DestinationPath -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
+                    Remove-Item -Path $DestinationPath -Force -ErrorAction Stop
+                }
 
-            $SourceHash = (Get-FileHash -Path $SourcePath -Algorithm SHA256 -ErrorAction Stop).Hash
-            $DestinationHash = (Get-FileHash -Path $DestinationPath -Algorithm SHA256 -ErrorAction Stop).Hash
+                Copy-Item -Path $SourcePath -Destination $DestinationPath -Force -ErrorAction Stop
 
-            if ($SourceHash -eq $DestinationHash) {
-                $RequiredCodCopyStatus[$RequiredFile] = $true
-                $RequiredCodCopyDetails[$RequiredFile] = 'Replacement verified (hash match)'
-                Write-Host "  [OK] Replaced $RequiredFile and verified destination hash." -ForegroundColor Green
-            } else {
-                $RequiredCodCopyDetails[$RequiredFile] = 'Hash mismatch after copy'
-                Write-Host "  [WARN] $RequiredFile copied but hash mismatch detected." -ForegroundColor Yellow
+                $SourceHash = (Get-FileHash -Path $SourcePath -Algorithm SHA256 -ErrorAction Stop).Hash
+                $DestinationHash = (Get-FileHash -Path $DestinationPath -Algorithm SHA256 -ErrorAction Stop).Hash
+
+                if ($SourceHash -eq $DestinationHash) {
+                    Write-Host "  [OK] Replaced $RequiredFile in $PlayersDir and verified destination hash." -ForegroundColor Green
+                } else {
+                    $RequiredCodCopyFailures += "$PlayersDir -> $RequiredFile -> Hash mismatch after copy"
+                    Write-Host "  [WARN] $RequiredFile copied to $PlayersDir but hash mismatch detected." -ForegroundColor Yellow
+                }
+            } catch {
+                $RequiredCodCopyFailures += "$PlayersDir -> $RequiredFile -> Copy failed: $($_.Exception.Message)"
+                Write-Host "  [WARN] Failed to replace $RequiredFile in ${PlayersDir}: $($_.Exception.Message)" -ForegroundColor Yellow
             }
-        } catch {
-            $RequiredCodCopyStatus[$RequiredFile] = $false
-            $RequiredCodCopyDetails[$RequiredFile] = "Copy failed: $($_.Exception.Message)"
-            Write-Host "  [WARN] Failed to replace ${RequiredFile}: $($_.Exception.Message)" -ForegroundColor Yellow
         }
     }
 
-    $RequiredFailures = @()
-    foreach ($RequiredFile in $RequiredCodFiles) {
-        if (-not $RequiredCodCopyStatus[$RequiredFile]) {
-            $RequiredFailures += "$RequiredFile -> $($RequiredCodCopyDetails[$RequiredFile])"
-        }
-    }
-
-    if ($RequiredFailures.Count -eq 0) {
-        Write-Check -Status 'OK' -Key 'COD_CONFIG_FILES_COPIED' -Detail '.txt0/.txt1/.m replaced byte-for-byte'
+    if ($RequiredCodCopyFailures.Count -eq 0) {
+        Write-Check -Status 'OK' -Key 'COD_CONFIG_FILES_COPIED' -Detail ".txt0/.txt1/.m replaced byte-for-byte in $($PlayersDirs.Count) players folder(s)"
     } else {
-        Write-Check -Status 'FAIL' -Key 'COD_CONFIG_FILES_COPIED' -Detail ($RequiredFailures -join '; ')
+        Write-Check -Status 'FAIL' -Key 'COD_CONFIG_FILES_COPIED' -Detail ($RequiredCodCopyFailures -join '; ')
     }
 
     Write-Check -Status 'WARN' -Key 'COD_RENDERER_WORKER_COUNT' -Detail 'Skipped to preserve template bytes'
