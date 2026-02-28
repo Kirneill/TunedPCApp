@@ -57,6 +57,8 @@ const games = [
   },
 ];
 
+type InstallFilter = 'all' | 'installed' | 'not-installed';
+
 export default function HomePage() {
   const {
     toggles, setToggle, userConfig, detectedGames, systemInfo,
@@ -64,6 +66,8 @@ export default function HomePage() {
     setCurrentPage, setUserConfig,
   } = useAppStore();
   const [showCodFpsGuide, setShowCodFpsGuide] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [installFilter, setInstallFilter] = useState<InstallFilter>('all');
 
   const windowsEnabled = toggles['win-all'] ?? true;
   const enabledGameIds = games
@@ -73,7 +77,7 @@ export default function HomePage() {
   const allWindowsIds = [
     'win-power-plan', 'win-hags', 'win-game-mode', 'win-mmcss',
     'win-network', 'win-visual-fx', 'win-fullscreen', 'win-mouse', 'win-cpu-power',
-    'win-bg-apps', 'win-mpo', 'win-visual-extras', 'win-standard',
+    'win-bg-apps', 'win-mpo', 'win-visual-extras', 'win-copilot', 'win-standard',
   ];
   const idsToRun = [
     ...(windowsEnabled ? allWindowsIds : []),
@@ -124,6 +128,42 @@ export default function HomePage() {
   };
 
   const installedMap = new Map(detectedGames.map((g) => [g.id, g.installed]));
+  const gamesWithState = games.map((game) => {
+    const installed = installedMap.get(game.id) ?? true;
+    const enabled = toggles[game.toggleId] ?? false;
+    return { ...game, installed, enabled };
+  });
+  const selectedGameCount = gamesWithState.filter((game) => game.enabled).length;
+
+  const quickPicks = [...gamesWithState]
+    .sort((a, b) => {
+      if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+      if (a.installed !== b.installed) return a.installed ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, Math.min(4, gamesWithState.length));
+
+  const searchValue = searchQuery.trim().toLowerCase();
+  const filteredGames = [...gamesWithState]
+    .filter((game) => {
+      if (installFilter === 'installed' && !game.installed) return false;
+      if (installFilter === 'not-installed' && game.installed) return false;
+      if (!searchValue) return true;
+      return `${game.name} ${game.subtitle}`.toLowerCase().includes(searchValue);
+    })
+    .sort((a, b) => {
+      if (a.installed !== b.installed) return a.installed ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+
+  const visibleSelectedCount = filteredGames.filter((game) => game.enabled).length;
+
+  const setVisibleGames = (value: boolean) => {
+    if (isRunning) return;
+    for (const game of filteredGames) {
+      setToggle(game.toggleId, value);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -220,18 +260,145 @@ export default function HomePage() {
         <WindowsUpdateModeCard compact />
         <RestorePointControls compact />
 
-        {/* Game cards grid — grows to fill available space */}
-        <div className="flex-1 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 min-h-0">
-          {games.map((game) => (
-            <GameCard
-              key={game.id}
-              {...game}
-              installed={installedMap.get(game.id) ?? true}
+        {/* Scalable game selector */}
+        <div className="flex-1 min-h-0 rounded-xl border border-sq-border bg-sq-surface/40 p-4 flex flex-col gap-3">
+          <div className="flex items-start justify-between gap-4 shrink-0">
+            <div>
+              <h3 className="text-sm font-bold text-sq-text">Game Optimizations</h3>
+              <p className="text-[11px] text-sq-text-muted mt-0.5">
+                {selectedGameCount} selected
+              </p>
+            </div>
+            <div className="text-[11px] text-sq-text-muted text-right">
+              {visibleSelectedCount} selected in current view
+            </div>
+          </div>
+
+          <div className="shrink-0 flex flex-col md:flex-row gap-2">
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              disabled={isRunning}
+              placeholder="Search games..."
+              className="flex-1 bg-sq-bg border border-sq-border rounded-lg px-3 py-2 text-xs text-sq-text placeholder:text-sq-text-dim focus:outline-none focus:border-sq-accent disabled:opacity-60"
             />
-          ))}
+            <div className="flex items-center gap-1.5">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'installed', label: 'Installed' },
+                { id: 'not-installed', label: 'Not Installed' },
+              ].map((filter) => (
+                <button
+                  key={filter.id}
+                  onClick={() => setInstallFilter(filter.id as InstallFilter)}
+                  disabled={isRunning}
+                  className={`
+                    px-2.5 py-2 rounded-lg text-[11px] font-semibold transition-colors
+                    ${installFilter === filter.id
+                      ? 'bg-sq-accent/20 text-sq-accent border border-sq-accent/50'
+                      : 'bg-sq-bg text-sq-text-muted border border-sq-border hover:text-sq-text'
+                    }
+                    ${isRunning ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+                  `}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="shrink-0">
+            <div className="text-[11px] font-semibold text-sq-text-muted tracking-wide mb-2">QUICK PICKS</div>
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+              {quickPicks.map((game) => (
+                <GameCard
+                  key={game.id}
+                  {...game}
+                  compact
+                  installed={game.installed}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="shrink-0 flex items-center justify-between gap-4">
+            <div className="text-[11px] font-semibold text-sq-text-muted tracking-wide">
+              ALL GAMES ({filteredGames.length})
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setVisibleGames(true)}
+                disabled={isRunning || filteredGames.length === 0}
+                className="px-2.5 py-1.5 text-[11px] rounded-md border border-sq-border text-sq-text-muted hover:text-sq-text disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Select Visible
+              </button>
+              <button
+                onClick={() => setVisibleGames(false)}
+                disabled={isRunning || filteredGames.length === 0}
+                className="px-2.5 py-1.5 text-[11px] rounded-md border border-sq-border text-sq-text-muted hover:text-sq-text disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Clear Visible
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 min-h-0 rounded-lg border border-sq-border bg-sq-bg/60 overflow-hidden">
+            <div className="h-full overflow-y-auto">
+              {filteredGames.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-xs text-sq-text-dim">
+                  No games match this filter.
+                </div>
+              ) : (
+                <div className="divide-y divide-sq-border">
+                  {filteredGames.map((game) => (
+                    <button
+                      key={game.id}
+                      onClick={() => !isRunning && setToggle(game.toggleId, !game.enabled)}
+                      disabled={isRunning}
+                      className={`
+                        w-full px-3 py-2.5 flex items-center justify-between gap-3 text-left transition-colors
+                        ${game.enabled ? 'bg-sq-accent/8' : 'hover:bg-sq-surface-hover/60'}
+                        ${isRunning ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+                      `}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-sq-text truncate">{game.name}</div>
+                        <div className="text-[11px] text-sq-text-muted truncate">{game.subtitle}</div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`
+                          px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide border
+                          ${game.installed
+                            ? 'text-sq-success border-sq-success/40 bg-sq-success/10'
+                            : 'text-sq-warning border-sq-warning/40 bg-sq-warning/10'
+                          }
+                        `}>
+                          {game.installed ? 'FOUND' : 'NOT FOUND'}
+                        </span>
+                        <div className={`
+                          w-12 h-7 rounded-full flex items-center px-1 transition-colors
+                          ${game.enabled ? 'bg-sq-accent' : 'bg-sq-border'}
+                        `}>
+                          <div className={`
+                            w-5 h-5 rounded-full bg-white shadow-md transition-transform
+                            ${game.enabled ? 'translate-x-5' : 'translate-x-0'}
+                          `} />
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Optimize button */}
+        <div className="shrink-0 text-xs text-sq-text-muted">
+          {selectedGameCount} game{selectedGameCount === 1 ? '' : 's'} selected
+          {windowsEnabled ? ' + Windows optimization enabled' : ' + Windows optimization disabled'}
+        </div>
         <button
           onClick={handleOptimize}
           disabled={isRunning || idsToRun.length === 0}
