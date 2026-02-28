@@ -21,6 +21,7 @@ export default function App() {
     setSystemInfo, setDetectedGames, setIsAdmin, setIsLoading,
     addLogEntry, setShowConsentModal, setTelemetryEnabled,
     setUpdateInfo, setUpdaterState, setCloseToBackground, setUserConfig,
+    setSystemUsage,
   } = useAppStore();
 
   // StrictMode guard — prevent double-init in dev
@@ -153,9 +154,13 @@ export default function App() {
     const unsubscribeUpdater = window.sensequality.onUpdaterState((state) => {
       setUpdaterState(state);
     });
+    const unsubscribeUsage = window.sensequality.onSystemUsage((usage) => {
+      setSystemUsage(usage);
+    });
     return () => {
       unsubscribeLogs();
       unsubscribeUpdater();
+      unsubscribeUsage();
     };
   }, []);
 

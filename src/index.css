@@ -9,9 +9,11 @@
   --color-sq-accent-hover: #ff3a4f;
   --color-sq-accent-dim: #9f1020;
   --color-sq-accent-glow: #e11d2f4d;
+  --color-sq-accent-soft: #e11d2f1f;
   --color-sq-success: #26c267;
   --color-sq-warning: #ffb020;
   --color-sq-danger: #ff4d57;
+  --color-sq-info: #3b82f6;
   --color-sq-text: #f8f8f8;
   --color-sq-text-muted: #8f8f8f;
   --color-sq-text-dim: #5d5d5d;
@@ -48,8 +50,9 @@ body::after {
 
 body::before {
   background:
-    radial-gradient(1000px 420px at -8% -18%, rgba(225, 29, 47, 0.22), transparent 62%),
-    radial-gradient(920px 420px at 108% 118%, rgba(225, 29, 47, 0.17), transparent 66%),
+    radial-gradient(1100px 480px at -6% -14%, rgba(225, 29, 47, 0.26), transparent 58%),
+    radial-gradient(1000px 480px at 106% 114%, rgba(225, 29, 47, 0.20), transparent 62%),
+    radial-gradient(600px 300px at 50% 50%, rgba(225, 29, 47, 0.05), transparent 70%),
     linear-gradient(165deg, #080808 0%, #0c0c0c 46%, #0a0a0a 100%);
 }
 
@@ -104,6 +107,7 @@ body::after {
   box-shadow: 0 0 34px var(--color-sq-accent-glow), 0 0 0 1px var(--color-sq-accent), 0 24px 40px rgba(0, 0, 0, 0.3);
 }
 
+/* Panel backgrounds */
 .sq-panel {
   background: linear-gradient(160deg, rgba(18, 18, 18, 0.95), rgba(12, 12, 12, 0.96));
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -115,6 +119,33 @@ body::after {
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+/* Glass morphism panel */
+.sq-glass {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Card with hover lift and glow */
+.sq-card-hover {
+  transition: box-shadow 0.3s ease, transform 0.25s ease, border-color 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sq-card-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.sq-card-hover.active,
+.sq-card-hover[data-active="true"] {
+  border-color: var(--color-sq-accent);
+  box-shadow: 0 0 20px var(--color-sq-accent-glow), 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
 .sq-focus-ring:focus-visible {
   outline: 2px solid rgba(225, 29, 47, 0.75);
   outline-offset: 1px;
@@ -122,4 +153,37 @@ body::after {
 
 .sq-subtle-divider {
   border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Circular progress ring animation */
+@keyframes sq-progress-fill {
+  from { stroke-dashoffset: var(--progress-circumference, 283); }
+  to { stroke-dashoffset: var(--progress-offset, 0); }
+}
+
+.sq-progress-ring {
+  animation: sq-progress-fill 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Aurora glow for sidebar bottom */
+.sq-aurora {
+  position: relative;
+  overflow: hidden;
+}
+
+.sq-aurora::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 120px;
+  background: linear-gradient(
+    to top,
+    rgba(225, 29, 47, 0.08),
+    rgba(168, 85, 247, 0.04) 40%,
+    transparent
+  );
+  pointer-events: none;
+  z-index: 0;
 }

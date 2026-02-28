@@ -107,14 +107,14 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
         <div className="w-full max-w-sm mx-4">
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
-            <div className="w-14 h-14 rounded-xl bg-sq-accent flex items-center justify-center text-xl font-bold text-white tracking-tight mb-3 shadow-lg shadow-sq-accent/30">
+            <div className="w-14 h-14 rounded-xl bg-sq-accent/90 flex items-center justify-center text-xl font-bold text-white tracking-tight mb-3 shadow-lg shadow-sq-accent/30 backdrop-blur-sm">
               SQ
             </div>
             <h1 className="text-lg font-bold text-sq-text tracking-wide">SENSEQUALITY</h1>
             <p className="text-xs text-sq-text-muted mt-1">PC Gaming Optimizer</p>
           </div>
 
-          <div className="bg-sq-surface border border-sq-border rounded-2xl p-6 shadow-2xl">
+          <div className="sq-glass rounded-2xl p-6 shadow-2xl">
             <h2 className="text-base font-bold text-sq-text mb-1">
               {mode === 'signin' ? 'Sign In' : mode === 'signup' ? 'Create Account' : 'Reset Password'}
             </h2>

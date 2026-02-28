@@ -13,6 +13,7 @@ interface AppState {
 
   // System
   systemInfo: SystemInfo | null;
+  systemUsage: { cpu: number; gpu: number; ram: number } | null;
   detectedGames: DetectedGame[];
   isAdmin: boolean;
   isLoading: boolean;
@@ -57,6 +58,7 @@ interface AppState {
 
   // Actions
   setSystemInfo: (info: SystemInfo) => void;
+  setSystemUsage: (usage: { cpu: number; gpu: number; ram: number }) => void;
   setDetectedGames: (games: DetectedGame[]) => void;
   setIsAdmin: (admin: boolean) => void;
   setIsLoading: (loading: boolean) => void;
@@ -168,6 +170,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Initial state
   systemInfo: null,
+  systemUsage: null,
   detectedGames: [],
   isAdmin: false,
   isLoading: true,
@@ -231,6 +234,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Actions
   setSystemInfo: (info) => set({ systemInfo: info }),
+  setSystemUsage: (usage) => set({ systemUsage: usage }),
   setDetectedGames: (games) => set({ detectedGames: games }),
   setIsAdmin: (admin) => set({ isAdmin: admin }),
   setIsLoading: (loading) => set({ isLoading: loading }),

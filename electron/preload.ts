@@ -142,6 +142,13 @@ const api = {
     return () => { ipcRenderer.removeListener('updater:state', handler); };
   },
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
+
+  // System monitoring
+  onSystemUsage: (callback: (usage: { cpu: number; gpu: number; ram: number }) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, usage: { cpu: number; gpu: number; ram: number }) => callback(usage);
+    ipcRenderer.on('system:usage', handler);
+    return () => { ipcRenderer.removeListener('system:usage', handler); };
+  },
 };
 
 contextBridge.exposeInMainWorld('sensequality', api);

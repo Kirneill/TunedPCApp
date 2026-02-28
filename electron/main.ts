@@ -7,6 +7,7 @@ import { registerAuthHandlers } from './ipc/auth-handlers';
 import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackFailureStage } from './telemetry/telemetry';
 import { initAuth } from './auth/auth';
 import { checkForUpdate, initUpdater, getUpdaterState, downloadUpdate, installUpdate } from './updater';
+import { startSystemMonitor, stopSystemMonitor } from './ipc/system-monitor';
 
 // --- Diagnostic Logger ---
 // app.getPath() is unavailable before 'ready', so defer log path resolution
@@ -359,11 +360,15 @@ if (!gotLock) {
     // Phase 4: Create window
     createWindow();
     createTray();
+
+    // Phase 5: Start live system monitoring (CPU/GPU/RAM → renderer every 2s)
+    startSystemMonitor(() => mainWindow);
   });
 }
 
 app.on('before-quit', () => {
   isQuitting = true;
+  stopSystemMonitor();
   if (appTray) {
     appTray.destroy();
     appTray = null;
