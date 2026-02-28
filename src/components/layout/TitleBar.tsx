@@ -78,7 +78,7 @@ export default function TitleBar() {
   const pageInfo = pageMeta[currentPage as Page] || pageMeta.dashboard;
 
   return (
-    <div className="drag-region flex items-center justify-between h-14 bg-sq-surface/80 backdrop-blur-sm border-b sq-subtle-divider px-4 select-none shrink-0">
+    <div className="drag-region relative z-[120] overflow-visible flex items-center justify-between h-14 bg-sq-surface/80 backdrop-blur-sm border-b sq-subtle-divider px-4 select-none shrink-0">
       {/* Logo */}
       <div className="flex items-center gap-3 no-drag">
         <div className="flex items-center gap-3 min-w-0">
@@ -91,7 +91,7 @@ export default function TitleBar() {
       </div>
 
       {/* User + Window controls */}
-      <div className="flex items-center no-drag relative">
+      <div className="flex items-center no-drag relative z-[130]">
         <div
           className="mr-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold tracking-[0.08em] border border-sq-border bg-sq-bg/80 text-sq-text-muted"
           title="Installed app version"
@@ -132,8 +132,8 @@ export default function TitleBar() {
             </button>
             {showUserMenu && (
               <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
-                <div className="absolute right-0 top-full mt-1 z-50 bg-sq-surface border border-sq-border rounded-lg shadow-xl py-1 min-w-[160px]">
+                <div className="fixed inset-0 z-[190]" onClick={() => setShowUserMenu(false)} />
+                <div className="absolute right-0 top-full mt-2 z-[200] no-drag bg-sq-surface border border-sq-border rounded-lg shadow-xl shadow-black/45 py-1 min-w-[220px]">
                   <div className="px-3 py-2 text-[10px] text-sq-text-dim border-b border-sq-border mb-1">
                     Signed in as<br />
                     <span className="text-sq-text-muted font-medium">{authUser.email}</span>
