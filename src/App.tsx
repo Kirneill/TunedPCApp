@@ -275,9 +275,9 @@ export default function App() {
     <div className="flex flex-col h-full bg-sq-bg">
       <TitleBar />
       <UpdateBanner />
-      <div className="flex-1 min-h-0 flex">
+      <div className="flex-1 min-h-0 flex gap-3 p-3 pt-2">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 min-h-0 overflow-y-auto rounded-2xl sq-panel border sq-subtle-divider">
           {renderPage()}
         </main>
       </div>

@@ -4,16 +4,16 @@ import appLogo from '../../assets/app-logo.ico';
 
 type Page = 'dashboard' | 'advanced' | 'bios-guide' | 'gpu-guide' | 'backups';
 
-const navItems: { id: Page; label: string }[] = [
-  { id: 'dashboard', label: 'GAMES' },
-  { id: 'advanced', label: 'ADVANCED' },
-  { id: 'bios-guide', label: 'BIOS' },
-  { id: 'gpu-guide', label: 'GPU' },
-  { id: 'backups', label: 'BACKUPS' },
-];
+const pageMeta: Record<Page, { title: string; subtitle: string }> = {
+  dashboard: { title: 'Game Optimizer', subtitle: 'Select profiles and apply performance tweaks.' },
+  advanced: { title: 'Advanced Settings', subtitle: 'Control individual tuning and system behavior.' },
+  'bios-guide': { title: 'BIOS Guide', subtitle: 'Reference checklist for firmware-level performance setup.' },
+  'gpu-guide': { title: 'GPU Guide', subtitle: 'Recommended graphics control panel configuration.' },
+  backups: { title: 'Backups', subtitle: 'Manage restore points and rollback safety snapshots.' },
+};
 
 export default function TitleBar() {
-  const { currentPage, setCurrentPage, isRunning, authUser, clearAuthState, setUpdateInfo } = useAppStore();
+  const { currentPage, isRunning, authUser, clearAuthState, setUpdateInfo } = useAppStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<{ tone: 'info' | 'success' | 'error'; message: string } | null>(null);
@@ -75,41 +75,25 @@ export default function TitleBar() {
     };
   }, []);
 
+  const pageInfo = pageMeta[currentPage as Page] || pageMeta.dashboard;
+
   return (
-    <div className="drag-region flex items-center justify-between h-11 bg-sq-surface/80 backdrop-blur-sm border-b border-sq-border px-4 select-none shrink-0">
+    <div className="drag-region flex items-center justify-between h-14 bg-sq-surface/80 backdrop-blur-sm border-b sq-subtle-divider px-4 select-none shrink-0">
       {/* Logo */}
       <div className="flex items-center gap-3 no-drag">
-        <div className="flex items-center gap-2">
-          <img src={appLogo} alt="TUNEDPC by SENSEQUALITY.com logo" className="w-6 h-6 rounded" />
-          <span className="text-[11px] font-bold text-sq-text tracking-[0.02em]">TUNEDPC by SENSEQUALITY.com</span>
+        <div className="flex items-center gap-3 min-w-0">
+          <img src={appLogo} alt="TUNEDPC by SENSEQUALITY.com logo" className="w-7 h-7 rounded-md shadow-md shadow-sq-accent/25" />
+          <div className="flex flex-col leading-tight min-w-0">
+            <span className="text-[11px] font-bold text-sq-text tracking-[0.06em]">TUNEDPC</span>
+            <span className="text-[10px] text-sq-text-dim truncate">{pageInfo.title} · {pageInfo.subtitle}</span>
+          </div>
         </div>
       </div>
-
-      {/* Nav */}
-      <nav className="flex items-center gap-1 no-drag">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setCurrentPage(item.id)}
-            disabled={isRunning}
-            className={`
-              px-4 py-1.5 rounded-lg text-xs font-bold tracking-widest transition-all
-              ${currentPage === item.id
-                ? 'bg-sq-accent text-white shadow-md shadow-sq-accent/30'
-                : 'text-sq-text/60 hover:text-white hover:bg-white/5'
-              }
-              ${isRunning ? 'opacity-50' : ''}
-            `}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
 
       {/* User + Window controls */}
       <div className="flex items-center no-drag relative">
         <div
-          className="mr-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold tracking-[0.08em] border border-sq-border bg-sq-surface text-sq-text-muted"
+          className="mr-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold tracking-[0.08em] border border-sq-border bg-sq-bg/80 text-sq-text-muted"
           title="Installed app version"
         >
           {appVersion}
@@ -121,10 +105,10 @@ export default function TitleBar() {
           className={`
             mr-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold tracking-wide border transition-colors
             ${updateStatus?.tone === 'success'
-              ? 'text-sq-accent border-sq-accent/40 bg-sq-accent/10 hover:bg-sq-accent/15'
+              ? 'text-sq-accent-hover border-sq-accent/40 bg-sq-accent/14 hover:bg-sq-accent/20'
               : updateStatus?.tone === 'error'
                 ? 'text-sq-danger border-sq-danger/40 bg-sq-danger/10 hover:bg-sq-danger/15'
-                : 'text-sq-text-muted border-sq-border hover:text-sq-text hover:bg-sq-surface-hover'
+                : 'text-sq-text-muted border-sq-border hover:text-sq-text hover:bg-sq-surface-hover/70'
             }
             ${checkingUpdate ? 'opacity-80 cursor-wait' : ''}
           `}

@@ -35,7 +35,7 @@ export default function LogViewer({ entries, maxHeight = '240px' }: LogViewerPro
 
   if (entries.length === 0) {
     return (
-      <div className="bg-sq-bg border border-sq-border rounded-lg p-4 font-mono text-xs text-sq-text-dim text-center" style={{ maxHeight }}>
+      <div className="sq-panel-muted border border-sq-border rounded-lg p-4 font-mono text-xs text-sq-text-dim text-center" style={{ maxHeight }}>
         Ready to optimize. Select options and click "Run All Selected".
       </div>
     );
@@ -44,7 +44,7 @@ export default function LogViewer({ entries, maxHeight = '240px' }: LogViewerPro
   return (
     <div
       ref={containerRef}
-      className="bg-sq-bg border border-sq-border rounded-lg p-3 font-mono text-xs overflow-y-auto"
+      className="sq-panel-muted border border-sq-border rounded-lg p-3 font-mono text-xs overflow-y-auto"
       style={{ maxHeight }}
     >
       {entries.map((entry, i) => (
