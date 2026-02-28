@@ -6,7 +6,7 @@ const navItems: { id: Page; label: string; hint: string; icon: string }[] = [
   { id: 'dashboard', label: 'Optimizer', hint: 'Games and Windows tuning', icon: 'OP' },
   { id: 'advanced', label: 'Advanced', hint: 'Fine-grained controls', icon: 'AD' },
   { id: 'bios-guide', label: 'BIOS Guide', hint: 'Recommended firmware setup', icon: 'BI' },
-  { id: 'gpu-guide', label: 'GPU Guide', hint: 'NVIDIA panel profile', icon: 'GP' },
+  { id: 'gpu-guide', label: 'GPU Driver', hint: 'One-click GPU profile', icon: 'GP' },
   { id: 'backups', label: 'Backups', hint: 'Restore and rollback points', icon: 'BK' },
 ];
 

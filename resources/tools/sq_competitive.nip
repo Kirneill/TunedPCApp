@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ArrayOfProfile>
+  <Profile>
+    <ProfileName></ProfileName>
+    <Executeables />
+    <Settings>
+      <ProfileSetting>
+        <SettingID>274197361</SettingID>
+        <SettingValue>1</SettingValue>
+        <ValueType>Dword</ValueType>
+        <SettingNameInfo>Power management mode</SettingNameInfo>
+      </ProfileSetting>
+      <ProfileSetting>
+        <SettingID>13510289</SettingID>
+        <SettingValue>20</SettingValue>
+        <ValueType>Dword</ValueType>
+        <SettingNameInfo>Texture filtering - quality</SettingNameInfo>
+      </ProfileSetting>
+      <ProfileSetting>
+        <SettingID>11041231</SettingID>
+        <SettingValue>138741575</SettingValue>
+        <ValueType>Dword</ValueType>
+        <SettingNameInfo>Vertical sync</SettingNameInfo>
+      </ProfileSetting>
+      <ProfileSetting>
+        <SettingID>8102046</SettingID>
+        <SettingValue>1</SettingValue>
+        <ValueType>Dword</ValueType>
+        <SettingNameInfo>Maximum pre-rendered frames</SettingNameInfo>
+      </ProfileSetting>
+      <ProfileSetting>
+        <SettingID>549528094</SettingID>
+        <SettingValue>1</SettingValue>
+        <ValueType>Dword</ValueType>
+        <SettingNameInfo>Threaded optimization</SettingNameInfo>
+      </ProfileSetting>
+      <ProfileSetting>
+        <SettingID>553505273</SettingID>
+        <SettingValue>0</SettingValue>
+        <ValueType>Dword</ValueType>
+        <SettingNameInfo>Triple buffering</SettingNameInfo>
+      </ProfileSetting>
+      <ProfileSetting>
+        <SettingID>11306135</SettingID>
+        <SettingValue>4294967295</SettingValue>
+        <ValueType>Dword</ValueType>
+        <SettingNameInfo>Shader cache size</SettingNameInfo>
+      </ProfileSetting>
+      <ProfileSetting>
+        <SettingID>15151633</SettingID>
+        <SettingValue>1</SettingValue>
+        <ValueType>Dword</ValueType>
+        <SettingNameInfo>Anisotropic sample optimization</SettingNameInfo>
+      </ProfileSetting>
+      <ProfileSetting>
+        <SettingID>3066610</SettingID>
+        <SettingValue>1</SettingValue>
+        <ValueType>Dword</ValueType>
+        <SettingNameInfo>Trilinear optimization</SettingNameInfo>
+      </ProfileSetting>
+      <ProfileSetting>
+        <SettingID>1686376</SettingID>
+        <SettingValue>0</SettingValue>
+        <ValueType>Dword</ValueType>
+        <SettingNameInfo>Negative LOD bias</SettingNameInfo>
+      </ProfileSetting>
+    </Settings>
+  </Profile>
+</ArrayOfProfile>

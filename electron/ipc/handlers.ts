@@ -37,6 +37,7 @@ const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   'win-visual-extras': { script: '01_Windows_Optimization.ps1', envPrefix: 'VISUAL_EXTRAS' },
   'win-copilot': { script: '11_Disable_Copilot.ps1' },
   'win-standard': { script: '08_Standard_Windows_Settings.ps1' },
+  'win-gpu-profile': { script: '13_GPU_Optimization.ps1' },
   // Windows Update mode actions
   'updates-off': { script: '09_Windows_Update_Off.ps1' },
   'updates-on': { script: '10_Windows_Update_On.ps1' },
@@ -106,6 +107,18 @@ const CHECK_LABELS: Record<string, string> = {
   APEX_VIDEOCONFIG_READONLY: 'Apex videoconfig.txt read-only lock',
   APEX_AUTOEXEC_WRITTEN: 'Apex autoexec.cfg written',
   APEX_EXE_FLAGS: 'Apex r5apex.exe compatibility flags',
+  GPU_PROFILE_APPLIED: 'GPU driver profile import completed',
+  GPU_PROFILE_POWER_MODE: 'GPU Power Management Mode set to Prefer Maximum Performance',
+  GPU_PROFILE_TEXTURE_FILTER_QUALITY: 'GPU Texture Filtering Quality set to High Performance',
+  GPU_PROFILE_BACKUP_CREATED: 'GPU profile backup exported',
+  GPU_PROFILE_BACKUP_SKIPPED: 'GPU profile backup skipped',
+  GPU_PROFILE_TOOL_MISSING: 'GPU profile tool executable available',
+  GPU_PROFILE_PRESET_MISSING: 'GPU profile preset file available',
+  GPU_PROFILE_AMD_NOT_IMPLEMENTED: 'AMD GPU auto-profile not implemented',
+  GPU_PROFILE_PRESET_READY: 'GPU profile preset ready',
+  GPU_PROFILE_TOOL_READY: 'GPU profile tool ready',
+  GPU_PROFILE_TOOL_DOWNLOADED: 'GPU profile tool downloaded automatically',
+  GPU_PROFILE_TOOL_DOWNLOAD_FAILED: 'GPU profile tool download failed',
 };
 
 function parseScriptCheck(line: string): ScriptCheck | null {
@@ -192,6 +205,17 @@ function getRunLogFilePath(runId: string): string {
   const dir = path.join(app.getPath('userData'), 'logs', 'runs');
   fs.mkdirSync(dir, { recursive: true });
   return path.join(dir, `${runId}.jsonl`);
+}
+
+function getGpuToolsPath(): string {
+  return path.join(app.getPath('userData'), 'tools');
+}
+
+function getBundledGpuToolsPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'tools');
+  }
+  return path.join(__dirname, '../../resources/tools');
 }
 
 function createRunLogger(win: BrowserWindow | null, runId: string): { runId: string; filePath: string; log: RunLogFn } {
@@ -417,6 +441,8 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       MONITOR_REFRESH: String(config.monitorRefresh),
       NVIDIA_GPU: config.nvidiaGpu ? '1' : '0',
       CS2_STRETCHED: config.cs2Stretched ? '1' : '0',
+      GPU_TOOLS_PATH: getGpuToolsPath(),
+      GPU_BUNDLED_TOOLS_PATH: getBundledGpuToolsPath(),
     };
 
     if (id === 'game-arcraiders' || id === 'game-apexlegends') {
@@ -537,6 +563,8 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       MONITOR_REFRESH: String(config.monitorRefresh),
       NVIDIA_GPU: config.nvidiaGpu ? '1' : '0',
       CS2_STRETCHED: config.cs2Stretched ? '1' : '0',
+      GPU_TOOLS_PATH: getGpuToolsPath(),
+      GPU_BUNDLED_TOOLS_PATH: getBundledGpuToolsPath(),
     };
 
     if (ids.includes('game-arcraiders') || ids.includes('game-apexlegends')) {
@@ -680,7 +708,13 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
         script: mapping.script,
       });
       const scriptPath = getScriptPath(mapping.script);
+      const scriptChecks: Record<string, ScriptCheck> = {};
       const result = await runPowerShellScript(scriptPath, envVars, (line) => {
+        const check = parseScriptCheck(line);
+        if (check) {
+          mergeScriptCheck(scriptChecks, check);
+          return;
+        }
         log('info', line, {
           component: 'Windows',
           action: 'script-output',
@@ -688,19 +722,26 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
         });
       });
 
-      results[id] = result.success;
-      if (!result.success) {
+      const validationSummary = summarizeScriptChecks(log, scriptChecks, mapping.script);
+      const finalSuccess = result.success && !validationSummary.hasFailures;
+      results[id] = finalSuccess;
+      if (!finalSuccess) {
+        const validationReason = validationSummary.hasFailures
+          ? `Validation failed: ${validationSummary.failedKeys.join(', ')}`
+          : '';
         const stderrHint = result.errors[0] || '';
-        failureReasons[id] = stderrHint ? stderrHint : 'Script failed.';
+        failureReasons[id] = [validationReason, stderrHint].filter(Boolean).join(' | ') || 'Script failed.';
       }
-      log(result.success ? 'success' : 'error',
-        result.success ? `${id} applied!` : `${id} had errors`,
+      log(finalSuccess ? 'success' : 'error',
+        finalSuccess ? `${id} applied!` : `${id} had errors`,
         {
           component: 'Windows',
           action: 'script-exit',
           script: mapping.script,
-          success: result.success,
-          errorCode: result.success ? null : `SCRIPT_EXIT_${result.exitCode}`,
+          success: finalSuccess,
+          errorCode: finalSuccess
+            ? null
+            : (result.success ? 'SCRIPT_VALIDATION_FAILED' : `SCRIPT_EXIT_${result.exitCode}`),
         }
       );
       if (result.errors.length > 0) {
@@ -712,8 +753,11 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
           errorCode: result.success ? null : `SCRIPT_STDERR_${result.exitCode}`,
         });
       }
-      if (!result.success) {
-        const failureText = result.errors.join(' | ') || `Script exited with code ${result.exitCode}`;
+      if (!finalSuccess) {
+        const validationError = validationSummary.hasFailures
+          ? `Validation failed: ${validationSummary.failedKeys.join(', ')}`
+          : '';
+        const failureText = [validationError, ...result.errors].filter(Boolean).join(' | ') || `Script exited with code ${result.exitCode}`;
         void trackFailureStage('script-exit', failureText, undefined, [id]);
       }
     }

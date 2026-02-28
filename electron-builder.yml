@@ -27,6 +27,11 @@ extraResources:
     to: icon.ico
   - from: EULA.txt
     to: EULA.txt
+  - from: resources/tools
+    to: tools
+    filter:
+      - "*.exe"
+      - "*.nip"
 
 win:
   target: nsis

@@ -64,7 +64,7 @@ if ($IsNvidia -or (-not $IsAMD)) {
     Write-Host "  Monitor Technology               | G-SYNC (if avail)  | Enables G-SYNC for tear-free" -ForegroundColor White
     Write-Host "                                   |                    | gaming without V-Sync latency" -ForegroundColor DarkGray
     Write-Host "  OpenGL Rendering GPU             | Your GPU           | Ensure correct GPU selected" -ForegroundColor White
-    Write-Host "  Power Management Mode            | Prefer Max Perf.   | MOST IMPORTANT: Prevents" -ForegroundColor White
+    Write-Host "  Power Management Mode            | Prefer Maximum Performance | MOST IMPORTANT: Prevents" -ForegroundColor White
     Write-Host "                                   |                    | GPU from downclocking" -ForegroundColor DarkGray
     Write-Host "  Shader Cache Size                | Driver Default     | Don't reduce this" -ForegroundColor White
     Write-Host "  Texture Filtering - Anisotropic  | On                 | Better texture sharpness" -ForegroundColor White

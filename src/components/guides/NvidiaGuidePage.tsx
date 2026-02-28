@@ -1,6 +1,8 @@
+import { useMemo, useState } from 'react';
 import { useAppStore } from '../../store/appStore';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
+import LogViewer from '../ui/LogViewer';
 import {
   nvidiaGlobalSettings,
   amdGlobalSettings,
@@ -8,29 +10,105 @@ import {
   gsyncSetupSteps,
 } from '../../data/nvidia-guide';
 
-export default function NvidiaGuidePage() {
-  const { systemInfo } = useAppStore();
-  const isNvidia = systemInfo?.isNvidia ?? true;
+type GpuRunState = 'idle' | 'running' | 'success' | 'error';
 
+export default function NvidiaGuidePage() {
+  const {
+    systemInfo,
+    userConfig,
+    isRunning,
+    setIsRunning,
+    clearLog,
+    progressLog,
+  } = useAppStore();
+
+  const [runState, setRunState] = useState<GpuRunState>('idle');
+  const [statusText, setStatusText] = useState('Not optimized yet.');
+
+  const isNvidia = systemInfo?.isNvidia ?? true;
   const globalSettings = isNvidia ? nvidiaGlobalSettings : amdGlobalSettings;
   const panelName = isNvidia ? 'NVIDIA Control Panel' : 'AMD Software: Adrenalin Edition';
+
+  const stateBadge = useMemo(() => {
+    if (runState === 'running') return { label: 'Running...', className: 'text-sq-accent' };
+    if (runState === 'success') return { label: 'Optimized', className: 'text-sq-success' };
+    if (runState === 'error') return { label: 'Failed', className: 'text-sq-danger' };
+    return { label: 'Not Optimized', className: 'text-sq-text-muted' };
+  }, [runState]);
+
+  const handleApply = async () => {
+    if (isRunning) return;
+
+    setRunState('running');
+    setStatusText(isNvidia
+      ? 'Applying NVIDIA competitive profile...'
+      : 'Checking AMD GPU profile automation path...');
+
+    setIsRunning(true);
+    clearLog();
+
+    try {
+      const result = await window.sensequality.runOptimization('win-gpu-profile', userConfig);
+      if (result.success) {
+        setRunState('success');
+        setStatusText(isNvidia
+          ? 'GPU profile applied. Restart any running games to pick up driver changes.'
+          : 'AMD path is not automated yet. No settings were changed.');
+      } else {
+        setRunState('error');
+        setStatusText(result.errors.join(' | ') || 'GPU profile apply failed.');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setRunState('error');
+      setStatusText(`GPU profile apply failed: ${message}`);
+    } finally {
+      setIsRunning(false);
+    }
+  };
 
   return (
     <div className="space-y-5 max-w-4xl">
       <div>
-        <h1 className="text-xl font-bold text-sq-text">GPU Control Panel Guide</h1>
+        <h1 className="text-xl font-bold text-sq-text">GPU Driver Optimization</h1>
         <p className="text-xs text-sq-text-muted mt-1">
-          These settings must be applied manually in {panelName}. Right-click desktop to open.
+          One-click GPU profile plus {panelName} reference values.
         </p>
         {systemInfo && (
-          <div className="mt-2">
+          <div className="mt-2 flex items-center gap-2">
             <Badge variant="info">{systemInfo.gpu}</Badge>
+            <span className={`text-xs font-semibold ${stateBadge.className}`}>{stateBadge.label}</span>
           </div>
         )}
       </div>
 
-      {/* Global Settings Table */}
-      <Card title={`${isNvidia ? 'NVIDIA' : 'AMD'} Global Settings`}>
+      <Card title="One-Click Profile Apply">
+        <div className="space-y-3">
+          <p className="text-xs text-sq-text-muted">
+            {isNvidia
+              ? 'This runs the bundled NVIDIA profile import. Required values include Power Management Mode = Prefer Maximum Performance and Texture Filtering Quality = High Performance.'
+              : 'AMD auto-profile path is not implemented yet. This action currently performs a capability check only.'}
+          </p>
+
+          <button
+            onClick={handleApply}
+            disabled={isRunning}
+            className={`
+              w-full py-3 rounded-xl font-bold text-sm tracking-wide transition-all
+              ${isRunning
+                ? 'bg-sq-accent/50 text-white/70 cursor-wait'
+                : 'bg-sq-accent hover:bg-sq-accent-hover text-white shadow-lg shadow-sq-accent/25 cursor-pointer active:scale-[0.99]'
+              }
+            `}
+          >
+            {isRunning ? 'APPLYING GPU PROFILE...' : 'APPLY GPU PROFILE'}
+          </button>
+
+          <div className="text-xs text-sq-text-dim">{statusText}</div>
+        </div>
+      </Card>
+
+      <Card title="Settings Preview (What Will Be Applied)">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -58,13 +136,10 @@ export default function NvidiaGuidePage() {
         </div>
       </Card>
 
-      {/* Per-Game Overrides (NVIDIA only) */}
       {isNvidia && (
-        <Card title="Per-Game Overrides">
-          <p className="text-[11px] text-sq-text-dim mb-3">
-            Add these games in NVIDIA Control Panel under "Program Settings" and override:
-          </p>
-          <div className="overflow-x-auto">
+        <details className="bg-sq-surface border border-sq-border rounded-xl px-4 py-3">
+          <summary className="text-sm font-semibold text-sq-text cursor-pointer">Per-Game Overrides</summary>
+          <div className="mt-3 overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-sq-border text-left">
@@ -86,16 +161,16 @@ export default function NvidiaGuidePage() {
               </tbody>
             </table>
           </div>
-        </Card>
+        </details>
       )}
 
-      {/* G-SYNC / FreeSync Setup */}
-      <Card title={isNvidia ? 'G-SYNC Setup' : 'FreeSync Setup'}>
-        <ol className="space-y-2">
+      <details className="bg-sq-surface border border-sq-border rounded-xl px-4 py-3">
+        <summary className="text-sm font-semibold text-sq-text cursor-pointer">G-SYNC / FreeSync Reference</summary>
+        <ol className="space-y-2 mt-3">
           {(isNvidia ? gsyncSetupSteps : [
             'Open AMD Software: Adrenalin Edition',
-            'Go to Gaming tab → Display',
-            'Enable "AMD FreeSync"',
+            'Go to Gaming tab -> Display',
+            'Enable AMD FreeSync',
             'In each game: Set V-Sync OFF',
             'Set in-game frame cap to monitor refresh rate minus 3',
           ]).map((step, i) => (
@@ -105,29 +180,10 @@ export default function NvidiaGuidePage() {
             </li>
           ))}
         </ol>
-      </Card>
+      </details>
 
-      {/* Top 5 Impact */}
-      <Card title="Top 5 Changes for Immediate Impact">
-        <ol className="space-y-3">
-          {[
-            { title: 'Power Plan: Ultimate Performance', desc: 'Prevents CPU/GPU clock throttling mid-game' },
-            { title: 'GPU: Power Management = Max Performance', desc: 'Stops GPU from downclocking during gameplay' },
-            { title: 'Disable V-Sync in every game', desc: 'Removes 16-50ms of input latency' },
-            { title: 'Enable NVIDIA Reflex / AMD Anti-Lag', desc: '15-30ms latency reduction per game' },
-            { title: 'Disable Mouse Acceleration', desc: 'Critical for consistent aim muscle memory' },
-          ].map((item, i) => (
-            <li key={i} className="flex items-start gap-3">
-              <span className="w-6 h-6 rounded-full bg-sq-accent/20 text-sq-accent text-xs font-bold flex items-center justify-center shrink-0">
-                {i + 1}
-              </span>
-              <div>
-                <div className="text-sm font-medium text-sq-text">{item.title}</div>
-                <div className="text-[11px] text-sq-text-dim">{item.desc}</div>
-              </div>
-            </li>
-          ))}
-        </ol>
+      <Card title="Run Log">
+        <LogViewer entries={progressLog} maxHeight="260px" />
       </Card>
     </div>
   );

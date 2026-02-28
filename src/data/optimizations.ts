@@ -113,6 +113,14 @@ export const windowsOptimizations: OptimizationItem[] = [
     risk: 'moderate',
     requiresReboot: true,
   },
+  {
+    id: 'win-gpu-profile',
+    label: 'GPU Driver Profile (NVIDIA)',
+    description: 'Imports a competitive NVIDIA profile (Power Mode Max Performance, Texture Filtering High Performance, V-Sync Off).',
+    category: 'windows',
+    risk: 'moderate',
+    requiresReboot: false,
+  },
 ];
 
 export const gameOptimizations: OptimizationItem[] = [

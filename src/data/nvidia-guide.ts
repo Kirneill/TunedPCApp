@@ -8,6 +8,12 @@ export const nvidiaGlobalSettings: GpuGuideSetting[] = [
     critical: true,
   },
   {
+    setting: 'Texture Filtering Quality',
+    value: 'High Performance',
+    reason: 'Prioritizes FPS over visual quality. Recommended default for max-FPS tuning.',
+    critical: true,
+  },
+  {
     setting: 'Low Latency Mode',
     value: 'On',
     reason: 'Reduces pre-rendered frames queue. Set to OFF for games with NVIDIA Reflex (Fortnite, Valorant, CS2, Apex Legends).',
@@ -27,11 +33,6 @@ export const nvidiaGlobalSettings: GpuGuideSetting[] = [
     setting: 'Triple Buffering',
     value: 'Off',
     reason: 'Only useful with V-Sync (which should be off). Adds latency when enabled.',
-  },
-  {
-    setting: 'Texture Filtering Quality',
-    value: 'High Performance',
-    reason: 'Slight FPS gain with negligible visual difference in competitive games.',
   },
   {
     setting: 'Texture Filtering - Anisotropic',

@@ -115,6 +115,7 @@ const DEFAULT_TOGGLES: Record<string, boolean> = {
   'win-visual-extras': true,
   'win-copilot': true,
   'win-standard': true,
+  'win-gpu-profile': true,
   'game-blackops7': true,
   'game-fortnite': true,
   'game-valorant': true,

@@ -8,7 +8,7 @@ const pageMeta: Record<Page, { title: string; subtitle: string }> = {
   dashboard: { title: 'Game Optimizer', subtitle: 'Select profiles and apply performance tweaks.' },
   advanced: { title: 'Advanced Settings', subtitle: 'Control individual tuning and system behavior.' },
   'bios-guide': { title: 'BIOS Guide', subtitle: 'Reference checklist for firmware-level performance setup.' },
-  'gpu-guide': { title: 'GPU Guide', subtitle: 'Recommended graphics control panel configuration.' },
+  'gpu-guide': { title: 'GPU Driver', subtitle: 'One-click driver profile plus competitive setting reference.' },
   backups: { title: 'Backups', subtitle: 'Manage restore points and rollback safety snapshots.' },
 };
 

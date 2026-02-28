@@ -77,7 +77,7 @@ export default function HomePage() {
   const allWindowsIds = [
     'win-power-plan', 'win-hags', 'win-game-mode', 'win-mmcss',
     'win-network', 'win-visual-fx', 'win-fullscreen', 'win-mouse', 'win-cpu-power',
-    'win-bg-apps', 'win-mpo', 'win-visual-extras', 'win-copilot', 'win-standard',
+    'win-bg-apps', 'win-mpo', 'win-visual-extras', 'win-copilot', 'win-standard', 'win-gpu-profile',
   ];
   const idsToRun = [
     ...(windowsEnabled ? allWindowsIds : []),
