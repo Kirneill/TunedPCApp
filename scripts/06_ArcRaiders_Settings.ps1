@@ -72,6 +72,9 @@ if (-not [string]::IsNullOrWhiteSpace($DetectedArcPath)) {
     } else {
         Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $DetectedArcPath "ArcRaiders.exe")
         Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $DetectedArcPath "Binaries\Win64\ArcRaiders-Win64-Shipping.exe")
+        # UE5 internal project name "PioneerGame" — some installs use this subdirectory
+        Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $DetectedArcPath "PioneerGame\Binaries\Win64\PioneerGame-Win64-Shipping.exe")
+        Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $DetectedArcPath "PioneerGame\Binaries\Win64\ArcRaiders-Win64-Shipping.exe")
     }
 }
 
@@ -82,6 +85,8 @@ $CommonArcRoots = @(
     "$env:PROGRAMFILES\Steam\steamapps\common\Arc Raiders",
     "C:\Steam\steamapps\common\ArcRaiders",
     "C:\Steam\steamapps\common\Arc Raiders",
+    "C:\SteamLibrary\steamapps\common\ArcRaiders",
+    "C:\SteamLibrary\steamapps\common\Arc Raiders",
     "D:\Steam\steamapps\common\ArcRaiders",
     "D:\Steam\steamapps\common\Arc Raiders",
     "D:\SteamLibrary\steamapps\common\ArcRaiders",
@@ -98,6 +103,9 @@ $CommonArcRoots = @(
 foreach ($root in $CommonArcRoots) {
     Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $root "ArcRaiders.exe")
     Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $root "Binaries\Win64\ArcRaiders-Win64-Shipping.exe")
+    # UE5 internal project name "PioneerGame" — some installs use this subdirectory
+    Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $root "PioneerGame\Binaries\Win64\PioneerGame-Win64-Shipping.exe")
+    Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $root "PioneerGame\Binaries\Win64\ArcRaiders-Win64-Shipping.exe")
 }
 
 $AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"

@@ -278,27 +278,26 @@ async function findBlackOps7(): Promise<string | null> {
   return fallback || null;
 }
 
-async function findArcRaiders(): Promise<string | null> {
-  const localAppData = process.env.LOCALAPPDATA || '';
-  if (localAppData) {
-    const configCandidates = [
-      path.join(localAppData, 'ArcRaiders', 'Saved', 'Config', 'Windows'),
-      path.join(localAppData, 'ArcRaiders', 'Saved', 'Config', 'WindowsClient'),
-      path.join(localAppData, 'ArcRaiders', 'Saved', 'Config', 'WinGDK'),
-    ];
-    const configPath = firstExistingPath(configCandidates);
-    if (configPath) return configPath;
-  }
+interface ArcRaidersResult {
+  installed: boolean;
+  gamePath: string | null;
+}
 
+async function findArcRaiders(): Promise<ArcRaidersResult> {
+  // Priority 1: Actual game installation directories (safe to pass as ARC_RAIDERS_PATH)
   const epicInstall = findEpicInstallPath([/arc\s*raiders/i, /arcraiders/i]);
-  if (epicInstall) return epicInstall;
+  if (epicInstall) return { installed: true, gamePath: epicInstall };
 
   const manifestInstall = findEpicManifestInstallPath([/arc\s*raiders/i, /arcraiders/i]);
-  if (manifestInstall) return manifestInstall;
+  if (manifestInstall) return { installed: true, gamePath: manifestInstall };
 
   const commonInstallPaths = [
     'C:\\Program Files (x86)\\Steam\\steamapps\\common\\ArcRaiders',
     'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arc Raiders',
+    'C:\\Steam\\steamapps\\common\\ArcRaiders',
+    'C:\\Steam\\steamapps\\common\\Arc Raiders',
+    'C:\\SteamLibrary\\steamapps\\common\\ArcRaiders',
+    'C:\\SteamLibrary\\steamapps\\common\\Arc Raiders',
     'D:\\Steam\\steamapps\\common\\ArcRaiders',
     'D:\\Steam\\steamapps\\common\\Arc Raiders',
     'D:\\SteamLibrary\\steamapps\\common\\ArcRaiders',
@@ -312,9 +311,27 @@ async function findArcRaiders(): Promise<string | null> {
     'E:\\Epic Games\\ArcRaiders',
   ];
   const commonInstall = firstExistingPath(commonInstallPaths);
-  if (commonInstall) return commonInstall;
+  if (commonInstall) return { installed: true, gamePath: commonInstall };
 
-  return null;
+  // Priority 2: Config folder existence proves the game is installed,
+  // but config paths must NOT be passed as ARC_RAIDERS_PATH (the PS1
+  // script expects a game root dir and would construct invalid exe paths).
+  // The PS1 script has its own independent config folder detection.
+  const localAppData = process.env.LOCALAPPDATA || '';
+  if (localAppData) {
+    const configCandidates = [
+      path.join(localAppData, 'ArcRaiders', 'Saved', 'Config', 'Windows'),
+      path.join(localAppData, 'ArcRaiders', 'Saved', 'Config', 'WindowsClient'),
+      path.join(localAppData, 'ArcRaiders', 'Saved', 'Config', 'WinGDK'),
+    ];
+    const configPath = firstExistingPath(configCandidates);
+    if (configPath) {
+      console.log(`[game-detection] Arc Raiders config found at ${configPath} but no install directory located. PS1 script will use its own detection.`);
+      return { installed: true, gamePath: null };
+    }
+  }
+
+  return { installed: false, gamePath: null };
 }
 
 async function findApexLegends(steamGames: Map<string, string>): Promise<string | null> {
@@ -352,7 +369,7 @@ async function findApexLegends(steamGames: Map<string, string>): Promise<string 
 }
 
 export async function detectInstalledGames(): Promise<DetectedGame[]> {
-  const [steamGames, fortnitePath, valorantPath, bo7Path, arcPath] = await Promise.all([
+  const [steamGames, fortnitePath, valorantPath, bo7Path, arcResult] = await Promise.all([
     findSteamGames(),
     findFortnite(),
     findValorant(),
@@ -387,8 +404,8 @@ export async function detectInstalledGames(): Promise<DetectedGame[]> {
         gamePath = apexPath || undefined;
         break;
       case 'arcraiders':
-        installed = !!arcPath;
-        gamePath = arcPath || undefined;
+        installed = arcResult.installed;
+        gamePath = arcResult.gamePath || undefined;
         break;
     }
 

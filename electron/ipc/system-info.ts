@@ -28,6 +28,26 @@ export interface SystemInfo {
 }
 
 const SYSTEM_INFO_SCRIPT = `
+# Build a lookup of 64-bit VRAM values from the display adapter registry.
+# Win32_VideoController.AdapterRAM is uint32, so it wraps modulo 2^32 (4 GB).
+# Common VRAM sizes (4, 8, 12, 16, 24 GB) wrap to exactly 0; other sizes
+# above 4 GB report incorrect but nonzero values (e.g. 6 GB reports as 2 GB).
+$vramLookup = @{}
+try {
+  $classPath = 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}'
+  Get-ChildItem $classPath -ErrorAction SilentlyContinue | ForEach-Object {
+    $r = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
+    if ($r -and $r.MatchingDeviceId) {
+      $qw = $r.'HardwareInformation.qwMemorySize'
+      if ($qw -and [int64]$qw -gt 0) {
+        $vramLookup[$r.MatchingDeviceId.ToLower()] = [math]::Round([int64]$qw / 1GB, 1)
+      }
+    }
+  }
+} catch {
+  Write-Warning "[VRAM-LOOKUP] Registry VRAM detection failed: $_"
+}
+
 $gpus = Get-CimInstance Win32_VideoController | ForEach-Object {
   $name = [string]$_.Name
   if ([string]::IsNullOrWhiteSpace($name)) { return }
@@ -55,8 +75,21 @@ $gpus = Get-CimInstance Win32_VideoController | ForEach-Object {
     $vram = [math]::Round($_.AdapterRAM / 1GB, 1)
   }
 
+  # Fix uint32 overflow: look up 64-bit VRAM from registry when WMI reports 0
+  # or suspiciously low values (<2 GB) for a discrete GPU
+  $pnpId = $_.PNPDeviceID
+  if ($pnpId -and ($vram -le 0 -or ($vendor -ne 'intel' -and -not $isIntegrated -and $vram -lt 2))) {
+    $pnpLower = $pnpId.ToLower()
+    foreach ($matchId in $vramLookup.Keys) {
+      if ($pnpLower -like "*$matchId*") {
+        $vram = $vramLookup[$matchId]
+        break
+      }
+    }
+  }
+
   [PSCustomObject]@{
-    id = if ([string]::IsNullOrWhiteSpace($_.PNPDeviceID)) { [string]$name } else { [string]$_.PNPDeviceID }
+    id = if ([string]::IsNullOrWhiteSpace($pnpId)) { [string]$name } else { [string]$pnpId }
     name = $name.Trim()
     vendor = $vendor
     vramGB = $vram
@@ -141,6 +174,9 @@ export async function getSystemInfo(): Promise<SystemInfo> {
   const result = await runPowerShellCommand(SYSTEM_INFO_SCRIPT);
 
   if (!result.success || result.output.length === 0) {
+    console.warn(
+      `[system-info] PowerShell system info script failed. success=${result.success}, outputLines=${result.output.length}`,
+    );
     return {
       gpu: 'Unknown', gpuVram: '0 GB', gpuDriver: '', gpuAdapters: [], primaryGpuId: '', cpu: 'Unknown',
       cpuCores: 0, cpuThreads: 0, ramGB: 0,
@@ -156,6 +192,16 @@ export async function getSystemInfo(): Promise<SystemInfo> {
     const primary = pickPrimaryGpu(gpuAdapters);
     const gpuName = primary?.name || 'Unknown';
     const gpuVram = primary?.vramGB ?? 0;
+
+    // Log all detected adapters and their scores for debugging GPU selection issues
+    if (gpuAdapters.length > 0) {
+      const adapterLog = gpuAdapters.map((a) => {
+        const score = scoreAdapter(a);
+        const tag = a === primary ? ' [PRIMARY]' : '';
+        return `  ${a.name} (${a.vendor}, ${a.vramGB}GB, ${a.isIntegrated ? 'integrated' : 'discrete'}, score=${score})${tag}`;
+      });
+      console.log(`[system-info] Detected ${gpuAdapters.length} GPU(s):\n${adapterLog.join('\n')}`);
+    }
 
     return {
       gpu: gpuName,
