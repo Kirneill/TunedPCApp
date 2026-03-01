@@ -178,6 +178,33 @@ export const gameOptimizations: OptimizationItem[] = [
     requiresReboot: false,
     gameId: 'arcraiders',
   },
+  {
+    id: 'game-tarkov',
+    label: 'Escape from Tarkov',
+    description: 'Writes optimized Graphics.ini (read-only lock), applies EXE flags. PostFX must be set in-game.',
+    category: 'game',
+    risk: 'safe',
+    requiresReboot: false,
+    gameId: 'tarkov',
+  },
+  {
+    id: 'game-rust',
+    label: 'Rust',
+    description: 'Writes competitive client.cfg with max FPS settings, GC tuning, and read-only lock.',
+    category: 'game',
+    risk: 'safe',
+    requiresReboot: false,
+    gameId: 'rust',
+  },
+  {
+    id: 'game-r6siege',
+    label: 'Rainbow Six Siege',
+    description: 'Optimizes GameSettings.ini — Low shadows, TAA, Reflex On+Boost. Vulkan renderer recommended.',
+    category: 'game',
+    risk: 'safe',
+    requiresReboot: false,
+    gameId: 'r6siege',
+  },
 ];
 
 export const allOptimizations = [...windowsOptimizations, ...gameOptimizations];

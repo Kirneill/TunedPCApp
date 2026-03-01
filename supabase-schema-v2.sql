@@ -81,7 +81,7 @@ DROP INDEX IF EXISTS idx_telemetry_success;
 DROP INDEX IF EXISTS idx_telemetry_failure_stage;
 DROP INDEX IF EXISTS idx_telemetry_error_fingerprint;
 
--- Partial index: optimization results (most-queried subset, ~25% of rows)
+-- Partial index: optimization results only (filters to event_type = 'optimization_result')
 CREATE INDEX IF NOT EXISTS idx_telemetry_opt_results
   ON telemetry_events (gpu, success, created_at DESC)
   WHERE event_type = 'optimization_result';
@@ -125,6 +125,8 @@ CREATE POLICY "Allow anonymous inserts on run details"
     anonymous_id IS NOT NULL
     AND length(anonymous_id) <= 128
     AND setting_id IS NOT NULL
+    AND (failure_reason IS NULL OR length(failure_reason) <= 2048)
+    AND length(run_id) <= 64
   );
 
 DROP POLICY IF EXISTS "Service role reads run details" ON optimization_run_details;
@@ -202,17 +204,10 @@ CREATE POLICY "Allow anonymous inserts on installed games"
     AND length(anonymous_id) <= 128
   );
 
--- Allow anon to UPDATE so the app can upsert (ON CONFLICT DO UPDATE)
--- WITH CHECK validates the new row values on update
+-- No UPDATE policy — INSERT-only pattern. Conflicts are ignored client-side
+-- via error code 23505 (unique constraint violation). This removes the risk
+-- of anonymous users overwriting each other's rows.
 DROP POLICY IF EXISTS "Allow anonymous updates on installed games" ON machine_installed_games;
-CREATE POLICY "Allow anonymous updates on installed games"
-  ON machine_installed_games
-  FOR UPDATE TO anon
-  USING (true)
-  WITH CHECK (
-    anonymous_id IS NOT NULL
-    AND length(anonymous_id) <= 128
-  );
 
 DROP POLICY IF EXISTS "Service role reads installed games" ON machine_installed_games;
 CREATE POLICY "Service role reads installed games"
@@ -276,6 +271,103 @@ BEGIN
   RETURN jsonb_build_object('success', true);
 END;
 $$;
+
+GRANT EXECUTE ON FUNCTION deactivate_machine TO authenticated;
+
+-- ─── 9B. UPDATE register_machine TO POPULATE V2 COLUMNS ────
+
+-- Drop the old 6-param overload so we don't end up with two ambiguous functions
+DROP FUNCTION IF EXISTS register_machine(TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT);
+
+CREATE OR REPLACE FUNCTION register_machine(
+  p_machine_id TEXT,
+  p_machine_name TEXT DEFAULT NULL,
+  p_gpu TEXT DEFAULT NULL,
+  p_cpu TEXT DEFAULT NULL,
+  p_ram_gb INTEGER DEFAULT NULL,
+  p_os_build TEXT DEFAULT NULL,
+  p_app_version VARCHAR(32) DEFAULT NULL,
+  p_gpu_driver VARCHAR(128) DEFAULT NULL,
+  p_gpu_vram_gb SMALLINT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id UUID := auth.uid();
+  v_existing RECORD;
+  v_active_count INTEGER;
+  v_machines JSONB;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'reason', 'not_authenticated');
+  END IF;
+
+  SELECT * INTO v_existing
+  FROM user_machines
+  WHERE user_id = v_user_id AND machine_id = p_machine_id;
+
+  IF FOUND THEN
+    UPDATE user_machines
+    SET last_seen_at = now(),
+        is_active = true,
+        deactivated_at = NULL,
+        machine_name = COALESCE(p_machine_name, machine_name),
+        gpu = COALESCE(p_gpu, gpu),
+        cpu = COALESCE(p_cpu, cpu),
+        ram_gb = COALESCE(p_ram_gb, ram_gb),
+        os_build = COALESCE(p_os_build, os_build),
+        app_version = COALESCE(p_app_version, app_version),
+        gpu_driver = COALESCE(p_gpu_driver, gpu_driver),
+        gpu_vram_gb = COALESCE(p_gpu_vram_gb, gpu_vram_gb)
+    WHERE user_id = v_user_id AND machine_id = p_machine_id;
+
+    RETURN jsonb_build_object('success', true, 'reason', 'registered');
+  END IF;
+
+  SELECT COUNT(*) INTO v_active_count
+  FROM user_machines
+  WHERE user_id = v_user_id AND is_active = true;
+
+  IF v_active_count >= 2 THEN
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', id::text,
+      'machine_id', machine_id,
+      'machine_name', machine_name,
+      'gpu', gpu,
+      'cpu', cpu,
+      'ram_gb', ram_gb,
+      'os_build', os_build,
+      'registered_at', registered_at,
+      'last_seen_at', last_seen_at,
+      'is_active', is_active
+    )) INTO v_machines
+    FROM user_machines
+    WHERE user_id = v_user_id AND is_active = true;
+
+    RETURN jsonb_build_object(
+      'success', false,
+      'reason', 'max_devices',
+      'machines', COALESCE(v_machines, '[]'::jsonb)
+    );
+  END IF;
+
+  INSERT INTO user_machines (
+    user_id, machine_id, machine_name, gpu, cpu, ram_gb, os_build,
+    app_version, gpu_driver, gpu_vram_gb
+  )
+  VALUES (
+    v_user_id, p_machine_id, p_machine_name, p_gpu, p_cpu, p_ram_gb, p_os_build,
+    p_app_version, p_gpu_driver, p_gpu_vram_gb
+  );
+
+  RETURN jsonb_build_object('success', true, 'reason', 'new');
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION register_machine(TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, VARCHAR, VARCHAR, SMALLINT) TO authenticated;
 
 -- ─── 10. IMPROVED ANALYTICS VIEWS ───────────────────────────
 
@@ -392,6 +484,35 @@ ORDER BY occurrences DESC;
 REVOKE ALL ON error_hotspots FROM anon, authenticated;
 GRANT SELECT ON error_hotspots TO service_role;
 
+-- Per-setting failure rates broken down by GPU model.
+-- JOINs optimization_run_details (per-setting success) with
+-- telemetry_events (hardware info) via run_id.
+CREATE OR REPLACE VIEW gpu_failure_patterns
+  WITH (security_invoker = true)
+AS
+SELECT
+  te.gpu,
+  te.gpu_vendor,
+  rd.setting_id,
+  COUNT(*) AS total_runs,
+  COUNT(*) FILTER (WHERE rd.success = false) AS failures,
+  ROUND(
+    100.0 * COUNT(*) FILTER (WHERE rd.success = false) / NULLIF(COUNT(*), 0),
+    1
+  ) AS failure_rate_pct,
+  COUNT(DISTINCT rd.anonymous_id) AS unique_machines,
+  mode() WITHIN GROUP (ORDER BY rd.failure_reason) AS most_common_failure
+FROM optimization_run_details rd
+JOIN telemetry_events te
+  ON te.run_id = rd.run_id
+  AND te.event_type = 'optimization_result'
+GROUP BY te.gpu, te.gpu_vendor, rd.setting_id
+HAVING COUNT(*) FILTER (WHERE rd.success = false) > 0
+ORDER BY failures DESC;
+
+REVOKE ALL ON gpu_failure_patterns FROM anon, authenticated;
+GRANT SELECT ON gpu_failure_patterns TO service_role;
+
 -- Optimization combo popularity: what do users run together
 CREATE OR REPLACE VIEW optimization_combos
   WITH (security_invoker = true)
@@ -422,7 +543,7 @@ SELECT
   COUNT(DISTINCT anonymous_id) AS unique_machines,
   COUNT(*) AS total_events
 FROM telemetry_events
-WHERE event_type = 'app_launch'
+WHERE event_type IN ('app_launch', 'optimization_result')
   AND monitor_resolution IS NOT NULL
 GROUP BY monitor_resolution, monitor_refresh_hz
 ORDER BY unique_machines DESC;

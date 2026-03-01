@@ -16,12 +16,16 @@ export default function MaxDevicesScreen() {
       // Now try to register current machine
       const sysInfo = useAppStore.getState().systemInfo;
       if (sysInfo) {
+        const adapters = sysInfo.gpuAdapters || [];
+        const primaryAdapter = adapters.find((a) => a.id === sysInfo.primaryGpuId) || adapters[0];
         const regResult = await window.sensequality.registerMachine({
           machine_name: sysInfo.cpu,
           gpu: sysInfo.gpu,
           cpu: sysInfo.cpu,
           ram_gb: sysInfo.ramGB,
           os_build: sysInfo.osBuild,
+          gpu_driver: sysInfo.gpuDriver || undefined,
+          gpu_vram_gb: primaryAdapter ? Math.round(primaryAdapter.vramGB) : undefined,
         });
 
         if (regResult.success) {

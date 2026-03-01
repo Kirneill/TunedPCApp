@@ -3,7 +3,7 @@ import { getSystemInfo } from './system-info';
 import { detectInstalledGames } from './game-detection';
 import { listBackups, createBackup, restoreBackup, deleteBackup } from './backup-manager';
 import { runPowerShellScript, runPowerShellCommand, getScriptPath } from './powershell';
-import { trackOptimizationResult, trackFailureStage, sendRunDetail, type HardwareInfo } from '../telemetry/telemetry';
+import { trackOptimizationResult, trackFailureStage, sendRunDetail, buildHardwareInfo } from '../telemetry/telemetry';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
@@ -48,6 +48,9 @@ const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   'game-cs2': { script: '05_CS2_Settings.ps1' },
   'game-apexlegends': { script: '12_ApexLegends_Settings.ps1' },
   'game-arcraiders': { script: '06_ArcRaiders_Settings.ps1' },
+  'game-tarkov': { script: '14_Tarkov_Settings.ps1' },
+  'game-rust': { script: '15_Rust_Settings.ps1' },
+  'game-r6siege': { script: '16_RainbowSixSiege_Settings.ps1' },
 };
 
 // Maps env prefix (e.g. 'POWER_PLAN') back to optimization ID (e.g. 'win-power-plan')
@@ -119,6 +122,15 @@ const CHECK_LABELS: Record<string, string> = {
   GPU_PROFILE_TOOL_READY: 'GPU profile tool ready',
   GPU_PROFILE_TOOL_DOWNLOADED: 'GPU profile tool downloaded automatically',
   GPU_PROFILE_TOOL_DOWNLOAD_FAILED: 'GPU profile tool download failed',
+  TARKOV_EXE_FLAGS: 'Tarkov EXE compatibility flags',
+  TARKOV_CONFIG_WRITTEN: 'Tarkov Graphics.ini written',
+  TARKOV_SETTINGS_APPLIED: 'Tarkov settings applied',
+  RUST_EXE_FLAGS: 'Rust EXE compatibility flags',
+  RUST_CONFIG_WRITTEN: 'Rust client.cfg written',
+  RUST_SETTINGS_APPLIED: 'Rust settings applied',
+  R6_EXE_FLAGS: 'R6 Siege EXE compatibility flags',
+  R6_CONFIG_WRITTEN: 'R6 Siege GameSettings.ini written',
+  R6_SETTINGS_APPLIED: 'R6 Siege settings applied',
 };
 
 function parseScriptCheck(line: string): ScriptCheck | null {
@@ -316,7 +328,9 @@ async function createSystemRestorePoint(log: RunLogFn, options: RestorePointOpti
       success: false,
       errorCode: 'RESTORE_POINT_FAILED',
     });
-    void trackFailureStage('restore-point', errorText);
+    void trackFailureStage('restore-point', errorText).catch(err => {
+      console.warn(`[telemetry] trackFailureStage failed: ${err instanceof Error ? err.message : err}`);
+    });
     return { success: false, errors: result.errors };
   }
 
@@ -536,7 +550,9 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
 
     if (!finalSuccess) {
       const failureText = combinedErrors.join(' | ') || `Script exited with code ${result.exitCode}`;
-      void trackFailureStage('script-exit', failureText, undefined, [id]);
+      void trackFailureStage('script-exit', failureText, undefined, [id]).catch(err => {
+        console.warn(`[telemetry] trackFailureStage failed: ${err instanceof Error ? err.message : err}`);
+      });
     }
 
     return { success: finalSuccess, errors: combinedErrors };
@@ -705,7 +721,9 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
 
       if (!result.success) {
         const failureText = result.errors.join(' | ') || `Windows script exited with code ${result.exitCode}`;
-        void trackFailureStage('script-exit', failureText, undefined, windowsSectionIds);
+        void trackFailureStage('script-exit', failureText, undefined, windowsSectionIds).catch(err => {
+          console.warn(`[telemetry] trackFailureStage failed: ${err instanceof Error ? err.message : err}`);
+        });
       }
     }
 
@@ -770,7 +788,9 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
           ? `Validation failed: ${validationSummary.failedKeys.join(', ')}`
           : '';
         const failureText = [validationError, ...result.errors].filter(Boolean).join(' | ') || `Script exited with code ${result.exitCode}`;
-        void trackFailureStage('script-exit', failureText, undefined, [id]);
+        void trackFailureStage('script-exit', failureText, undefined, [id]).catch(err => {
+          console.warn(`[telemetry] trackFailureStage failed: ${err instanceof Error ? err.message : err}`);
+        });
       }
     }
 
@@ -837,7 +857,9 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
           ? [`Validation failed: ${validationSummary.failedKeys.join(', ')}`]
           : [];
         const failureText = [...result.errors, ...validationError].join(' | ') || `Script exited with code ${result.exitCode}`;
-        void trackFailureStage('script-exit', failureText, undefined, [id]);
+        void trackFailureStage('script-exit', failureText, undefined, [id]).catch(err => {
+          console.warn(`[telemetry] trackFailureStage failed: ${err instanceof Error ? err.message : err}`);
+        });
       }
     }
 
@@ -878,28 +900,13 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
     void (async () => {
       try {
         const sysInfo = await getSystemInfo();
-        const primaryAdapter = sysInfo.gpuAdapters.find(a => a.id === sysInfo.primaryGpuId) || sysInfo.gpuAdapters[0];
-        const hw: HardwareInfo = {
-          gpu: sysInfo.gpu,
-          cpu: sysInfo.cpu,
-          ram_gb: sysInfo.ramGB,
-          os_build: sysInfo.osBuild,
-          gpu_driver: sysInfo.gpuDriver || undefined,
-          cpu_cores: sysInfo.cpuCores > 0 ? sysInfo.cpuCores : undefined,
-          cpu_threads: sysInfo.cpuThreads > 0 ? sysInfo.cpuThreads : undefined,
-          gpu_vram_gb: primaryAdapter ? Math.round(primaryAdapter.vramGB) : undefined,
-          gpu_vendor: primaryAdapter?.vendor,
-        };
+        const hw = buildHardwareInfo(sysInfo);
         trackOptimizationResult(hw, ids, allSuccess, Date.now() - startTime, errorCount, {
           monitor_resolution: `${config.monitorWidth}x${config.monitorHeight}`,
           monitor_refresh_hz: config.monitorRefresh,
           run_id: runId,
         }).catch(err => {
-          log('warning', `trackOptimizationResult failed: ${err instanceof Error ? err.message : err}`, {
-            component: 'Telemetry',
-            action: 'telemetry-result-failed',
-            errorCode: 'TELEMETRY_SEND_FAILED',
-          });
+          console.warn(`[telemetry] trackOptimizationResult failed: ${err instanceof Error ? err.message : err}`);
         });
 
         // Per-setting granular results
@@ -910,11 +917,7 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
             success,
             failure_reason: telemetryReasons[settingId] || null,
           }).catch(err => {
-            log('warning', `sendRunDetail failed for ${settingId}: ${err instanceof Error ? err.message : err}`, {
-              component: 'Telemetry',
-              action: 'telemetry-detail-failed',
-              errorCode: 'TELEMETRY_DETAIL_FAILED',
-            });
+            console.warn(`[telemetry] sendRunDetail failed for ${settingId}: ${err instanceof Error ? err.message : err}`);
           });
         }
       } catch (err) {

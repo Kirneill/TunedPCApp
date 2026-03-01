@@ -154,7 +154,7 @@ declare global {
       isOffline: () => Promise<boolean>;
       getMachineId: () => Promise<string>;
       // Machine management
-      registerMachine: (info: { machine_name: string; gpu: string; cpu: string; ram_gb: number; os_build: string }) => Promise<MachineRegistrationResult>;
+      registerMachine: (info: { machine_name: string; gpu: string; cpu: string; ram_gb: number; os_build: string; gpu_driver?: string; gpu_vram_gb?: number }) => Promise<MachineRegistrationResult>;
       deactivateMachine: (machineId: string) => Promise<{ success: boolean; error?: string }>;
       // Waitlist
       joinWaitlist: (feature: string) => Promise<{ success: boolean; error?: string }>;

@@ -16,6 +16,9 @@ const GAMES = [
   { id: 'cs2', name: 'Counter-Strike 2', scriptId: '05' },
   { id: 'apexlegends', name: 'Apex Legends', scriptId: '12' },
   { id: 'arcraiders', name: 'Arc Raiders', scriptId: '06' },
+  { id: 'tarkov', name: 'Escape from Tarkov', scriptId: '14' },
+  { id: 'rust', name: 'Rust', scriptId: '15' },
+  { id: 'r6siege', name: 'Rainbow Six Siege', scriptId: '16' },
 ];
 
 interface EpicInstallation {
@@ -41,7 +44,8 @@ function readEpicLauncherInstallations(): EpicInstallation[] {
     const raw = fs.readFileSync(launcherInstalledPath, 'utf-8');
     const parsed = JSON.parse(raw) as { InstallationList?: EpicInstallation[] };
     return Array.isArray(parsed.InstallationList) ? parsed.InstallationList : [];
-  } catch {
+  } catch (err) {
+    console.warn(`[game-detection] Failed to read Epic launcher installations: ${err instanceof Error ? err.message : err}`);
     return [];
   }
 }
@@ -82,6 +86,7 @@ function findEpicManifestInstallPath(matchers: RegExp[]): string | null {
           return parsed.InstallLocation;
         }
       } catch {
+        // JSON parse failed — fall through to regex fallback below
         if (!matchers.some((matcher) => matcher.test(content))) continue;
         const locationMatch = content.match(/"InstallLocation"\s*:\s*"([^"]+)"/);
         if (locationMatch) {
@@ -89,7 +94,9 @@ function findEpicManifestInstallPath(matchers: RegExp[]): string | null {
         }
       }
     }
-  } catch {}
+  } catch (err) {
+    console.warn(`[game-detection] Failed to read Epic manifest directory: ${err instanceof Error ? err.message : err}`);
+  }
 
   return null;
 }
@@ -97,7 +104,7 @@ function findEpicManifestInstallPath(matchers: RegExp[]): string | null {
 async function findSteamGames(): Promise<Map<string, string>> {
   const found = new Map<string, string>();
 
-  // CS2 appid = 730, Apex Legends appid = 1172470
+  // CS2 appid = 730, Apex Legends appid = 1172470, Rust appid = 252490, R6 Siege appid = 359550
   const steamPaths = [
     'C:\\Program Files (x86)\\Steam',
     'C:\\Program Files\\Steam',
@@ -105,6 +112,13 @@ async function findSteamGames(): Promise<Map<string, string>> {
     'D:\\SteamLibrary',
     'E:\\Steam',
     'E:\\SteamLibrary',
+  ];
+
+  const steamGameDirs: { id: string; folder: string }[] = [
+    { id: 'cs2', folder: 'Counter-Strike Global Offensive' },
+    { id: 'apexlegends', folder: 'Apex Legends' },
+    { id: 'rust', folder: 'Rust' },
+    { id: 'r6siege', folder: "Tom Clancy's Rainbow Six Siege" },
   ];
 
   for (const steamPath of steamPaths) {
@@ -117,28 +131,25 @@ async function findSteamGames(): Promise<Map<string, string>> {
         if (pathMatches) {
           for (const match of pathMatches) {
             const libPath = match.replace(/"path"\s+"/, '').replace(/"$/, '').replace(/\\\\/g, '\\');
-            // Check for CS2
-            const cs2Path = path.join(libPath, 'steamapps', 'common', 'Counter-Strike Global Offensive');
-            if (fs.existsSync(cs2Path)) {
-              found.set('cs2', cs2Path);
-            }
-            const apexPath = path.join(libPath, 'steamapps', 'common', 'Apex Legends');
-            if (fs.existsSync(apexPath)) {
-              found.set('apexlegends', apexPath);
+            for (const game of steamGameDirs) {
+              const gamePath = path.join(libPath, 'steamapps', 'common', game.folder);
+              if (fs.existsSync(gamePath)) {
+                found.set(game.id, gamePath);
+              }
             }
           }
         }
-      } catch {}
+      } catch (err) {
+        console.warn(`[game-detection] Failed to parse Steam VDF: ${err instanceof Error ? err.message : err}`);
+      }
     }
 
     // Direct check
-    const cs2Direct = path.join(steamPath, 'steamapps', 'common', 'Counter-Strike Global Offensive');
-    if (fs.existsSync(cs2Direct)) {
-      found.set('cs2', cs2Direct);
-    }
-    const apexDirect = path.join(steamPath, 'steamapps', 'common', 'Apex Legends');
-    if (fs.existsSync(apexDirect)) {
-      found.set('apexlegends', apexDirect);
+    for (const game of steamGameDirs) {
+      const directPath = path.join(steamPath, 'steamapps', 'common', game.folder);
+      if (fs.existsSync(directPath)) {
+        found.set(game.id, directPath);
+      }
     }
   }
 
@@ -263,7 +274,9 @@ async function findBlackOps7(): Promise<string | null> {
         const hit = firstExistingPath(dynamicCandidates);
         if (hit) return path.dirname(hit);
       }
-    } catch {}
+    } catch (err) {
+      console.warn(`[game-detection] Failed to scan Xbox games directory: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   // Fallback root checks
@@ -368,15 +381,133 @@ async function findApexLegends(steamGames: Map<string, string>): Promise<string 
   return firstExistingPath(commonInstallPaths);
 }
 
+interface TarkovResult {
+  installed: boolean;
+  gamePath: string | null;
+}
+
+async function findTarkov(): Promise<TarkovResult> {
+  // Registry: BSG uninstall key
+  const result = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\EscapeFromTarkov' -ErrorAction SilentlyContinue).InstallLocation`
+  );
+  if (result.success && result.output.length > 0 && result.output[0] && fs.existsSync(result.output[0])) {
+    return { installed: true, gamePath: result.output[0] };
+  }
+
+  // Common install paths
+  const commonPaths = [
+    'C:\\Battlestate Games\\EFT',
+    'D:\\Battlestate Games\\EFT',
+    'E:\\Battlestate Games\\EFT',
+    'C:\\Games\\Battlestate Games\\EFT',
+    'D:\\Games\\Battlestate Games\\EFT',
+  ];
+  const commonInstall = firstExistingPath(commonPaths);
+  if (commonInstall) return { installed: true, gamePath: commonInstall };
+
+  // Config folder proves installation but is NOT a valid game path
+  // (PS1 script has its own config folder detection)
+  const appData = process.env.APPDATA || '';
+  if (appData) {
+    const settingsDir = path.join(appData, 'Battlestate Games', 'Escape from Tarkov', 'Settings');
+    if (fs.existsSync(settingsDir)) {
+      console.log(`[game-detection] Tarkov config found at ${settingsDir} but no install directory located. PS1 script will use its own detection.`);
+      return { installed: true, gamePath: null };
+    }
+  }
+
+  return { installed: false, gamePath: null };
+}
+
+async function findRust(steamGames: Map<string, string>): Promise<string | null> {
+  const steamPath = steamGames.get('rust');
+  if (steamPath) return steamPath;
+
+  // Uninstall registry (Steam App 252490)
+  const result = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 252490' -ErrorAction SilentlyContinue).InstallLocation`
+  );
+  if (result.success && result.output.length > 0 && result.output[0] && fs.existsSync(result.output[0])) {
+    return result.output[0];
+  }
+
+  const commonPaths = [
+    'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Rust',
+    'C:\\Program Files\\Steam\\steamapps\\common\\Rust',
+    'D:\\Steam\\steamapps\\common\\Rust',
+    'D:\\SteamLibrary\\steamapps\\common\\Rust',
+    'E:\\Steam\\steamapps\\common\\Rust',
+    'E:\\SteamLibrary\\steamapps\\common\\Rust',
+  ];
+  return firstExistingPath(commonPaths);
+}
+
+async function findR6Siege(steamGames: Map<string, string>): Promise<string | null> {
+  const steamPath = steamGames.get('r6siege');
+  if (steamPath) return steamPath;
+
+  // Uninstall registry (Steam App 359550)
+  const result = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 359550' -ErrorAction SilentlyContinue).InstallLocation`
+  );
+  if (result.success && result.output.length > 0 && result.output[0] && fs.existsSync(result.output[0])) {
+    return result.output[0];
+  }
+
+  // Ubisoft Connect registry
+  const ubisoftResult = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Ubisoft\\Launcher' -ErrorAction SilentlyContinue).InstallDir`
+  );
+  if (ubisoftResult.success && ubisoftResult.output.length > 0 && ubisoftResult.output[0]) {
+    const ubisoftR6 = path.join(ubisoftResult.output[0], 'games', "Tom Clancy's Rainbow Six Siege");
+    if (fs.existsSync(ubisoftR6)) return ubisoftR6;
+  }
+
+  // Config folder detection (proves game is installed)
+  const userProfile = process.env.USERPROFILE || '';
+  if (!userProfile) {
+    console.warn('[game-detection] USERPROFILE env var is empty, skipping R6 Siege config detection');
+  }
+  const docsBase = userProfile ? path.join(userProfile, 'Documents', 'My Games', 'Rainbow Six - Siege') : '';
+  if (docsBase && fs.existsSync(docsBase)) {
+    try {
+      const accountFolders = fs.readdirSync(docsBase, { withFileTypes: true })
+        .filter((d) => d.isDirectory());
+      for (const folder of accountFolders) {
+        const settingsFile = path.join(docsBase, folder.name, 'GameSettings.ini');
+        if (fs.existsSync(settingsFile)) return docsBase;
+      }
+    } catch (err) {
+      console.warn(`[game-detection] Failed to scan R6 Siege config: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  // Common install paths
+  const commonPaths = [
+    "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Tom Clancy's Rainbow Six Siege",
+    "C:\\Program Files\\Steam\\steamapps\\common\\Tom Clancy's Rainbow Six Siege",
+    "D:\\Steam\\steamapps\\common\\Tom Clancy's Rainbow Six Siege",
+    "D:\\SteamLibrary\\steamapps\\common\\Tom Clancy's Rainbow Six Siege",
+    "C:\\Program Files (x86)\\Ubisoft\\Ubisoft Game Launcher\\games\\Tom Clancy's Rainbow Six Siege",
+  ];
+  return firstExistingPath(commonPaths);
+}
+
 export async function detectInstalledGames(): Promise<DetectedGame[]> {
-  const [steamGames, fortnitePath, valorantPath, bo7Path, arcResult] = await Promise.all([
+  const [steamGames, fortnitePath, valorantPath, bo7Path, arcResult, tarkovResult] = await Promise.all([
     findSteamGames(),
     findFortnite(),
     findValorant(),
     findBlackOps7(),
     findArcRaiders(),
+    findTarkov(),
   ]);
-  const apexPath = await findApexLegends(steamGames);
+  const [apexPath, rustPath, r6Path] = await Promise.all([
+    findApexLegends(steamGames),
+    findRust(steamGames),
+    findR6Siege(steamGames),
+  ]);
 
   return GAMES.map((game) => {
     let installed = false;
@@ -406,6 +537,18 @@ export async function detectInstalledGames(): Promise<DetectedGame[]> {
       case 'arcraiders':
         installed = arcResult.installed;
         gamePath = arcResult.gamePath || undefined;
+        break;
+      case 'tarkov':
+        installed = tarkovResult.installed;
+        gamePath = tarkovResult.gamePath || undefined;
+        break;
+      case 'rust':
+        installed = !!rustPath;
+        gamePath = rustPath || undefined;
+        break;
+      case 'r6siege':
+        installed = !!r6Path;
+        gamePath = r6Path || undefined;
         break;
     }
 

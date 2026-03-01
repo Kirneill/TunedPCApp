@@ -106,6 +106,8 @@ const api = {
   closeWindow: () => ipcRenderer.send('window:close'),
   getCloseToBackground: (): Promise<boolean> => ipcRenderer.invoke('app:getCloseToBackground'),
   setCloseToBackground: (enabled: boolean): Promise<boolean> => ipcRenderer.invoke('app:setCloseToBackground', enabled),
+  getLaunchOnStartup: (): Promise<boolean> => ipcRenderer.invoke('app:getLaunchOnStartup'),
+  setLaunchOnStartup: (enabled: boolean): Promise<boolean> => ipcRenderer.invoke('app:setLaunchOnStartup', enabled),
 
   // External links
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
@@ -126,7 +128,7 @@ const api = {
   getMachineId: () => ipcRenderer.invoke('auth:getMachineId'),
 
   // Machine management
-  registerMachine: (info: { machine_name: string; gpu: string; cpu: string; ram_gb: number; os_build: string }) =>
+  registerMachine: (info: { machine_name: string; gpu: string; cpu: string; ram_gb: number; os_build: string; gpu_driver?: string; gpu_vram_gb?: number }) =>
     ipcRenderer.invoke('auth:registerMachine', info),
   deactivateMachine: (machineId: string) => ipcRenderer.invoke('auth:deactivateMachine', machineId),
 

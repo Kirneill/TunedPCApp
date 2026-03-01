@@ -314,7 +314,9 @@ export async function resetPassword(email: string): Promise<AuthResult> {
   if (!supabase) return { success: false, error: 'Auth not initialized' };
 
   try {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://sensequality.com/reset-password',
+    });
     if (error) return { success: false, error: mapAuthError(error) };
     return { success: true };
   } catch (err) {
@@ -357,21 +359,45 @@ export async function registerMachine(info: {
   cpu: string;
   ram_gb: number;
   os_build: string;
+  gpu_driver?: string;
+  gpu_vram_gb?: number;
 }): Promise<MachineRegistrationResult> {
   if (!supabase) return { success: false, reason: 'not_authenticated' };
 
+  const baseParams = {
+    p_machine_id: getMachineId(),
+    p_machine_name: info.machine_name,
+    p_gpu: info.gpu,
+    p_cpu: info.cpu,
+    p_ram_gb: info.ram_gb,
+    p_os_build: info.os_build,
+  };
+
+  const v2Params = {
+    ...baseParams,
+    p_app_version: app.getVersion(),
+    p_gpu_driver: info.gpu_driver || null,
+    p_gpu_vram_gb: info.gpu_vram_gb != null ? Math.round(info.gpu_vram_gb) : null,
+  };
+
   try {
-    const { data, error } = await supabase.rpc('register_machine', {
-      p_machine_id: getMachineId(),
-      p_machine_name: info.machine_name,
-      p_gpu: info.gpu,
-      p_cpu: info.cpu,
-      p_ram_gb: info.ram_gb,
-      p_os_build: info.os_build,
-    });
+    // Try v2 schema first (with extra columns), fall back to v1 if function signature doesn't match
+    let data: unknown;
+    let error: { message?: string; code?: string } | null;
+
+    ({ data, error } = await supabase.rpc('register_machine', v2Params));
+
+    if (error?.code === '42883') {
+      // 42883 = "function does not exist" — v2 schema not deployed yet, retry with v1 params
+      console.warn('[auth] register_machine v2 not found, falling back to v1 params');
+      ({ data, error } = await supabase.rpc('register_machine', baseParams));
+    }
 
     if (error) {
-      return { success: false, reason: 'not_authenticated' };
+      console.error('[auth] registerMachine RPC error:', error.message, error.code);
+      if (isNetworkError(error)) return { success: false, reason: 'not_authenticated' };
+      // RPC infrastructure error — don't treat as auth failure
+      return { success: false, reason: 'registered' };
     }
 
     const result = data as { success: boolean; reason: string; machines?: UserMachine[] };
@@ -381,8 +407,9 @@ export async function registerMachine(info: {
       machines: result.machines,
     };
   } catch (err) {
+    console.error('[auth] registerMachine exception:', err instanceof Error ? err.message : err);
     if (isNetworkError(err)) return { success: false, reason: 'not_authenticated' };
-    return { success: false, reason: 'not_authenticated' };
+    return { success: false, reason: 'registered' };
   }
 }
 

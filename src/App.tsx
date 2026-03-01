@@ -62,6 +62,8 @@ export default function App() {
         cpu: sysInfo.cpu,
         ram_gb: sysInfo.ramGB,
         os_build: sysInfo.osBuild,
+        gpu_driver: sysInfo.gpuDriver || undefined,
+        gpu_vram_gb: primaryAdapter ? Math.round(primaryAdapter.vramGB) : undefined,
       });
 
       if (!regResult.success) {
@@ -71,11 +73,18 @@ export default function App() {
           return;
         }
 
-        try {
-          await window.sensequality.signOut();
-        } catch {}
-        clearAuthState();
-        return;
+        if (regResult.reason === 'not_authenticated') {
+          // Genuinely not authenticated — sign out and show login
+          try {
+            await window.sensequality.signOut();
+          } catch {}
+          clearAuthState();
+          return;
+        }
+
+        // Non-auth failure (e.g. RPC error, DB schema mismatch) — don't sign out,
+        // just log and continue so the user can still use the app
+        console.warn('[app] Machine registration failed (non-auth):', regResult.reason);
       }
 
       setShowMaxDevices(false);

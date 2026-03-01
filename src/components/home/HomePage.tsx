@@ -55,6 +55,30 @@ const games = [
     gradient: 'from-cyan-900 via-teal-950 to-black',
     letter: 'ARC',
   },
+  {
+    id: 'tarkov',
+    toggleId: 'game-tarkov',
+    name: 'Escape from Tarkov',
+    subtitle: 'Graphics.ini + PostFX Guide',
+    gradient: 'from-stone-800 via-zinc-900 to-black',
+    letter: 'EFT',
+  },
+  {
+    id: 'rust',
+    toggleId: 'game-rust',
+    name: 'Rust',
+    subtitle: 'Max FPS Config + GC Tuning',
+    gradient: 'from-orange-800 via-amber-950 to-black',
+    letter: 'RST',
+  },
+  {
+    id: 'r6siege',
+    toggleId: 'game-r6siege',
+    name: 'Rainbow Six Siege',
+    subtitle: 'Vulkan · Low Shadows · Reflex',
+    gradient: 'from-indigo-900 via-blue-950 to-black',
+    letter: 'R6',
+  },
 ];
 
 type InstallFilter = 'all' | 'installed' | 'not-installed';
@@ -292,82 +316,48 @@ export default function HomePage() {
           />
 
           {/* Game cards grid */}
-          <div className="shrink-0 relative z-10 grid grid-cols-3 gap-2">
-            {filteredGames.slice(0, 6).map((game) => (
-              <button
-                key={game.id}
-                onClick={() => !isRunning && setToggle(game.toggleId, !game.enabled)}
-                disabled={isRunning}
-                className={`
-                  sq-card-hover relative rounded-xl overflow-hidden text-left transition-all group
-                  ${game.enabled ? 'border-sq-accent' : ''}
-                  ${isRunning ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
-                `}
-                data-active={game.enabled}
-              >
-                <div className={`bg-gradient-to-br ${game.gradient} p-3 min-h-[80px] relative ${!game.enabled ? 'opacity-60 saturate-50' : ''}`}>
-                  <span className="absolute top-0.5 right-1 text-3xl font-black text-white/[0.06] group-hover:text-white/[0.1] transition-colors select-none">{game.letter}</span>
-                  {game.enabled ? (
-                    <span className="absolute top-2 left-2 px-2.5 py-1.5 bg-sq-success backdrop-blur-sm rounded-md text-[11px] text-white font-bold tracking-[0.1em] uppercase shadow-md shadow-sq-success/40">Optimize</span>
-                  ) : (
-                    <span className="absolute top-2 left-2 px-2 py-1 bg-black/50 backdrop-blur-sm rounded text-[9px] text-white/60 font-medium tracking-wide">Click to select</span>
-                  )}
-                  <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-black/70 to-transparent" />
-                </div>
-                <div className={`px-3 py-2 -mt-px ${game.enabled ? 'bg-sq-surface/90' : 'bg-sq-surface/60'}`}>
-                  <div className={`text-[11px] font-semibold leading-tight truncate ${game.enabled ? 'text-sq-text' : 'text-sq-text-muted'}`}>{game.name}</div>
-                  <div className="flex items-center justify-between gap-1 mt-0.5">
-                    <div className="text-[9px] text-sq-text-dim truncate">{game.subtitle}</div>
-                    <span className={`
-                      px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide shrink-0
-                      ${game.installed
-                        ? 'text-sq-success bg-sq-success/20'
-                        : 'text-sq-warning bg-sq-warning/20'
-                      }
-                    `}>
-                      {game.installed ? 'Installed' : 'N/A'}
-                    </span>
+          <div className="flex-1 min-h-0 overflow-y-auto relative z-10">
+            <div className="grid grid-cols-3 gap-2">
+              {filteredGames.map((game) => (
+                <button
+                  key={game.id}
+                  onClick={() => !isRunning && setToggle(game.toggleId, !game.enabled)}
+                  disabled={isRunning}
+                  className={`
+                    sq-card-hover relative rounded-xl overflow-hidden text-left transition-all group
+                    ${game.enabled ? 'border-sq-accent' : ''}
+                    ${isRunning ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+                  `}
+                  data-active={game.enabled}
+                >
+                  <div className={`bg-gradient-to-br ${game.gradient} p-3 min-h-[80px] relative ${!game.enabled ? 'opacity-60 saturate-50' : ''}`}>
+                    <span className="absolute top-0.5 right-1 text-3xl font-black text-white/[0.06] group-hover:text-white/[0.1] transition-colors select-none">{game.letter}</span>
+                    {game.enabled ? (
+                      <span className="absolute top-2 left-2 px-2.5 py-1.5 bg-sq-success backdrop-blur-sm rounded-md text-[11px] text-white font-bold tracking-[0.1em] uppercase shadow-md shadow-sq-success/40">Optimize</span>
+                    ) : (
+                      <span className="absolute top-2 left-2 px-2 py-1 bg-black/50 backdrop-blur-sm rounded text-[9px] text-white/60 font-medium tracking-wide">Click to select</span>
+                    )}
+                    <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-black/70 to-transparent" />
                   </div>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* All games list (scrollable) */}
-          {filteredGames.length > 6 && (
-            <div className="flex-1 min-h-0 rounded-lg border border-sq-border bg-sq-bg/40 overflow-hidden">
-              <div className="h-full overflow-y-auto">
-                <div className="divide-y divide-sq-border/50">
-                  {filteredGames.slice(6).map((game) => (
-                    <button
-                      key={game.id}
-                      onClick={() => !isRunning && setToggle(game.toggleId, !game.enabled)}
-                      disabled={isRunning}
-                      className={`
-                        sq-focus-ring w-full px-3 py-2 flex items-center justify-between gap-3 text-left transition-colors
-                        ${game.enabled ? 'bg-gradient-to-r from-sq-accent/10 to-transparent' : 'hover:bg-sq-surface-hover/40'}
-                        ${isRunning ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
-                      `}
-                    >
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold text-sq-text truncate">{game.name}</div>
-                        <div className="text-[10px] text-sq-text-dim truncate">{game.subtitle}</div>
-                      </div>
-                      <div className={`
-                        w-11 h-6 rounded-full flex items-center px-0.5 transition-colors shrink-0
-                        ${game.enabled ? 'bg-sq-accent' : 'bg-sq-border'}
+                  <div className={`px-3 py-2 -mt-px ${game.enabled ? 'bg-sq-surface/90' : 'bg-sq-surface/60'}`}>
+                    <div className={`text-[11px] font-semibold leading-tight truncate ${game.enabled ? 'text-sq-text' : 'text-sq-text-muted'}`}>{game.name}</div>
+                    <div className="flex items-center justify-between gap-1 mt-0.5">
+                      <div className="text-[9px] text-sq-text-dim truncate">{game.subtitle}</div>
+                      <span className={`
+                        px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide shrink-0
+                        ${game.installed
+                          ? 'text-sq-success bg-sq-success/20'
+                          : 'text-sq-warning bg-sq-warning/20'
+                        }
                       `}>
-                        <div className={`
-                          w-5 h-5 rounded-full bg-white shadow-sm transition-transform
-                          ${game.enabled ? 'translate-x-5' : 'translate-x-0'}
-                        `} />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
+                        {game.installed ? 'Installed' : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              ))}
             </div>
-          )}
+          </div>
 
           {/* Select/Clear buttons */}
           <div className="shrink-0 flex items-center justify-between gap-2 relative z-10">

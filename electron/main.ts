@@ -4,7 +4,7 @@ import fs from 'fs';
 import { execFileSync } from 'child_process';
 import { registerIpcHandlers } from './ipc/handlers';
 import { registerAuthHandlers } from './ipc/auth-handlers';
-import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackFailureStage, trackAppLaunch, trackInstalledGames, type HardwareInfo } from './telemetry/telemetry';
+import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackFailureStage, trackAppLaunch, trackInstalledGames, buildHardwareInfo } from './telemetry/telemetry';
 import { initAuth } from './auth/auth';
 import { getSystemInfo } from './ipc/system-info';
 import { detectInstalledGames } from './ipc/game-detection';
@@ -19,10 +19,12 @@ const APP_SETTINGS_FILE = 'app-settings.json';
 
 interface AppSettings {
   closeToBackground: boolean;
+  launchOnStartup: boolean;
 }
 
 const DEFAULT_APP_SETTINGS: AppSettings = {
   closeToBackground: true,
+  launchOnStartup: true,
 };
 
 function ensureLogPaths() {
@@ -45,6 +47,9 @@ function log(level: 'INFO' | 'WARN' | 'ERROR', message: string) {
   }
 }
 
+const STARTUP_TASK_NAME = 'SENSEQUALITY Optimizer';
+const startHidden = process.argv.includes('--hidden');
+
 let mainWindow: BrowserWindow | null = null;
 let appTray: Tray | null = null;
 let appSettings: AppSettings = { ...DEFAULT_APP_SETTINGS };
@@ -64,6 +69,7 @@ function loadAppSettings(): AppSettings {
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
     return {
       closeToBackground: parsed.closeToBackground !== false,
+      launchOnStartup: parsed.launchOnStartup !== false,
     };
   } catch {
     return { ...DEFAULT_APP_SETTINGS };
@@ -76,6 +82,34 @@ function saveAppSettings(settings: AppSettings) {
   } catch (err) {
     const errorText = err instanceof Error ? err.message : String(err);
     log('WARN', `Failed to save app settings: ${errorText}`);
+  }
+}
+
+function syncAutoLaunch(enabled: boolean): void {
+  if (process.platform !== 'win32' || !app.isPackaged) return;
+
+  try {
+    if (enabled) {
+      const exePath = process.execPath;
+      execFileSync('schtasks.exe', [
+        '/Create',
+        '/TN', STARTUP_TASK_NAME,
+        '/TR', `"${exePath}" --hidden`,
+        '/SC', 'ONLOGON',
+        '/RL', 'HIGHEST',
+        '/F',
+      ], { stdio: 'ignore' });
+      log('INFO', 'Auto-launch scheduled task created');
+    } else {
+      execFileSync('schtasks.exe', [
+        '/Delete',
+        '/TN', STARTUP_TASK_NAME,
+        '/F',
+      ], { stdio: 'ignore' });
+      log('INFO', 'Auto-launch scheduled task removed');
+    }
+  } catch (err) {
+    log('WARN', `Failed to sync auto-launch: ${err instanceof Error ? err.message : err}`);
   }
 }
 
@@ -214,7 +248,9 @@ function ensureElevatedOrQuit(): boolean {
   // Do not hard-stop on failed/denied elevation because admin detection can be unreliable on some systems.
   // Scripts will still enforce required privileges at execution time.
   log('WARN', 'Elevation prompt was denied or failed. Continuing without forced shutdown.');
-  void trackFailureStage('elevation', 'Elevation prompt was denied or failed.');
+  void trackFailureStage('elevation', 'Elevation prompt was denied or failed.').catch(err => {
+    log('WARN', `trackFailureStage (elevation) failed: ${err instanceof Error ? err.message : err}`);
+  });
   return true;
 }
 
@@ -251,8 +287,10 @@ function createWindow() {
   }
 
   mainWindow.once('ready-to-show', () => {
-    log('INFO', 'Window ready-to-show');
-    mainWindow?.show();
+    log('INFO', `Window ready-to-show (startHidden: ${startHidden})`);
+    if (!startHidden) {
+      mainWindow?.show();
+    }
   });
 
   mainWindow.on('close', (event) => {
@@ -339,6 +377,14 @@ if (!gotLock) {
       log('INFO', `Close behavior updated: ${appSettings.closeToBackground ? 'background' : 'full-exit'}`);
       return appSettings.closeToBackground;
     });
+    ipcMain.handle('app:getLaunchOnStartup', () => appSettings.launchOnStartup);
+    ipcMain.handle('app:setLaunchOnStartup', (_event, enabled: boolean) => {
+      appSettings.launchOnStartup = Boolean(enabled);
+      saveAppSettings(appSettings);
+      syncAutoLaunch(appSettings.launchOnStartup);
+      log('INFO', `Launch on startup updated: ${appSettings.launchOnStartup}`);
+      return appSettings.launchOnStartup;
+    });
     ipcMain.handle('system:isAdmin', () => isAdmin());
     ipcMain.handle('shell:openExternal', (_event, url: string) => {
       if (url.startsWith('https://')) shell.openExternal(url);
@@ -359,6 +405,9 @@ if (!gotLock) {
     createWindow();
     createTray();
 
+    // Phase 4b: Sync auto-launch scheduled task with settings
+    syncAutoLaunch(appSettings.launchOnStartup);
+
     // Phase 5: Start live system monitoring (CPU/GPU/RAM → renderer every 2s)
     startSystemMonitor(() => mainWindow);
 
@@ -366,18 +415,7 @@ if (!gotLock) {
     void (async () => {
       try {
         const sysInfo = await getSystemInfo();
-        const primary = sysInfo.gpuAdapters.find(a => a.id === sysInfo.primaryGpuId) || sysInfo.gpuAdapters[0];
-        const hw: HardwareInfo = {
-          gpu: sysInfo.gpu,
-          cpu: sysInfo.cpu,
-          ram_gb: sysInfo.ramGB,
-          os_build: sysInfo.osBuild,
-          gpu_driver: sysInfo.gpuDriver || undefined,
-          cpu_cores: sysInfo.cpuCores > 0 ? sysInfo.cpuCores : undefined,
-          cpu_threads: sysInfo.cpuThreads > 0 ? sysInfo.cpuThreads : undefined,
-          gpu_vram_gb: primary ? Math.round(primary.vramGB) : undefined,
-          gpu_vendor: primary?.vendor,
-        };
+        const hw = buildHardwareInfo(sysInfo);
         trackAppLaunch(hw).catch(err => {
           log('WARN', `app_launch telemetry failed: ${err instanceof Error ? err.message : err}`);
         });
