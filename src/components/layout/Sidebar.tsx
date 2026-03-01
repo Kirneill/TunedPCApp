@@ -64,10 +64,13 @@ export default function Sidebar() {
       {/* App branding */}
       <div className="px-4 pt-4 pb-3 border-b sq-subtle-divider relative z-10">
         <div className="flex items-center gap-2.5">
-          <img src={appLogo} alt="TunedPC" className="w-8 h-8 rounded-lg" />
+          <div className="relative">
+            <img src={appLogo} alt="TunedPC" className="w-8 h-8 rounded-lg" />
+            <div className="absolute -inset-0.5 rounded-lg bg-sq-accent/15 blur-sm -z-10" />
+          </div>
           <div className="flex flex-col min-w-0">
-            <span className="text-sm font-bold text-sq-text tracking-wide">TUNEDPC</span>
-            <span className="text-[10px] text-sq-text-dim">by SENSEQUALITY</span>
+            <span className="text-sm font-bold text-sq-text tracking-[0.12em]">TUNEDPC</span>
+            <span className="text-[9px] text-sq-text-dim tracking-[0.08em] uppercase">by Sensequality</span>
           </div>
         </div>
       </div>
@@ -76,7 +79,7 @@ export default function Sidebar() {
       <nav className="flex-1 py-3 px-2.5 space-y-4 overflow-y-auto relative z-10">
         {sections.map((section) => (
           <div key={section.label}>
-            <div className="px-3 mb-1.5 text-[10px] uppercase tracking-[0.18em] text-sq-text-dim font-semibold">
+            <div className="px-3 mb-2 text-[9px] uppercase tracking-[0.22em] text-sq-text-dim/70 font-bold">
               {section.label}
             </div>
             <div className="space-y-1">
@@ -86,10 +89,10 @@ export default function Sidebar() {
                   onClick={() => setCurrentPage(item.id)}
                   disabled={isRunning}
                   className={`
-                    relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                    relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
                     ${currentPage === item.id
-                      ? 'bg-gradient-to-r from-sq-accent/20 via-sq-accent/10 to-transparent text-sq-text border border-sq-accent/40'
-                      : 'text-sq-text-muted hover:text-sq-text hover:bg-sq-surface-hover border border-transparent'
+                      ? 'bg-gradient-to-r from-sq-accent/18 via-sq-accent/8 to-transparent text-sq-text border border-sq-accent/30 shadow-[inset_0_0_12px_rgba(225,29,47,0.06)]'
+                      : 'text-sq-text-muted hover:text-sq-text hover:bg-white/[0.03] border border-transparent'
                     }
                     ${isRunning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
                   `}
@@ -119,15 +122,18 @@ export default function Sidebar() {
 
       {/* User profile footer */}
       <div className="px-3 py-3 border-t sq-subtle-divider relative z-10">
-        <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-sq-surface-hover transition-colors">
-          <div className="w-8 h-8 rounded-full bg-sq-accent/20 flex items-center justify-center text-sq-accent text-xs font-bold shrink-0">
-            {authUser?.email?.charAt(0).toUpperCase() || 'U'}
+        <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-white/[0.03] transition-colors">
+          <div className="relative shrink-0">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sq-accent/25 to-sq-accent/10 flex items-center justify-center text-sq-accent text-xs font-bold">
+              {authUser?.email?.charAt(0).toUpperCase() || 'U'}
+            </div>
+            <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-sq-success border-2 border-sq-bg" />
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-[11px] text-sq-text font-medium truncate">
               {authUser?.email || 'Not signed in'}
             </span>
-            <span className="text-[10px] text-sq-text-dim">Pro Tier</span>
+            <span className="text-[9px] text-sq-accent/70 font-semibold uppercase tracking-wider">Pro</span>
           </div>
         </div>
       </div>

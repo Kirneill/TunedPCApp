@@ -17,6 +17,9 @@
   --color-sq-text: #f8f8f8;
   --color-sq-text-muted: #8f8f8f;
   --color-sq-text-dim: #5d5d5d;
+  --color-sq-metric-low: #26c267;
+  --color-sq-metric-mid: #ffb020;
+  --color-sq-metric-high: #ff4d57;
   --font-sans: "Sora", "Segoe UI Variable", "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Consolas", monospace;
 }
@@ -57,9 +60,13 @@ body::before {
 }
 
 body::after {
-  background-image: linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-  background-size: 28px 28px;
-  opacity: 0.18;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.22;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 40%, transparent 100%);
 }
 
 ::-webkit-scrollbar {
@@ -121,29 +128,32 @@ body::after {
 
 /* Glass morphism panel */
 .sq-glass {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1);
 }
 
 /* Card with hover lift and glow */
 .sq-card-hover {
-  transition: box-shadow 0.3s ease, transform 0.25s ease, border-color 0.3s ease;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .sq-card-hover:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .sq-card-hover.active,
 .sq-card-hover[data-active="true"] {
   border-color: var(--color-sq-accent);
-  box-shadow: 0 0 20px var(--color-sq-accent-glow), 0 8px 24px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 24px var(--color-sq-accent-glow), 0 0 0 1px var(--color-sq-accent), 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 .sq-focus-ring:focus-visible {
@@ -177,13 +187,94 @@ body::after {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 120px;
+  height: 140px;
   background: linear-gradient(
     to top,
-    rgba(225, 29, 47, 0.08),
-    rgba(168, 85, 247, 0.04) 40%,
+    rgba(225, 29, 47, 0.10),
+    rgba(168, 85, 247, 0.05) 50%,
     transparent
   );
   pointer-events: none;
   z-index: 0;
+  animation: sq-aurora-breathe 6s ease-in-out infinite;
+}
+
+@keyframes sq-aurora-breathe {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* Accent pulse glow — used on primary CTA buttons */
+@keyframes sq-accent-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(225, 29, 47, 0.25), 0 8px 24px rgba(0, 0, 0, 0.3); }
+  50% { box-shadow: 0 0 32px rgba(225, 29, 47, 0.4), 0 8px 28px rgba(0, 0, 0, 0.35); }
+}
+
+.sq-pulse-glow {
+  animation: sq-accent-pulse 3s ease-in-out infinite;
+}
+
+/* Shimmer loading effect */
+@keyframes sq-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.sq-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.03) 40%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.03) 60%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: sq-shimmer 2.5s ease-in-out infinite;
+}
+
+/* Entry fade-up animation */
+@keyframes sq-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.sq-fade-up {
+  animation: sq-fade-up 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* Metric ring glow colors */
+.sq-ring-low { --sq-ring-color: var(--color-sq-metric-low); }
+.sq-ring-mid { --sq-ring-color: var(--color-sq-metric-mid); }
+.sq-ring-high { --sq-ring-color: var(--color-sq-metric-high); }
+
+/* Noise texture overlay (applied via pseudo-element) */
+.sq-noise::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 128px 128px;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+/* Horizontal scan line effect (subtle) */
+.sq-scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.04) 2px,
+    rgba(0, 0, 0, 0.04) 4px
+  );
+  z-index: 2;
+  border-radius: inherit;
 }

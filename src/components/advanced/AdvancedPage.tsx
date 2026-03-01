@@ -233,12 +233,12 @@ export default function AdvancedPage() {
         onClick={handleRunAll}
         disabled={isRunning || enabledIds.length === 0}
         className={`
-          w-full py-3.5 rounded-xl font-bold text-sm tracking-[0.06em] transition-all border
+          w-full py-3.5 rounded-xl font-bold text-sm tracking-[0.08em] transition-all border uppercase
           ${isRunning
             ? 'bg-sq-accent/50 border-sq-accent/40 text-white/70 cursor-wait'
             : enabledIds.length === 0
               ? 'bg-sq-border border-sq-border text-sq-text-dim cursor-not-allowed'
-              : 'bg-gradient-to-r from-sq-accent to-sq-accent-dim border-sq-accent/60 hover:brightness-110 text-white shadow-lg shadow-sq-accent/30 cursor-pointer active:scale-[0.99]'
+              : 'bg-gradient-to-r from-sq-accent to-sq-accent-dim border-sq-accent/60 hover:brightness-110 text-white sq-pulse-glow cursor-pointer active:scale-[0.98]'
           }
         `}
       >

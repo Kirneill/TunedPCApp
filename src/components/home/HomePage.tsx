@@ -221,11 +221,11 @@ export default function HomePage() {
       {/* Main 2-column layout */}
       <div className="flex-1 min-h-0 flex gap-3 px-5 pb-5">
         {/* Left: Game Optimizations */}
-        <div className="flex-1 min-h-0 rounded-xl border sq-subtle-divider sq-glass p-4 flex flex-col gap-3">
-          <div className="flex items-start justify-between gap-4 shrink-0">
+        <div className="flex-1 min-h-0 rounded-xl border sq-subtle-divider sq-glass sq-noise relative overflow-hidden p-4 flex flex-col gap-3">
+          <div className="relative z-10 flex items-start justify-between gap-4 shrink-0">
             <div>
               <h3 className="text-sm font-bold text-sq-text tracking-wide">Game Optimizations</h3>
-              <p className="text-[11px] text-sq-text-muted mt-0.5">{selectedGameCount} selected</p>
+              <p className="text-[10px] text-sq-text-dim mt-0.5">{selectedGameCount} game{selectedGameCount === 1 ? '' : 's'} selected</p>
             </div>
             <div className="flex items-center gap-1.5">
               {[
@@ -268,31 +268,31 @@ export default function HomePage() {
                 onClick={() => !isRunning && setToggle(game.toggleId, !game.enabled)}
                 disabled={isRunning}
                 className={`
-                  sq-card-hover relative rounded-xl overflow-hidden text-left transition-all
+                  sq-card-hover relative rounded-xl overflow-hidden text-left transition-all group
                   ${game.enabled ? 'border-sq-accent' : ''}
                   ${isRunning ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
                 `}
                 data-active={game.enabled}
               >
                 <div className={`bg-gradient-to-br ${game.gradient} p-3 min-h-[80px] relative`}>
-                  <span className="absolute top-1 right-1.5 text-3xl font-black text-white/8">{game.letter}</span>
+                  <span className="absolute top-0.5 right-1 text-3xl font-black text-white/[0.06] group-hover:text-white/[0.1] transition-colors select-none">{game.letter}</span>
                   {game.enabled && (
-                    <span className="absolute top-2 left-2 px-1.5 py-0.5 bg-sq-accent/80 backdrop-blur-sm rounded text-[8px] text-white font-bold tracking-wide">ON</span>
+                    <span className="absolute top-2 left-2 px-1.5 py-0.5 bg-sq-accent/90 backdrop-blur-sm rounded text-[7px] text-white font-bold tracking-[0.12em] uppercase shadow-sm shadow-sq-accent/30">Active</span>
                   )}
-                  <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-black/60 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-black/70 to-transparent" />
                 </div>
-                <div className="bg-sq-surface/80 px-3 py-2 -mt-px">
+                <div className="bg-sq-surface/90 px-3 py-2 -mt-px">
                   <div className="text-[11px] font-semibold text-sq-text leading-tight truncate">{game.name}</div>
                   <div className="flex items-center justify-between gap-1 mt-0.5">
                     <div className="text-[9px] text-sq-text-dim truncate">{game.subtitle}</div>
                     <span className={`
-                      px-1 py-0.5 rounded text-[8px] font-bold tracking-wide shrink-0
+                      px-1 py-0.5 rounded text-[7px] font-bold tracking-[0.08em] uppercase shrink-0
                       ${game.installed
                         ? 'text-sq-success bg-sq-success/10'
                         : 'text-sq-warning bg-sq-warning/10'
                       }
                     `}>
-                      {game.installed ? 'FOUND' : 'N/A'}
+                      {game.installed ? 'Found' : 'N/A'}
                     </span>
                   </div>
                 </div>
@@ -442,12 +442,12 @@ export default function HomePage() {
             onClick={handleOptimize}
             disabled={isRunning || idsToRun.length === 0}
             className={`
-              w-full py-3.5 rounded-xl font-bold text-sm tracking-[0.08em] transition-all shrink-0 border
+              w-full py-3.5 rounded-xl font-bold text-sm tracking-[0.1em] transition-all shrink-0 border uppercase
               ${isRunning
                 ? 'bg-sq-accent/50 border-sq-accent/40 text-white/70 cursor-wait'
                 : idsToRun.length === 0
                   ? 'bg-sq-border border-sq-border text-sq-text-dim cursor-not-allowed'
-                  : 'bg-gradient-to-r from-sq-accent to-sq-accent-dim border-sq-accent/60 hover:brightness-110 text-white shadow-lg shadow-sq-accent/30 cursor-pointer active:scale-[0.99]'
+                  : 'bg-gradient-to-r from-sq-accent to-sq-accent-dim border-sq-accent/60 hover:brightness-110 text-white sq-pulse-glow cursor-pointer active:scale-[0.98]'
               }
             `}
           >
