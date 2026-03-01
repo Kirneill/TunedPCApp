@@ -247,11 +247,11 @@ export default function HomePage() {
       {/* Main 2-column layout */}
       <div className="flex-1 min-h-0 flex gap-3 px-5 pb-5">
         {/* Left: Game Optimizations */}
-        <div className="flex-1 min-h-0 rounded-xl border sq-subtle-divider sq-glass sq-noise relative overflow-hidden p-4 flex flex-col gap-3">
+        <div className="flex-1 min-h-0 rounded-xl sq-panel relative overflow-hidden p-4 flex flex-col gap-3">
           <div className="relative z-10 flex items-start justify-between gap-4 shrink-0">
             <div>
               <h3 className="text-sm font-bold text-sq-text tracking-wide">Game Optimizations</h3>
-              <p className="text-[10px] text-sq-text-dim mt-0.5">
+              <p className="text-[11px] text-sq-text-muted mt-0.5">
                 {selectedGameCount > 0
                   ? `${selectedGameCount} game${selectedGameCount === 1 ? '' : 's'} selected`
                   : 'Click on a game card below to select it'
@@ -269,10 +269,10 @@ export default function HomePage() {
                   onClick={() => setInstallFilter(filter.id as InstallFilter)}
                   disabled={isRunning}
                   className={`
-                    px-2.5 py-1.5 rounded-full text-[10px] font-semibold transition-colors
+                    px-3.5 py-2 rounded-full text-xs font-bold transition-colors tracking-wide
                     ${installFilter === filter.id
-                      ? 'bg-sq-accent/20 text-sq-accent-hover border border-sq-accent/50'
-                      : 'bg-sq-bg/60 text-sq-text-dim border border-sq-border hover:text-sq-text-muted hover:border-sq-text-dim'
+                      ? 'bg-sq-accent/25 text-white border border-sq-accent/60'
+                      : 'bg-sq-bg/60 text-sq-text-muted border border-sq-border hover:text-sq-text hover:border-sq-text-dim'
                     }
                     ${isRunning ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
                   `}
