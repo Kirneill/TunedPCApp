@@ -116,9 +116,9 @@ body::after {
 
 /* Panel backgrounds */
 .sq-panel {
-  background: linear-gradient(160deg, rgba(18, 18, 18, 0.95), rgba(12, 12, 12, 0.96));
+  background: linear-gradient(175deg, rgba(18, 16, 16, 0.97), rgba(13, 11, 11, 0.98));
   border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.3);
 }
 
 .sq-panel-muted {

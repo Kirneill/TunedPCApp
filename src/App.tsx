@@ -19,7 +19,7 @@ export default function App() {
     setAuthUser, setAuthLoading, setShowAuthGate, setShowMaxDevices,
     setIsOffline, setMachines, clearAuthState,
     setSystemInfo, setDetectedGames, setIsAdmin, setIsLoading,
-    addLogEntry, setShowConsentModal, setTelemetryEnabled,
+    addLogEntry, setShowConsentModal, setTelemetryEnabled, setToggle,
     setUpdateInfo, setUpdaterState, setCloseToBackground, setUserConfig,
     setSystemUsage,
   } = useAppStore();
@@ -87,6 +87,10 @@ export default function App() {
         window.sensequality.getUpdaterState(),
       ]);
       setDetectedGames(games);
+      // Auto-enable installed games, disable non-installed
+      for (const game of games) {
+        setToggle(`game-${game.id}`, game.installed);
+      }
       setIsAdmin(admin);
       setUpdaterState(updaterState);
 

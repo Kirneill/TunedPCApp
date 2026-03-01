@@ -218,6 +218,32 @@ export default function HomePage() {
         </div>
       )}
 
+      {/* Pro CTA banner */}
+      <div className="shrink-0 px-5 pb-2">
+        <button
+          onClick={() => window.sensequality.openExternal('https://sensequality.com/products/pc-optimization')}
+          className="w-full group relative overflow-hidden rounded-xl border border-sq-accent/30 hover:border-sq-accent/60 transition-all cursor-pointer"
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-sq-accent/12 via-sq-accent/6 to-sq-accent/12 group-hover:from-sq-accent/18 group-hover:to-sq-accent/18 transition-all" />
+          <div className="relative flex items-center justify-between px-4 py-2.5">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-sq-accent/20 flex items-center justify-center">
+                <svg className="w-4 h-4 text-sq-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <span className="text-[11px] font-bold text-white tracking-wide">Want even more FPS?</span>
+                <span className="text-[10px] text-sq-text-muted ml-2">Get Pro optimization with advanced tweaks</span>
+              </div>
+            </div>
+            <span className="text-[11px] font-bold text-sq-accent tracking-wide group-hover:text-sq-accent-hover transition-colors">
+              UPGRADE →
+            </span>
+          </div>
+        </button>
+      </div>
+
       {/* Main 2-column layout */}
       <div className="flex-1 min-h-0 flex gap-3 px-5 pb-5">
         {/* Left: Game Optimizations */}
@@ -225,7 +251,12 @@ export default function HomePage() {
           <div className="relative z-10 flex items-start justify-between gap-4 shrink-0">
             <div>
               <h3 className="text-sm font-bold text-sq-text tracking-wide">Game Optimizations</h3>
-              <p className="text-[10px] text-sq-text-dim mt-0.5">{selectedGameCount} game{selectedGameCount === 1 ? '' : 's'} selected</p>
+              <p className="text-[10px] text-sq-text-dim mt-0.5">
+                {selectedGameCount > 0
+                  ? `${selectedGameCount} game${selectedGameCount === 1 ? '' : 's'} selected`
+                  : 'Click on a game card below to select it'
+                }
+              </p>
             </div>
             <div className="flex items-center gap-1.5">
               {[
@@ -257,11 +288,11 @@ export default function HomePage() {
             onChange={(event) => setSearchQuery(event.target.value)}
             disabled={isRunning}
             placeholder="Search games..."
-            className="sq-focus-ring shrink-0 bg-sq-bg/60 border border-sq-border rounded-lg px-3 py-2 text-xs text-sq-text placeholder:text-sq-text-dim focus:outline-none focus:border-sq-accent disabled:opacity-60"
+            className="sq-focus-ring shrink-0 relative z-10 bg-sq-bg/60 border border-sq-border rounded-lg px-3 py-2 text-xs text-sq-text placeholder:text-sq-text-dim focus:outline-none focus:border-sq-accent disabled:opacity-60"
           />
 
           {/* Game cards grid */}
-          <div className="shrink-0 grid grid-cols-3 gap-2">
+          <div className="shrink-0 relative z-10 grid grid-cols-3 gap-2">
             {filteredGames.slice(0, 6).map((game) => (
               <button
                 key={game.id}
@@ -274,25 +305,27 @@ export default function HomePage() {
                 `}
                 data-active={game.enabled}
               >
-                <div className={`bg-gradient-to-br ${game.gradient} p-3 min-h-[80px] relative`}>
+                <div className={`bg-gradient-to-br ${game.gradient} p-3 min-h-[80px] relative ${!game.enabled ? 'opacity-60 saturate-50' : ''}`}>
                   <span className="absolute top-0.5 right-1 text-3xl font-black text-white/[0.06] group-hover:text-white/[0.1] transition-colors select-none">{game.letter}</span>
-                  {game.enabled && (
-                    <span className="absolute top-2 left-2 px-1.5 py-0.5 bg-sq-accent/90 backdrop-blur-sm rounded text-[7px] text-white font-bold tracking-[0.12em] uppercase shadow-sm shadow-sq-accent/30">Active</span>
+                  {game.enabled ? (
+                    <span className="absolute top-2 left-2 px-2.5 py-1.5 bg-sq-success backdrop-blur-sm rounded-md text-[11px] text-white font-bold tracking-[0.1em] uppercase shadow-md shadow-sq-success/40">Optimize</span>
+                  ) : (
+                    <span className="absolute top-2 left-2 px-2 py-1 bg-black/50 backdrop-blur-sm rounded text-[9px] text-white/60 font-medium tracking-wide">Click to select</span>
                   )}
                   <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-black/70 to-transparent" />
                 </div>
-                <div className="bg-sq-surface/90 px-3 py-2 -mt-px">
-                  <div className="text-[11px] font-semibold text-sq-text leading-tight truncate">{game.name}</div>
+                <div className={`px-3 py-2 -mt-px ${game.enabled ? 'bg-sq-surface/90' : 'bg-sq-surface/60'}`}>
+                  <div className={`text-[11px] font-semibold leading-tight truncate ${game.enabled ? 'text-sq-text' : 'text-sq-text-muted'}`}>{game.name}</div>
                   <div className="flex items-center justify-between gap-1 mt-0.5">
                     <div className="text-[9px] text-sq-text-dim truncate">{game.subtitle}</div>
                     <span className={`
-                      px-1 py-0.5 rounded text-[7px] font-bold tracking-[0.08em] uppercase shrink-0
+                      px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide shrink-0
                       ${game.installed
-                        ? 'text-sq-success bg-sq-success/10'
-                        : 'text-sq-warning bg-sq-warning/10'
+                        ? 'text-sq-success bg-sq-success/20'
+                        : 'text-sq-warning bg-sq-warning/20'
                       }
                     `}>
-                      {game.installed ? 'Found' : 'N/A'}
+                      {game.installed ? 'Installed' : 'N/A'}
                     </span>
                   </div>
                 </div>
@@ -337,7 +370,7 @@ export default function HomePage() {
           )}
 
           {/* Select/Clear buttons */}
-          <div className="shrink-0 flex items-center justify-between gap-2">
+          <div className="shrink-0 flex items-center justify-between gap-2 relative z-10">
             <div className="text-[10px] text-sq-text-dim">
               {visibleSelectedCount}/{filteredGames.length} selected
             </div>
@@ -393,14 +426,15 @@ export default function HomePage() {
                 <h3 className="text-sm font-bold text-sq-text">Windows Optimization</h3>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className={`
-                    px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider
+                    px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider
                     ${windowsEnabled
-                      ? 'bg-sq-success/15 text-sq-success'
-                      : 'bg-sq-text-dim/15 text-sq-text-dim'
+                      ? 'bg-sq-success/25 text-sq-success border border-sq-success/30'
+                      : 'bg-sq-text-dim/20 text-sq-text-dim border border-sq-text-dim/20'
                     }
                   `}>
                     {windowsEnabled ? 'ACTIVE' : 'INACTIVE'}
                   </span>
+                  <span className="text-[9px] text-sq-text-dim">Enabled by default</span>
                 </div>
               </div>
             </div>
@@ -434,9 +468,18 @@ export default function HomePage() {
           <div className="flex-1" />
 
           {/* Summary + Optimize */}
-          <div className="shrink-0 text-[10px] text-sq-text-dim text-center">
-            {selectedGameCount} game{selectedGameCount === 1 ? '' : 's'}
-            {windowsEnabled ? ' + Windows' : ''} · {idsToRun.length} setting{idsToRun.length === 1 ? '' : 's'}
+          <div className="shrink-0 text-[10px] text-sq-text-muted text-center leading-relaxed">
+            {idsToRun.length === 0 ? (
+              <span className="text-sq-warning">Select games or enable Windows tweaks to optimize</span>
+            ) : (
+              <>
+                <span className="text-sq-text font-medium">{idsToRun.length} setting{idsToRun.length === 1 ? '' : 's'}</span>
+                {' ready · '}
+                {selectedGameCount > 0 && `${selectedGameCount} game${selectedGameCount === 1 ? '' : 's'}`}
+                {selectedGameCount > 0 && windowsEnabled && ' + '}
+                {windowsEnabled && 'Windows'}
+              </>
+            )}
           </div>
           <button
             onClick={handleOptimize}
@@ -464,13 +507,6 @@ export default function HomePage() {
             )}
           </button>
 
-          {/* Pro CTA */}
-          <button
-            onClick={() => window.sensequality.openExternal('https://sensequality.com/products/pc-optimization')}
-            className="w-full py-2.5 rounded-xl font-bold text-[11px] tracking-[0.08em] bg-gradient-to-r from-sq-accent/20 via-sq-accent/10 to-sq-accent/20 border border-sq-accent/45 text-white hover:border-sq-accent hover:from-sq-accent/30 hover:to-sq-accent/30 transition-all shrink-0 cursor-pointer"
-          >
-            WANT MORE FPS? GET PRO →
-          </button>
         </div>
       </div>
 
