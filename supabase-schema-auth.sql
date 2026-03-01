@@ -28,12 +28,12 @@ ALTER TABLE user_machines ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users read own machines" ON user_machines;
 CREATE POLICY "Users read own machines"
   ON user_machines FOR SELECT TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Users update own machines" ON user_machines;
 CREATE POLICY "Users update own machines"
   ON user_machines FOR UPDATE TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- No direct INSERT policy — all inserts go through register_machine RPC
 DROP POLICY IF EXISTS "Service role full access machines" ON user_machines;
@@ -60,7 +60,7 @@ ALTER TABLE waitlist ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users read own waitlist" ON waitlist;
 CREATE POLICY "Users read own waitlist"
   ON waitlist FOR SELECT TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- No direct INSERT policy — all inserts go through join_waitlist RPC
 DROP POLICY IF EXISTS "Service role full access waitlist" ON waitlist;
@@ -106,6 +106,7 @@ BEGIN
     UPDATE user_machines
     SET last_seen_at = now(),
         is_active = true,
+        deactivated_at = NULL,
         machine_name = COALESCE(p_machine_name, machine_name),
         gpu = COALESCE(p_gpu, gpu),
         cpu = COALESCE(p_cpu, cpu),

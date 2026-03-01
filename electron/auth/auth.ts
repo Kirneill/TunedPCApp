@@ -35,6 +35,10 @@ export interface UserMachine {
   registered_at: string;
   last_seen_at: string;
   is_active: boolean;
+  deactivated_at?: string;
+  app_version?: string;
+  gpu_driver?: string;
+  gpu_vram_gb?: number;
 }
 
 // ─── State ───────────────────────────────────────────────

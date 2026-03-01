@@ -7,11 +7,13 @@ export interface GpuAdapter {
   vendor: 'nvidia' | 'amd' | 'intel' | 'other';
   vramGB: number;
   isIntegrated: boolean;
+  driverVersion: string;
 }
 
 export interface SystemInfo {
   gpu: string;
   gpuVram: string;
+  gpuDriver: string;
   gpuAdapters: GpuAdapter[];
   primaryGpuId: string;
   cpu: string;
@@ -59,6 +61,7 @@ $gpus = Get-CimInstance Win32_VideoController | ForEach-Object {
     vendor = $vendor
     vramGB = $vram
     isIntegrated = $isIntegrated
+    driverVersion = if ($_.DriverVersion) { [string]$_.DriverVersion } else { '' }
   }
 }
 
@@ -102,6 +105,7 @@ function normalizeGpuAdapters(raw: unknown): GpuAdapter[] {
         ? record.vramGB
         : Number(record.vramGB || 0);
       const isIntegrated = Boolean(record.isIntegrated);
+      const driverVersion = typeof record.driverVersion === 'string' ? record.driverVersion.trim() : '';
 
       return {
         id,
@@ -109,6 +113,7 @@ function normalizeGpuAdapters(raw: unknown): GpuAdapter[] {
         vendor,
         vramGB: Number.isFinite(vramGB) ? Math.max(0, vramGB) : 0,
         isIntegrated,
+        driverVersion,
       } satisfies GpuAdapter;
     })
     .filter((adapter): adapter is GpuAdapter => adapter !== null);
@@ -137,7 +142,7 @@ export async function getSystemInfo(): Promise<SystemInfo> {
 
   if (!result.success || result.output.length === 0) {
     return {
-      gpu: 'Unknown', gpuVram: '0 GB', gpuAdapters: [], primaryGpuId: '', cpu: 'Unknown',
+      gpu: 'Unknown', gpuVram: '0 GB', gpuDriver: '', gpuAdapters: [], primaryGpuId: '', cpu: 'Unknown',
       cpuCores: 0, cpuThreads: 0, ramGB: 0,
       os: 'Unknown', osBuild: '', isNvidia: false, isAmd: false,
       machineId: generateAnonymousId(),
@@ -155,6 +160,7 @@ export async function getSystemInfo(): Promise<SystemInfo> {
     return {
       gpu: gpuName,
       gpuVram: `${gpuVram} GB`,
+      gpuDriver: primary?.driverVersion || '',
       gpuAdapters,
       primaryGpuId: primary?.id || '',
       cpu: (data.cpuName || 'Unknown').trim(),
@@ -167,9 +173,11 @@ export async function getSystemInfo(): Promise<SystemInfo> {
       isAmd: primary?.vendor === 'amd',
       machineId: generateAnonymousId(),
     };
-  } catch {
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    console.warn(`[system-info] Failed to parse system info: ${errorText}`);
     return {
-      gpu: 'Detection failed', gpuVram: '0 GB', gpuAdapters: [], primaryGpuId: '', cpu: 'Detection failed',
+      gpu: 'Detection failed', gpuVram: '0 GB', gpuDriver: '', gpuAdapters: [], primaryGpuId: '', cpu: 'Detection failed',
       cpuCores: 0, cpuThreads: 0, ramGB: 0,
       os: 'Unknown', osBuild: '', isNvidia: false, isAmd: false,
       machineId: generateAnonymousId(),

@@ -114,6 +114,10 @@ export interface HardwareInfo {
   ram_gb: number;
   os_build: string;
   gpu_driver?: string;
+  cpu_cores?: number;
+  cpu_threads?: number;
+  gpu_vram_gb?: number;
+  gpu_vendor?: 'nvidia' | 'amd' | 'intel' | 'other';
 }
 
 export interface OptimizationEvent {
@@ -126,6 +130,9 @@ export interface OptimizationEvent {
   error_count?: number;
   failure_stage?: FailureStage | null;
   error_fingerprint?: string | null;
+  monitor_resolution?: string;
+  monitor_refresh_hz?: number;
+  run_id?: string;
 }
 
 export type FailureStage = 'restore-point' | 'elevation' | 'script-exit';
@@ -165,23 +172,33 @@ export async function sendEvent(event: OptimizationEvent): Promise<void> {
   if (!consentGiven || !supabase) return;
 
   try {
-    await supabase.from('telemetry_events').insert({
+    const { error } = await supabase.from('telemetry_events').insert({
       anonymous_id: anonymousId,
       event_type: event.event_type,
       gpu: event.hardware.gpu,
       cpu: event.hardware.cpu,
       ram_gb: event.hardware.ram_gb,
       os_build: event.hardware.os_build,
-      gpu_driver: event.hardware.gpu_driver || null,
+      gpu_driver: event.hardware.gpu_driver ?? null,
+      cpu_cores: event.hardware.cpu_cores ?? null,
+      cpu_threads: event.hardware.cpu_threads ?? null,
+      gpu_vram_gb: event.hardware.gpu_vram_gb ?? null,
+      gpu_vendor: event.hardware.gpu_vendor ?? null,
       settings_applied: event.settings_applied || [],
       game_id: event.game_id || null,
-      duration_ms: event.duration_ms || null,
+      duration_ms: event.duration_ms ?? null,
       success: event.success ?? null,
-      error_count: event.error_count || 0,
+      error_count: event.error_count ?? 0,
       failure_stage: event.failure_stage || null,
       error_fingerprint: event.error_fingerprint || null,
+      monitor_resolution: event.monitor_resolution || null,
+      monitor_refresh_hz: event.monitor_refresh_hz ?? null,
+      run_id: event.run_id || null,
       app_version: app.getVersion(),
     });
+    if (error) {
+      console.warn(`[telemetry] Supabase error on ${event.event_type}: ${error.message} (${error.code})`);
+    }
   } catch (err) {
     // Telemetry should never break the app.
     const errorText = err instanceof Error ? err.message : String(err);
@@ -206,6 +223,12 @@ export async function trackOptimizationStart(
   });
 }
 
+export interface RunContext {
+  run_id: string;
+  monitor_resolution?: string;
+  monitor_refresh_hz?: number;
+}
+
 // Convenience: track optimization result
 export async function trackOptimizationResult(
   hardware: HardwareInfo,
@@ -213,6 +236,7 @@ export async function trackOptimizationResult(
   success: boolean,
   durationMs: number,
   errorCount: number,
+  context?: RunContext,
 ): Promise<void> {
   await sendEvent({
     event_type: 'optimization_result',
@@ -221,6 +245,9 @@ export async function trackOptimizationResult(
     success,
     duration_ms: durationMs,
     error_count: errorCount,
+    monitor_resolution: context?.monitor_resolution,
+    monitor_refresh_hz: context?.monitor_refresh_hz,
+    run_id: context?.run_id,
   });
 }
 
@@ -239,4 +266,54 @@ export async function trackFailureStage(
     failure_stage: failureStage,
     error_fingerprint: buildErrorFingerprint(failureStage, errorMessage),
   });
+}
+
+// Send per-setting result to optimization_run_details table (consent-gated).
+// Callers should use `void sendRunDetail(...)` for fire-and-forget behavior.
+export async function sendRunDetail(detail: {
+  run_id: string;
+  setting_id: string;
+  success: boolean;
+  failure_reason?: string | null;
+}): Promise<void> {
+  if (!consentGiven || !supabase) return;
+  try {
+    const { error } = await supabase.from('optimization_run_details').insert({
+      anonymous_id: anonymousId,
+      run_id: detail.run_id,
+      setting_id: detail.setting_id,
+      success: detail.success,
+      failure_reason: detail.failure_reason || null,
+      app_version: app.getVersion(),
+    });
+    if (error) {
+      console.warn(`[telemetry] Supabase error on run detail ${detail.setting_id}: ${error.message} (${error.code})`);
+    }
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    console.warn(`[telemetry] Failed to send run detail: ${errorText}`);
+  }
+}
+
+// Upsert installed games snapshot to machine_installed_games (single batch request, consent-gated)
+export async function trackInstalledGames(games: { id: string; installed: boolean }[]): Promise<void> {
+  if (!consentGiven || !supabase || games.length === 0) return;
+  try {
+    const now = new Date().toISOString();
+    const { error } = await supabase.from('machine_installed_games').upsert(
+      games.map(game => ({
+        anonymous_id: anonymousId,
+        game_id: game.id,
+        installed: game.installed,
+        detected_at: now,
+      })),
+      { onConflict: 'anonymous_id,game_id' },
+    );
+    if (error) {
+      console.warn(`[telemetry] Supabase error on installed games: ${error.message} (${error.code})`);
+    }
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    console.warn(`[telemetry] Failed to send installed games: ${errorText}`);
+  }
 }

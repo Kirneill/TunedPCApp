@@ -12,11 +12,13 @@ export interface GpuAdapter {
   vendor: 'nvidia' | 'amd' | 'intel' | 'other';
   vramGB: number;
   isIntegrated: boolean;
+  driverVersion: string;
 }
 
 export interface SystemInfo {
   gpu: string;
   gpuVram: string;
+  gpuDriver: string;
   gpuAdapters: GpuAdapter[];
   primaryGpuId: string;
   cpu: string;
@@ -105,6 +107,10 @@ export interface UserMachine {
   registered_at: string;
   last_seen_at: string;
   is_active: boolean;
+  deactivated_at?: string;
+  app_version?: string;
+  gpu_driver?: string;
+  gpu_vram_gb?: number;
 }
 
 export interface MachineRegistrationResult {

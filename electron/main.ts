@@ -4,8 +4,10 @@ import fs from 'fs';
 import { execFileSync } from 'child_process';
 import { registerIpcHandlers } from './ipc/handlers';
 import { registerAuthHandlers } from './ipc/auth-handlers';
-import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackFailureStage } from './telemetry/telemetry';
+import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackFailureStage, trackAppLaunch, trackInstalledGames, type HardwareInfo } from './telemetry/telemetry';
 import { initAuth } from './auth/auth';
+import { getSystemInfo } from './ipc/system-info';
+import { detectInstalledGames } from './ipc/game-detection';
 import { checkForUpdate, initUpdater, getUpdaterState, downloadUpdate, installUpdate } from './updater';
 import { startSystemMonitor, stopSystemMonitor } from './ipc/system-monitor';
 
@@ -359,6 +361,39 @@ if (!gotLock) {
 
     // Phase 5: Start live system monitoring (CPU/GPU/RAM → renderer every 2s)
     startSystemMonitor(() => mainWindow);
+
+    // Phase 6: Detached IIFE — telemetry calls are consent-gated internally
+    void (async () => {
+      try {
+        const sysInfo = await getSystemInfo();
+        const primary = sysInfo.gpuAdapters.find(a => a.id === sysInfo.primaryGpuId) || sysInfo.gpuAdapters[0];
+        const hw: HardwareInfo = {
+          gpu: sysInfo.gpu,
+          cpu: sysInfo.cpu,
+          ram_gb: sysInfo.ramGB,
+          os_build: sysInfo.osBuild,
+          gpu_driver: sysInfo.gpuDriver || undefined,
+          cpu_cores: sysInfo.cpuCores > 0 ? sysInfo.cpuCores : undefined,
+          cpu_threads: sysInfo.cpuThreads > 0 ? sysInfo.cpuThreads : undefined,
+          gpu_vram_gb: primary ? Math.round(primary.vramGB) : undefined,
+          gpu_vendor: primary?.vendor,
+        };
+        trackAppLaunch(hw).catch(err => {
+          log('WARN', `app_launch telemetry failed: ${err instanceof Error ? err.message : err}`);
+        });
+
+        try {
+          const games = await detectInstalledGames();
+          trackInstalledGames(games.map(g => ({ id: g.id, installed: g.installed }))).catch(err => {
+            log('WARN', `installed games telemetry failed: ${err instanceof Error ? err.message : err}`);
+          });
+        } catch (err) {
+          log('WARN', `Game detection failed: ${err instanceof Error ? err.message : err}`);
+        }
+      } catch (err) {
+        log('WARN', `System info unavailable, skipping launch telemetry: ${err instanceof Error ? err.message : err}`);
+      }
+    })();
   });
 }
 

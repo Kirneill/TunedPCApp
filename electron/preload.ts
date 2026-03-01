@@ -14,11 +14,13 @@ export interface GpuAdapter {
   vendor: 'nvidia' | 'amd' | 'intel' | 'other';
   vramGB: number;
   isIntegrated: boolean;
+  driverVersion: string;
 }
 
 export interface SystemInfo {
   gpu: string;
   gpuVram: string;
+  gpuDriver: string;
   gpuAdapters: GpuAdapter[];
   primaryGpuId: string;
   cpu: string;
@@ -29,6 +31,7 @@ export interface SystemInfo {
   osBuild: string;
   isNvidia: boolean;
   isAmd: boolean;
+  machineId: string;
 }
 
 export interface DetectedGame {

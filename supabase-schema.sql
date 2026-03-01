@@ -3,10 +3,13 @@
 --
 -- Setup steps:
 -- 1. Create a free project at https://supabase.com
--- 2. Go to SQL Editor and run this entire file
--- 3. Go to Settings → API, copy the Project URL and anon/public key
--- 4. Paste them into electron/telemetry/config.ts
--- 5. Set TELEMETRY_CONFIGURED = true
+-- 2. Go to SQL Editor and run this entire file (views may fail — that's expected)
+-- 3. Run supabase-schema-auth.sql (creates user_machines + waitlist tables)
+-- 4. Run supabase-schema-v2.sql (adds columns to telemetry_events & user_machines, creates optimization_run_details)
+-- 5. Re-run this file (views will now succeed since v2.sql tables/columns exist)
+-- 6. Go to Settings → API, copy the Project URL and anon/public key
+-- 7. Paste them into electron/telemetry/config.ts
+-- 8. Set TELEMETRY_CONFIGURED = true
 
 -- Main telemetry events table
 CREATE TABLE IF NOT EXISTS telemetry_events (
@@ -68,12 +71,19 @@ CREATE INDEX IF NOT EXISTS idx_telemetry_error_fingerprint ON telemetry_events (
 ALTER TABLE telemetry_events ENABLE ROW LEVEL SECURITY;
 
 -- Allow the anon key to INSERT (the app sends data)
+-- Basic validation: require anonymous_id and event_type (columns are NOT NULL anyway)
+-- and limit payload size by constraining text field lengths
 DROP POLICY IF EXISTS "Allow anonymous inserts" ON telemetry_events;
 CREATE POLICY "Allow anonymous inserts"
   ON telemetry_events
   FOR INSERT
   TO anon
-  WITH CHECK (true);
+  WITH CHECK (
+    anonymous_id IS NOT NULL
+    AND length(anonymous_id) <= 128
+    AND event_type IS NOT NULL
+    AND (app_version IS NULL OR length(app_version) <= 32)
+  );
 
 -- Only the service_role (your dashboard / backend) can read data
 DROP POLICY IF EXISTS "Service role can read all" ON telemetry_events;
@@ -84,9 +94,16 @@ CREATE POLICY "Service role can read all"
   USING (true);
 
 -- ─── Useful Views for Analysis ───────────────────────────
+-- IMPORTANT: These views require tables and columns from supabase-schema-v2.sql:
+-- - optimization_run_details table (optimization_success_rates, gpu_failure_patterns)
+-- - run_id and gpu_vendor columns on telemetry_events (gpu_failure_patterns)
+-- On fresh deployments, run auth.sql then v2.sql first, then re-run this file.
 
 -- Hardware distribution: what GPU/CPU combos are your users on?
-CREATE OR REPLACE VIEW hardware_distribution AS
+-- SECURITY INVOKER: view respects caller's RLS (access restricted to service_role via GRANT below)
+CREATE OR REPLACE VIEW hardware_distribution
+  WITH (security_invoker = true)
+AS
 SELECT
   gpu,
   cpu,
@@ -98,42 +115,64 @@ WHERE event_type = 'app_launch'
 GROUP BY gpu, cpu, ram_gb
 ORDER BY unique_users DESC;
 
--- Optimization success rates: which settings fail most often?
-CREATE OR REPLACE VIEW optimization_success_rates AS
+-- Optimization success rates: per-setting accuracy via optimization_run_details
+-- (Uses granular per-setting success, NOT the misleading overall run success flag)
+CREATE OR REPLACE VIEW optimization_success_rates
+  WITH (security_invoker = true)
+AS
 SELECT
-  unnest(settings_applied) AS setting_id,
+  rd.setting_id,
   COUNT(*) AS total_runs,
-  COUNT(*) FILTER (WHERE success = true) AS successful,
-  COUNT(*) FILTER (WHERE success = false) AS failed,
+  COUNT(*) FILTER (WHERE rd.success = true) AS successful,
+  COUNT(*) FILTER (WHERE rd.success = false) AS failed,
   ROUND(
-    100.0 * COUNT(*) FILTER (WHERE success = true) / NULLIF(COUNT(*), 0),
+    100.0 * COUNT(*) FILTER (WHERE rd.success = true) / NULLIF(COUNT(*), 0),
     1
   ) AS success_rate_pct,
-  ROUND(AVG(duration_ms)) AS avg_duration_ms
-FROM telemetry_events
-WHERE event_type = 'optimization_result'
-GROUP BY setting_id
+  COUNT(DISTINCT rd.anonymous_id) AS unique_machines,
+  mode() WITHIN GROUP (ORDER BY rd.failure_reason) AS most_common_failure
+FROM optimization_run_details rd
+GROUP BY rd.setting_id
 ORDER BY failed DESC;
 
--- GPU-specific failure patterns
-CREATE OR REPLACE VIEW gpu_failure_patterns AS
+-- GPU-specific failure patterns: JOINs per-setting results with hardware info
+-- Uses a CTE to deduplicate telemetry_events to one row per run_id,
+-- preventing count inflation when multiple events share the same run_id.
+CREATE OR REPLACE VIEW gpu_failure_patterns
+  WITH (security_invoker = true)
+AS
+WITH run_hardware AS (
+  SELECT DISTINCT ON (run_id)
+    run_id,
+    gpu,
+    gpu_vendor
+  FROM telemetry_events
+  WHERE event_type = 'optimization_result'
+    AND run_id IS NOT NULL
+  ORDER BY run_id, created_at DESC
+)
 SELECT
-  gpu,
-  unnest(settings_applied) AS setting_id,
+  rh.gpu,
+  rh.gpu_vendor,
+  rd.setting_id,
   COUNT(*) AS total_runs,
-  COUNT(*) FILTER (WHERE success = false) AS failures,
+  COUNT(*) FILTER (WHERE rd.success = false) AS failures,
   ROUND(
-    100.0 * COUNT(*) FILTER (WHERE success = false) / NULLIF(COUNT(*), 0),
+    100.0 * COUNT(*) FILTER (WHERE rd.success = false) / NULLIF(COUNT(*), 0),
     1
-  ) AS failure_rate_pct
-FROM telemetry_events
-WHERE event_type = 'optimization_result'
-GROUP BY gpu, setting_id
-HAVING COUNT(*) FILTER (WHERE success = false) > 0
+  ) AS failure_rate_pct,
+  COUNT(DISTINCT rd.anonymous_id) AS unique_machines,
+  mode() WITHIN GROUP (ORDER BY rd.failure_reason) AS most_common_failure
+FROM optimization_run_details rd
+JOIN run_hardware rh ON rh.run_id = rd.run_id
+GROUP BY rh.gpu, rh.gpu_vendor, rd.setting_id
+HAVING COUNT(*) FILTER (WHERE rd.success = false) > 0
 ORDER BY failures DESC;
 
 -- Daily active users
-CREATE OR REPLACE VIEW daily_active_users AS
+CREATE OR REPLACE VIEW daily_active_users
+  WITH (security_invoker = true)
+AS
 SELECT
   DATE(created_at) AS day,
   COUNT(DISTINCT anonymous_id) AS unique_users,
@@ -141,3 +180,13 @@ SELECT
 FROM telemetry_events
 GROUP BY DATE(created_at)
 ORDER BY day DESC;
+
+-- Restrict view access to service_role only (admin/dashboard)
+REVOKE ALL ON hardware_distribution FROM anon, authenticated;
+REVOKE ALL ON optimization_success_rates FROM anon, authenticated;
+REVOKE ALL ON gpu_failure_patterns FROM anon, authenticated;
+REVOKE ALL ON daily_active_users FROM anon, authenticated;
+GRANT SELECT ON hardware_distribution TO service_role;
+GRANT SELECT ON optimization_success_rates TO service_role;
+GRANT SELECT ON gpu_failure_patterns TO service_role;
+GRANT SELECT ON daily_active_users TO service_role;

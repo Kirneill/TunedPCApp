@@ -3,7 +3,7 @@ import { getSystemInfo } from './system-info';
 import { detectInstalledGames } from './game-detection';
 import { listBackups, createBackup, restoreBackup, deleteBackup } from './backup-manager';
 import { runPowerShellScript, runPowerShellCommand, getScriptPath } from './powershell';
-import { trackOptimizationResult, trackFailureStage, type HardwareInfo } from '../telemetry/telemetry';
+import { trackOptimizationResult, trackFailureStage, sendRunDetail, type HardwareInfo } from '../telemetry/telemetry';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
@@ -452,7 +452,13 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
         const apexGame = detectedGames.find((game) => game.id === 'apexlegends' && !!game.path);
         if (arcGame?.path) envVars.ARC_RAIDERS_PATH = arcGame.path;
         if (apexGame?.path) envVars.APEX_PATH = apexGame.path;
-      } catch {}
+      } catch (err) {
+        const errorText = err instanceof Error ? err.message : String(err);
+        log('warning', `Game path detection failed for ${id}: ${errorText}`, {
+          component: 'Game',
+          action: 'game-path-detection-failed',
+        });
+      }
     }
 
     log('start', `Run started for optimization: ${id}`, {
@@ -574,7 +580,13 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
         const apexGame = detectedGames.find((game) => game.id === 'apexlegends' && !!game.path);
         if (arcGame?.path) envVars.ARC_RAIDERS_PATH = arcGame.path;
         if (apexGame?.path) envVars.APEX_PATH = apexGame.path;
-      } catch {}
+      } catch (err) {
+        const errorText = err instanceof Error ? err.message : String(err);
+        log('warning', `Game path detection failed: ${errorText}`, {
+          component: 'Game',
+          action: 'game-path-detection-failed',
+        });
+      }
     }
 
     log('start', `Run started for ${ids.length} optimization(s).`, {
@@ -859,24 +871,61 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       }
     );
 
-    // Telemetry — fire and forget, never blocks the UI
-    try {
-      const sysInfo = await getSystemInfo();
-      const hw: HardwareInfo = {
-        gpu: sysInfo.gpu,
-        cpu: sysInfo.cpu,
-        ram_gb: sysInfo.ramGB,
-        os_build: sysInfo.osBuild,
-      };
-      trackOptimizationResult(hw, ids, allSuccess, Date.now() - startTime, errorCount);
-    } catch (err) {
-      const errorText = err instanceof Error ? err.message : String(err);
-      log('warning', `Telemetry tracking failed: ${errorText}`, {
-        component: 'Telemetry',
-        action: 'telemetry-failed',
-        errorCode: 'TELEMETRY_SEND_FAILED',
-      });
-    }
+    // Telemetry — detached IIFE so it never delays the IPC response.
+    // Snapshot mutable objects before the IIFE runs asynchronously after return.
+    const telemetryResults = { ...results };
+    const telemetryReasons = { ...failureReasons };
+    void (async () => {
+      try {
+        const sysInfo = await getSystemInfo();
+        const primaryAdapter = sysInfo.gpuAdapters.find(a => a.id === sysInfo.primaryGpuId) || sysInfo.gpuAdapters[0];
+        const hw: HardwareInfo = {
+          gpu: sysInfo.gpu,
+          cpu: sysInfo.cpu,
+          ram_gb: sysInfo.ramGB,
+          os_build: sysInfo.osBuild,
+          gpu_driver: sysInfo.gpuDriver || undefined,
+          cpu_cores: sysInfo.cpuCores > 0 ? sysInfo.cpuCores : undefined,
+          cpu_threads: sysInfo.cpuThreads > 0 ? sysInfo.cpuThreads : undefined,
+          gpu_vram_gb: primaryAdapter ? Math.round(primaryAdapter.vramGB) : undefined,
+          gpu_vendor: primaryAdapter?.vendor,
+        };
+        trackOptimizationResult(hw, ids, allSuccess, Date.now() - startTime, errorCount, {
+          monitor_resolution: `${config.monitorWidth}x${config.monitorHeight}`,
+          monitor_refresh_hz: config.monitorRefresh,
+          run_id: runId,
+        }).catch(err => {
+          log('warning', `trackOptimizationResult failed: ${err instanceof Error ? err.message : err}`, {
+            component: 'Telemetry',
+            action: 'telemetry-result-failed',
+            errorCode: 'TELEMETRY_SEND_FAILED',
+          });
+        });
+
+        // Per-setting granular results
+        for (const [settingId, success] of Object.entries(telemetryResults)) {
+          sendRunDetail({
+            run_id: runId,
+            setting_id: settingId,
+            success,
+            failure_reason: telemetryReasons[settingId] || null,
+          }).catch(err => {
+            log('warning', `sendRunDetail failed for ${settingId}: ${err instanceof Error ? err.message : err}`, {
+              component: 'Telemetry',
+              action: 'telemetry-detail-failed',
+              errorCode: 'TELEMETRY_DETAIL_FAILED',
+            });
+          });
+        }
+      } catch (err) {
+        const errorText = err instanceof Error ? err.message : String(err);
+        log('warning', `Telemetry tracking failed: ${errorText}`, {
+          component: 'Telemetry',
+          action: 'telemetry-failed',
+          errorCode: 'TELEMETRY_SEND_FAILED',
+        });
+      }
+    })();
 
     return { success: allSuccess, results };
   });
