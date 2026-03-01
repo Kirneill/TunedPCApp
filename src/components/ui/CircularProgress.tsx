@@ -1,9 +1,11 @@
+import type { ReactNode } from 'react';
+
 interface CircularProgressProps {
   value: number;       // 0-100
   size?: number;       // px, default 80
   strokeWidth?: number; // px, default 6
   label?: string;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   colorMode?: 'accent' | 'tier'; // 'tier' = green/amber/red based on value
 }
 

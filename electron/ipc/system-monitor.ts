@@ -89,6 +89,7 @@ function getGpuUsage(): Promise<number> {
 }
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
+let gpuQueryInFlight = false;
 
 export function startSystemMonitor(getWindow: () => BrowserWindow | null) {
   if (intervalId) return;
@@ -96,18 +97,21 @@ export function startSystemMonitor(getWindow: () => BrowserWindow | null) {
   intervalId = setInterval(async () => {
     const win = getWindow();
     if (!win || win.isDestroyed()) return;
+    if (gpuQueryInFlight) return;
 
+    gpuQueryInFlight = true;
     try {
       const gpu = await getGpuUsage();
       const cpu = getCpuUsage();
       const ram = getRamUsage();
 
-      // Ensure webContents is still valid before sending
       if (!win.isDestroyed() && win.webContents && !win.webContents.isDestroyed()) {
         win.webContents.send('system:usage', { cpu, gpu, ram });
       }
     } catch {
       // Silently skip this tick
+    } finally {
+      gpuQueryInFlight = false;
     }
   }, 2000);
 }

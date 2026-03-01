@@ -24,24 +24,39 @@ export default function BackupPage() {
 
   const handleCreate = async () => {
     setActionInProgress('creating');
-    const result = await window.sensequality.createBackup();
-    if (result.success) {
-      await loadBackups();
+    try {
+      const result = await window.sensequality.createBackup();
+      if (result.success) {
+        await loadBackups();
+      }
+    } catch (err) {
+      console.error('Backup creation failed:', err);
+    } finally {
+      setActionInProgress(null);
     }
-    setActionInProgress(null);
   };
 
   const handleRestore = async (backupPath: string) => {
     setActionInProgress(backupPath);
-    await window.sensequality.restoreBackup(backupPath);
-    setActionInProgress(null);
+    try {
+      await window.sensequality.restoreBackup(backupPath);
+    } catch (err) {
+      console.error('Backup restore failed:', err);
+    } finally {
+      setActionInProgress(null);
+    }
   };
 
   const handleDelete = async (backupPath: string) => {
     setActionInProgress(backupPath);
-    await window.sensequality.deleteBackup(backupPath);
-    await loadBackups();
-    setActionInProgress(null);
+    try {
+      await window.sensequality.deleteBackup(backupPath);
+      await loadBackups();
+    } catch (err) {
+      console.error('Backup delete failed:', err);
+    } finally {
+      setActionInProgress(null);
+    }
   };
 
   const handleExportDiagnostics = async () => {

@@ -1,10 +1,12 @@
+import type { ReactNode } from 'react';
+
 interface TweakCardProps {
   title: string;
   description: string;
   enabled: boolean;
   onToggle: (value: boolean) => void;
   disabled?: boolean;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   risk?: 'safe' | 'moderate';
   warning?: string;
 }

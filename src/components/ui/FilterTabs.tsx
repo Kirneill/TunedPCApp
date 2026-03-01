@@ -1,7 +1,9 @@
+import type { ReactNode } from 'react';
+
 interface FilterTab {
   id: string;
   label: string;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
 }
 
 interface FilterTabsProps {

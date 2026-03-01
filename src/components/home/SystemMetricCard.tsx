@@ -1,10 +1,11 @@
+import type { ReactNode } from 'react';
 import CircularProgress from '../ui/CircularProgress';
 
 interface SystemMetricCardProps {
   label: string;
   value: number;
   detail?: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }
 
 function getAccentColor(value: number): string {

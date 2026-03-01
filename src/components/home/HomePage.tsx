@@ -129,7 +129,7 @@ export default function HomePage() {
 
   const installedMap = new Map(detectedGames.map((g) => [g.id, g.installed]));
   const gamesWithState = games.map((game) => {
-    const installed = installedMap.get(game.id) ?? true;
+    const installed = installedMap.get(game.id) ?? false;
     const enabled = toggles[game.toggleId] ?? false;
     return { ...game, installed, enabled };
   });
@@ -354,12 +354,12 @@ export default function HomePage() {
                         <div className="text-[10px] text-sq-text-dim truncate">{game.subtitle}</div>
                       </div>
                       <div className={`
-                        w-10 h-5.5 rounded-full flex items-center px-0.5 transition-colors shrink-0
+                        w-11 h-6 rounded-full flex items-center px-0.5 transition-colors shrink-0
                         ${game.enabled ? 'bg-sq-accent' : 'bg-sq-border'}
                       `}>
                         <div className={`
-                          w-4.5 h-4.5 rounded-full bg-white shadow-sm transition-transform
-                          ${game.enabled ? 'translate-x-4.5' : 'translate-x-0'}
+                          w-5 h-5 rounded-full bg-white shadow-sm transition-transform
+                          ${game.enabled ? 'translate-x-5' : 'translate-x-0'}
                         `} />
                       </div>
                     </button>

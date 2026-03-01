@@ -87,9 +87,14 @@ export default function App() {
         window.sensequality.getUpdaterState(),
       ]);
       setDetectedGames(games);
-      // Auto-enable installed games, disable non-installed
-      for (const game of games) {
-        setToggle(`game-${game.id}`, game.installed);
+      // Auto-enable installed games on first launch (no persisted config yet)
+      const authUser = useAppStore.getState().authUser;
+      const storageKey = authUser ? `sensequality-config:${authUser.id}` : 'sensequality-config';
+      const hasPersistedConfig = !!localStorage.getItem(storageKey);
+      if (!hasPersistedConfig) {
+        for (const game of games) {
+          setToggle(`game-${game.id}`, game.installed);
+        }
       }
       setIsAdmin(admin);
       setUpdaterState(updaterState);
