@@ -42,8 +42,8 @@ function log(level: 'INFO' | 'WARN' | 'ERROR', message: string) {
     if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
     fs.appendFileSync(LOG_FILE, line);
   } catch {
-    // Before app ready, just write to stderr
     if (level === 'ERROR') console.error(line.trim());
+    else if (level === 'WARN') console.warn(line.trim());
   }
 }
 
@@ -71,7 +71,8 @@ function loadAppSettings(): AppSettings {
       closeToBackground: parsed.closeToBackground !== false,
       launchOnStartup: parsed.launchOnStartup !== false,
     };
-  } catch {
+  } catch (err) {
+    log('WARN', `Failed to load app settings, using defaults: ${err instanceof Error ? err.message : err}`);
     return { ...DEFAULT_APP_SETTINGS };
   }
 }
@@ -96,7 +97,8 @@ function syncAutoLaunch(enabled: boolean): void {
         '/TN', STARTUP_TASK_NAME,
         '/TR', `"${exePath}" --hidden`,
         '/SC', 'ONLOGON',
-        '/RL', 'HIGHEST',
+        // LIMITED — app will request admin elevation via its manifest when needed, rather than running elevated silently
+        '/RL', 'LIMITED',
         '/F',
       ], { stdio: 'ignore' });
       log('INFO', 'Auto-launch scheduled task created');
@@ -405,8 +407,8 @@ if (!gotLock) {
     createWindow();
     createTray();
 
-    // Phase 4b: Sync auto-launch scheduled task with settings
-    syncAutoLaunch(appSettings.launchOnStartup);
+    // Phase 4b: Sync auto-launch scheduled task with settings (deferred to avoid blocking window creation)
+    setTimeout(() => syncAutoLaunch(appSettings.launchOnStartup), 0);
 
     // Phase 5: Start live system monitoring (CPU/GPU/RAM → renderer every 2s)
     startSystemMonitor(() => mainWindow);

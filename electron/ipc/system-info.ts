@@ -1,31 +1,8 @@
 import { runPowerShellCommand } from './powershell';
 import { generateAnonymousId } from '../telemetry/telemetry';
 
-export interface GpuAdapter {
-  id: string;
-  name: string;
-  vendor: 'nvidia' | 'amd' | 'intel' | 'other';
-  vramGB: number;
-  isIntegrated: boolean;
-  driverVersion: string;
-}
-
-export interface SystemInfo {
-  gpu: string;
-  gpuVram: string;
-  gpuDriver: string;
-  gpuAdapters: GpuAdapter[];
-  primaryGpuId: string;
-  cpu: string;
-  cpuCores: number;
-  cpuThreads: number;
-  ramGB: number;
-  os: string;
-  osBuild: string;
-  isNvidia: boolean;
-  isAmd: boolean;
-  machineId: string;
-}
+export type { GpuAdapter, SystemInfo } from '../../src/types/index';
+import type { GpuAdapter, SystemInfo } from '../../src/types/index';
 
 const SYSTEM_INFO_SCRIPT = `
 # Build a lookup of 64-bit VRAM values from the display adapter registry.

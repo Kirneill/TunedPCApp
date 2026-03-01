@@ -1,13 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { runPowerShellCommand } from './powershell';
-
-export interface DetectedGame {
-  id: string;
-  name: string;
-  installed: boolean;
-  path?: string;
-}
+export type { DetectedGame } from '../../src/types/index';
+import type { DetectedGame } from '../../src/types/index';
 
 const GAMES = [
   { id: 'blackops7', name: 'Call of Duty: Black Ops 7', scriptId: '02' },
@@ -443,16 +438,21 @@ async function findRust(steamGames: Map<string, string>): Promise<string | null>
   return firstExistingPath(commonPaths);
 }
 
-async function findR6Siege(steamGames: Map<string, string>): Promise<string | null> {
+interface R6SiegeResult {
+  installed: boolean;
+  gamePath: string | null;
+}
+
+async function findR6Siege(steamGames: Map<string, string>): Promise<R6SiegeResult> {
   const steamPath = steamGames.get('r6siege');
-  if (steamPath) return steamPath;
+  if (steamPath) return { installed: true, gamePath: steamPath };
 
   // Uninstall registry (Steam App 359550)
   const result = await runPowerShellCommand(
     `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 359550' -ErrorAction SilentlyContinue).InstallLocation`
   );
   if (result.success && result.output.length > 0 && result.output[0] && fs.existsSync(result.output[0])) {
-    return result.output[0];
+    return { installed: true, gamePath: result.output[0] };
   }
 
   // Ubisoft Connect registry
@@ -461,10 +461,11 @@ async function findR6Siege(steamGames: Map<string, string>): Promise<string | nu
   );
   if (ubisoftResult.success && ubisoftResult.output.length > 0 && ubisoftResult.output[0]) {
     const ubisoftR6 = path.join(ubisoftResult.output[0], 'games', "Tom Clancy's Rainbow Six Siege");
-    if (fs.existsSync(ubisoftR6)) return ubisoftR6;
+    if (fs.existsSync(ubisoftR6)) return { installed: true, gamePath: ubisoftR6 };
   }
 
-  // Config folder detection (proves game is installed)
+  // Config folder detection (proves game is installed but is NOT a valid game path)
+  // The PS1 script has its own config folder detection.
   const userProfile = process.env.USERPROFILE || '';
   if (!userProfile) {
     console.warn('[game-detection] USERPROFILE env var is empty, skipping R6 Siege config detection');
@@ -476,7 +477,10 @@ async function findR6Siege(steamGames: Map<string, string>): Promise<string | nu
         .filter((d) => d.isDirectory());
       for (const folder of accountFolders) {
         const settingsFile = path.join(docsBase, folder.name, 'GameSettings.ini');
-        if (fs.existsSync(settingsFile)) return docsBase;
+        if (fs.existsSync(settingsFile)) {
+          console.log(`[game-detection] R6 Siege config found at ${docsBase} but no install directory located. PS1 script will use its own detection.`);
+          return { installed: true, gamePath: null };
+        }
       }
     } catch (err) {
       console.warn(`[game-detection] Failed to scan R6 Siege config: ${err instanceof Error ? err.message : err}`);
@@ -491,22 +495,25 @@ async function findR6Siege(steamGames: Map<string, string>): Promise<string | nu
     "D:\\SteamLibrary\\steamapps\\common\\Tom Clancy's Rainbow Six Siege",
     "C:\\Program Files (x86)\\Ubisoft\\Ubisoft Game Launcher\\games\\Tom Clancy's Rainbow Six Siege",
   ];
-  return firstExistingPath(commonPaths);
+  const commonInstall = firstExistingPath(commonPaths);
+  if (commonInstall) return { installed: true, gamePath: commonInstall };
+
+  return { installed: false, gamePath: null };
 }
 
 export async function detectInstalledGames(): Promise<DetectedGame[]> {
   const [steamGames, fortnitePath, valorantPath, bo7Path, arcResult, tarkovResult] = await Promise.all([
-    findSteamGames(),
-    findFortnite(),
-    findValorant(),
-    findBlackOps7(),
-    findArcRaiders(),
-    findTarkov(),
+    findSteamGames().catch(() => new Map<string, string>()),
+    findFortnite().catch(() => null),
+    findValorant().catch(() => null),
+    findBlackOps7().catch(() => null),
+    findArcRaiders().catch(() => ({ installed: false, gamePath: null })),
+    findTarkov().catch(() => ({ installed: false, gamePath: null })),
   ]);
-  const [apexPath, rustPath, r6Path] = await Promise.all([
-    findApexLegends(steamGames),
-    findRust(steamGames),
-    findR6Siege(steamGames),
+  const [apexPath, rustPath, r6Result] = await Promise.all([
+    findApexLegends(steamGames).catch(() => null),
+    findRust(steamGames).catch(() => null),
+    findR6Siege(steamGames).catch(() => ({ installed: false, gamePath: null })),
   ]);
 
   return GAMES.map((game) => {
@@ -547,8 +554,8 @@ export async function detectInstalledGames(): Promise<DetectedGame[]> {
         gamePath = rustPath || undefined;
         break;
       case 'r6siege':
-        installed = !!r6Path;
-        gamePath = r6Path || undefined;
+        installed = r6Result.installed;
+        gamePath = r6Result.gamePath || undefined;
         break;
     }
 

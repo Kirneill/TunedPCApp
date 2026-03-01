@@ -149,6 +149,8 @@ $GraphicsConfig = @{
 }
 
 $jsonContent = $GraphicsConfig | ConvertTo-Json -Depth 3
+# Fix PowerShell boolean serialization: "True"/"False" → true/false for JSON compliance
+$jsonContent = $jsonContent -replace ':\s*"True"', ': true' -replace ':\s*"False"', ': false'
 
 try {
     Set-Content -Path $GraphicsIni -Value $jsonContent -Encoding UTF8 -Force

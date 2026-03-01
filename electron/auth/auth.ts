@@ -4,42 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../telemetry/config';
 import { generateAnonymousId } from '../telemetry/telemetry';
-
-// ─── Types ───────────────────────────────────────────────
-
-export interface AuthUser {
-  id: string;
-  email: string;
-}
-
-export interface AuthResult {
-  success: boolean;
-  error?: string;
-  user?: AuthUser;
-}
-
-export interface MachineRegistrationResult {
-  success: boolean;
-  reason?: 'max_devices' | 'registered' | 'new' | 'not_authenticated';
-  machines?: UserMachine[];
-}
-
-export interface UserMachine {
-  id: string;
-  machine_id: string;
-  machine_name: string;
-  gpu: string;
-  cpu: string;
-  ram_gb: number;
-  os_build: string;
-  registered_at: string;
-  last_seen_at: string;
-  is_active: boolean;
-  deactivated_at?: string;
-  app_version?: string;
-  gpu_driver?: string;
-  gpu_vram_gb?: number;
-}
+export type { AuthUser, AuthResult, MachineRegistrationResult, UserMachine } from '../../src/types/index';
+import type { AuthUser, AuthResult, MachineRegistrationResult, UserMachine } from '../../src/types/index';
 
 // ─── State ───────────────────────────────────────────────
 
@@ -116,8 +82,15 @@ function loadSession(): StoredSession | null {
 }
 
 function clearSession(): void {
-  try { fs.unlinkSync(getEncryptedPath()); } catch {}
-  try { fs.unlinkSync(getPlaintextPath()); } catch {}
+  for (const filePath of [getEncryptedPath(), getPlaintextPath()]) {
+    try {
+      fs.unlinkSync(filePath);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        console.warn(`[auth] Failed to clear session file ${filePath}:`, (err as Error).message);
+      }
+    }
+  }
 }
 
 // ─── Error Mapping ───────────────────────────────────────
@@ -304,7 +277,11 @@ export async function signIn(email: string, password: string): Promise<AuthResul
 
 export async function signOut(): Promise<void> {
   if (supabase) {
-    try { await supabase.auth.signOut(); } catch {}
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn('[auth] signOut server call failed (local session cleared anyway):', err instanceof Error ? err.message : err);
+    }
   }
   clearSession();
   isOffline = false;
@@ -337,7 +314,8 @@ export async function getSession(): Promise<{ user: AuthUser } | null> {
         email: data.session.user.email || '',
       },
     };
-  } catch {
+  } catch (err) {
+    console.warn('[auth] getSession failed:', err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -395,9 +373,9 @@ export async function registerMachine(info: {
 
     if (error) {
       console.error('[auth] registerMachine RPC error:', error.message, error.code);
-      if (isNetworkError(error)) return { success: false, reason: 'not_authenticated' };
+      if (isNetworkError(error)) return { success: false, reason: 'network_error' };
       // RPC infrastructure error — don't treat as auth failure
-      return { success: false, reason: 'registered' };
+      return { success: false, reason: 'rpc_error' };
     }
 
     const result = data as { success: boolean; reason: string; machines?: UserMachine[] };
@@ -408,8 +386,8 @@ export async function registerMachine(info: {
     };
   } catch (err) {
     console.error('[auth] registerMachine exception:', err instanceof Error ? err.message : err);
-    if (isNetworkError(err)) return { success: false, reason: 'not_authenticated' };
-    return { success: false, reason: 'registered' };
+    if (isNetworkError(err)) return { success: false, reason: 'network_error' };
+    return { success: false, reason: 'rpc_error' };
   }
 }
 
@@ -425,6 +403,7 @@ export async function deactivateMachine(machineId: string): Promise<{ success: b
     const result = data as { success: boolean; reason?: string };
     return { success: result.success, error: result.reason };
   } catch (err) {
+    console.error('[auth] deactivateMachine exception:', err instanceof Error ? err.message : err);
     return { success: false, error: 'Failed to deactivate machine' };
   }
 }

@@ -106,6 +106,7 @@ BEGIN
     UPDATE user_machines
     SET last_seen_at = now(),
         is_active = true,
+        deactivated_at = NULL,
         machine_name = COALESCE(p_machine_name, machine_name),
         gpu = COALESCE(p_gpu, gpu),
         cpu = COALESCE(p_cpu, cpu),

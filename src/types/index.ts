@@ -115,7 +115,7 @@ export interface UserMachine {
 
 export interface MachineRegistrationResult {
   success: boolean;
-  reason?: 'max_devices' | 'registered' | 'new' | 'not_authenticated';
+  reason?: 'max_devices' | 'registered' | 'new' | 'not_authenticated' | 'rpc_error' | 'network_error';
   machines?: UserMachine[];
 }
 
@@ -140,6 +140,8 @@ declare global {
       closeWindow: () => void;
       getCloseToBackground: () => Promise<boolean>;
       setCloseToBackground: (enabled: boolean) => Promise<boolean>;
+      getLaunchOnStartup: () => Promise<boolean>;
+      setLaunchOnStartup: (enabled: boolean) => Promise<boolean>;
       openExternal: (url: string) => Promise<void>;
       hasConsentDecision: () => Promise<boolean>;
       getTelemetryConsent: () => Promise<boolean>;

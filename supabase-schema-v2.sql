@@ -204,10 +204,13 @@ CREATE POLICY "Allow anonymous inserts on installed games"
     AND length(anonymous_id) <= 128
   );
 
--- No UPDATE policy — INSERT-only pattern. Conflicts are ignored client-side
--- via error code 23505 (unique constraint violation). This removes the risk
--- of anonymous users overwriting each other's rows.
+-- Allow anon to update their own rows (for upsert on game detection changes)
 DROP POLICY IF EXISTS "Allow anonymous updates on installed games" ON machine_installed_games;
+CREATE POLICY "Allow anonymous updates on installed games"
+  ON machine_installed_games
+  FOR UPDATE TO anon
+  USING (true)
+  WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Service role reads installed games" ON machine_installed_games;
 CREATE POLICY "Service role reads installed games"

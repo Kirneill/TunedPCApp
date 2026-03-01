@@ -9,36 +9,40 @@ export default function MaxDevicesScreen() {
   const handleDeactivate = async (machineId: string) => {
     setDeactivating(machineId);
     setError(null);
+    try {
+      const result = await window.sensequality.deactivateMachine(machineId);
 
-    const result = await window.sensequality.deactivateMachine(machineId);
+      if (result.success) {
+        // Now try to register current machine
+        const sysInfo = useAppStore.getState().systemInfo;
+        if (sysInfo) {
+          const adapters = sysInfo.gpuAdapters || [];
+          const primaryAdapter = adapters.find((a) => a.id === sysInfo.primaryGpuId) || adapters[0];
+          const regResult = await window.sensequality.registerMachine({
+            machine_name: sysInfo.cpu,
+            gpu: sysInfo.gpu,
+            cpu: sysInfo.cpu,
+            ram_gb: sysInfo.ramGB,
+            os_build: sysInfo.osBuild,
+            gpu_driver: sysInfo.gpuDriver || undefined,
+            gpu_vram_gb: primaryAdapter ? Math.round(primaryAdapter.vramGB) : undefined,
+          });
 
-    if (result.success) {
-      // Now try to register current machine
-      const sysInfo = useAppStore.getState().systemInfo;
-      if (sysInfo) {
-        const adapters = sysInfo.gpuAdapters || [];
-        const primaryAdapter = adapters.find((a) => a.id === sysInfo.primaryGpuId) || adapters[0];
-        const regResult = await window.sensequality.registerMachine({
-          machine_name: sysInfo.cpu,
-          gpu: sysInfo.gpu,
-          cpu: sysInfo.cpu,
-          ram_gb: sysInfo.ramGB,
-          os_build: sysInfo.osBuild,
-          gpu_driver: sysInfo.gpuDriver || undefined,
-          gpu_vram_gb: primaryAdapter ? Math.round(primaryAdapter.vramGB) : undefined,
-        });
-
-        if (regResult.success) {
-          setShowMaxDevices(false);
-        } else {
-          setError('Deactivated device but failed to register this one. Please restart the app.');
+          if (regResult.success) {
+            setShowMaxDevices(false);
+          } else {
+            setError('Deactivated device but failed to register this one. Please restart the app.');
+          }
         }
+      } else {
+        setError(result.error || 'Failed to deactivate device.');
       }
-    } else {
-      setError(result.error || 'Failed to deactivate device.');
+    } catch (err) {
+      setError('An unexpected error occurred. Please restart the app and try again.');
+      console.error('[MaxDevicesScreen] handleDeactivate failed:', err);
+    } finally {
+      setDeactivating(null);
     }
-
-    setDeactivating(null);
   };
 
   const handleSignOut = async () => {

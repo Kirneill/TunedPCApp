@@ -5,7 +5,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, TELEMETRY_CONFIGURED } from './config';
-import type { SystemInfo, GpuAdapter } from '../ipc/system-info';
+import type { SystemInfo, GpuAdapter } from '../../src/types/index';
 
 let supabase: SupabaseClient | null = null;
 let anonymousId: string = '';
@@ -337,22 +337,22 @@ export async function sendRunDetail(detail: {
   }
 }
 
-// Insert installed games state to machine_installed_games (INSERT-only, consent-gated).
-// Conflicts (re-launch) are silently ignored via error code 23505.
+// Upsert installed games state to machine_installed_games (consent-gated).
+// Uses upsert on (anonymous_id, game_id) so re-launches update the installed flag.
 export async function trackInstalledGames(games: { id: string; installed: boolean }[]): Promise<void> {
   if (!consentGiven || !supabase || games.length === 0) return;
   try {
     const now = new Date().toISOString();
-    const { error } = await supabase.from('machine_installed_games').insert(
+    const { error } = await supabase.from('machine_installed_games').upsert(
       games.map(game => ({
         anonymous_id: anonymousId,
         game_id: game.id,
         installed: game.installed,
         detected_at: now,
       })),
+      { onConflict: 'anonymous_id,game_id' },
     );
-    // 23505 = unique constraint violation — expected on re-launch, silently ignore.
-    if (error && error.code !== '23505') {
+    if (error) {
       console.warn(`[telemetry] Supabase error on installed games: ${error.message} (${error.code})`);
     }
   } catch (err) {
