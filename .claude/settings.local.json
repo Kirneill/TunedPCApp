@@ -1,4 +1,8 @@
 {
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
   "permissions": {
     "allow": [
       "Bash(npm init:*)",
@@ -83,7 +87,29 @@
       "Bash(git add package.json electron/auth/auth.ts electron/main.ts electron/preload.ts electron/updater.ts src/App.tsx src/components/auth/AuthGate.tsx src/components/layout/TitleBar.tsx src/components/ui/UpdateBanner.tsx src/store/appStore.ts src/types/index.ts)",
       "Bash(ls -la \"/f/CLAUDE/APPGaming/release/\"*.exe)",
       "Bash(gh repo edit Kirneill/sensequality-optimizer --visibility public)",
-      "WebFetch(domain:minecraft.wiki)"
+      "WebFetch(domain:minecraft.wiki)",
+      "Bash(python -c \" import sys, json lines = sys.stdin.readlines\\(\\) for line in lines[-30:]: line = line.strip\\(\\) if not line: continue try: obj = json.loads\\(line\\) role = obj.get\\(''role'', obj.get\\(''type'', ''''\\)\\) content = str\\(obj.get\\(''message'', obj.get\\(''content'', obj.get\\(''summary'', ''''\\)\\)\\)\\)[:300] if content and content != ''{}'': print\\(f''[{role}] {content}''\\) except: pass \")",
+      "Bash(python -c \":*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:forums.developer.nvidia.com)",
+      "WebFetch(domain:docs.nvidia.com)",
+      "WebFetch(domain:archive.docs.nvidia.com)",
+      "WebFetch(domain:www.pcgamingwiki.com)",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "WebFetch(domain:paragontweaks.net)",
+      "Bash(git checkout -b ui-redesign)",
+      "Bash(npm run dev)",
+      "Bash(node -e \"const p = require\\(''./package.json''\\); console.log\\(JSON.stringify\\(p.scripts, null, 2\\)\\)\")",
+      "Bash(git add electron/main.ts electron/preload.ts electron/updater.ts electron/ipc/system-monitor.ts src/App.tsx src/components/advanced/AdvancedPage.tsx src/components/auth/AuthGate.tsx src/components/backups/BackupPage.tsx src/components/guides/BiosGuidePage.tsx src/components/home/HomePage.tsx src/components/home/SystemMetricCard.tsx src/components/layout/Sidebar.tsx src/components/layout/TitleBar.tsx src/components/ui/CircularProgress.tsx src/components/ui/FilterTabs.tsx src/components/ui/TweakCard.tsx src/index.css src/store/appStore.ts src/types/index.ts vite.config.ts)",
+      "Bash(git add src/index.css src/components/advanced/AdvancedPage.tsx src/components/auth/AuthGate.tsx src/components/home/HomePage.tsx src/components/home/SystemMetricCard.tsx src/components/layout/Sidebar.tsx src/components/ui/CircularProgress.tsx)",
+      "Bash(git add src/App.tsx src/components/home/HomePage.tsx src/index.css)",
+      "Bash(git push origin ui-redesign)",
+      "Bash(git add src/App.tsx src/components/home/HomePage.tsx src/components/home/SystemMetricCard.tsx src/components/ui/CircularProgress.tsx src/components/ui/TweakCard.tsx src/components/ui/FilterTabs.tsx src/components/backups/BackupPage.tsx src/components/guides/BiosGuidePage.tsx electron/main.ts electron/ipc/system-monitor.ts)",
+      "Bash(git checkout main)",
+      "Bash(git merge ui-redesign --no-ff -m \"Merge ui-redesign: PTU-inspired UI/UX overhaul with live system monitoring\")",
+      "Bash(git add package.json .claude/settings.local.json)"
     ]
   }
 }
