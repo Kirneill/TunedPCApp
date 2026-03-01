@@ -160,6 +160,8 @@ declare global {
       installUpdate: () => Promise<UpdaterActionResult>;
       onUpdaterState: (callback: (state: UpdaterState) => void) => () => void;
       getAppVersion: () => Promise<string>;
+      // System monitoring
+      onSystemUsage: (callback: (usage: { cpu: number; gpu: number; ram: number }) => void) => () => void;
     };
   }
 }

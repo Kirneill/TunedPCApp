@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAppStore } from '../../store/appStore';
+import appLogo from '../../assets/app-logo.ico';
 
 type Mode = 'signin' | 'signup' | 'reset';
 
@@ -83,7 +84,13 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-sq-bg">
+    <div className="flex flex-col h-full bg-sq-bg relative overflow-hidden">
+      {/* Atmospheric background gradients */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-b from-sq-accent/6 via-transparent to-sq-accent/3" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full bg-sq-accent/4 blur-[120px]" />
+        <div className="absolute bottom-0 right-0 w-[300px] h-[300px] rounded-full bg-sq-accent/3 blur-[100px]" />
+      </div>
       {/* Window controls (frameless app) */}
       <div className="drag-region flex items-center justify-end h-11 px-4 shrink-0">
         <div className="flex items-center no-drag">
@@ -107,14 +114,15 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
         <div className="w-full max-w-sm mx-4">
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
-            <div className="w-14 h-14 rounded-xl bg-sq-accent flex items-center justify-center text-xl font-bold text-white tracking-tight mb-3 shadow-lg shadow-sq-accent/30">
-              SQ
+            <div className="relative mb-3">
+              <img src={appLogo} alt="TunedPC" className="w-14 h-14 rounded-xl shadow-lg shadow-sq-accent/25" />
+              <div className="absolute -inset-1 rounded-xl bg-sq-accent/12 blur-md -z-10" />
             </div>
-            <h1 className="text-lg font-bold text-sq-text tracking-wide">SENSEQUALITY</h1>
-            <p className="text-xs text-sq-text-muted mt-1">PC Gaming Optimizer</p>
+            <h1 className="text-lg font-bold text-sq-text tracking-[0.12em]">TUNEDPC</h1>
+            <p className="text-[10px] text-sq-text-dim mt-1 tracking-[0.08em] uppercase">by Sensequality</p>
           </div>
 
-          <div className="bg-sq-surface border border-sq-border rounded-2xl p-6 shadow-2xl">
+          <div className="sq-glass rounded-2xl p-6 shadow-2xl">
             <h2 className="text-base font-bold text-sq-text mb-1">
               {mode === 'signin' ? 'Sign In' : mode === 'signup' ? 'Create Account' : 'Reset Password'}
             </h2>

@@ -11,6 +11,13 @@ export default defineConfig({
     electron([
       {
         entry: 'electron/main.ts',
+        onstart(args) {
+          // VS Code sets ELECTRON_RUN_AS_NODE=1 which disables Electron APIs.
+          // Delete it from the spawned Electron process env.
+          const cleanEnv = { ...process.env };
+          delete cleanEnv.ELECTRON_RUN_AS_NODE;
+          args.startup(['.', '--no-sandbox'], { env: cleanEnv });
+        },
         vite: {
           build: {
             outDir: 'dist-electron',

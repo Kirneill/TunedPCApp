@@ -7,6 +7,7 @@ import { registerAuthHandlers } from './ipc/auth-handlers';
 import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackFailureStage } from './telemetry/telemetry';
 import { initAuth } from './auth/auth';
 import { checkForUpdate, initUpdater, getUpdaterState, downloadUpdate, installUpdate } from './updater';
+import { startSystemMonitor, stopSystemMonitor } from './ipc/system-monitor';
 
 // --- Diagnostic Logger ---
 // app.getPath() is unavailable before 'ready', so defer log path resolution
@@ -277,43 +278,6 @@ function createWindow() {
     log('ERROR', `Page failed to load: ${errorCode} ${errorDescription}`);
   });
 
-  // Window controls via IPC
-  ipcMain.on('window:minimize', () => mainWindow?.minimize());
-  ipcMain.on('window:maximize', () => {
-    if (mainWindow?.isMaximized()) {
-      mainWindow.unmaximize();
-    } else {
-      mainWindow?.maximize();
-    }
-  });
-  ipcMain.on('window:close', () => mainWindow?.close());
-  ipcMain.handle('app:getCloseToBackground', () => appSettings.closeToBackground);
-  ipcMain.handle('app:setCloseToBackground', (_event, enabled: boolean) => {
-    appSettings.closeToBackground = Boolean(enabled);
-    saveAppSettings(appSettings);
-    log('INFO', `Close behavior updated: ${appSettings.closeToBackground ? 'background' : 'full-exit'}`);
-    return appSettings.closeToBackground;
-  });
-
-  ipcMain.handle('system:isAdmin', () => isAdmin());
-  ipcMain.handle('shell:openExternal', (_event, url: string) => {
-    if (url.startsWith('https://')) shell.openExternal(url);
-  });
-
-  // Update check
-  ipcMain.handle('updater:check', () => checkForUpdate());
-  ipcMain.handle('updater:getState', () => getUpdaterState());
-  ipcMain.handle('updater:download', () => downloadUpdate());
-  ipcMain.handle('updater:install', () => installUpdate());
-  ipcMain.handle('app:getVersion', () => app.getVersion());
-
-  // Telemetry IPC
-  ipcMain.handle('telemetry:hasConsentDecision', () => hasConsentDecision());
-  ipcMain.handle('telemetry:getConsent', () => getConsentStatus());
-  ipcMain.handle('telemetry:setConsent', (_event, granted: boolean) => {
-    setConsent(granted);
-    log('INFO', `Telemetry consent: ${granted ? 'granted' : 'declined'}`);
-  });
 }
 
 // Single instance lock
@@ -356,14 +320,51 @@ if (!gotLock) {
     registerIpcHandlers(ipcMain);
     registerAuthHandlers(ipcMain);
 
+    // Window controls & app-level IPC (registered once, outside createWindow to avoid double-registration)
+    ipcMain.on('window:minimize', () => mainWindow?.minimize());
+    ipcMain.on('window:maximize', () => {
+      if (mainWindow?.isMaximized()) {
+        mainWindow.unmaximize();
+      } else {
+        mainWindow?.maximize();
+      }
+    });
+    ipcMain.on('window:close', () => mainWindow?.close());
+    ipcMain.handle('app:getCloseToBackground', () => appSettings.closeToBackground);
+    ipcMain.handle('app:setCloseToBackground', (_event, enabled: boolean) => {
+      appSettings.closeToBackground = Boolean(enabled);
+      saveAppSettings(appSettings);
+      log('INFO', `Close behavior updated: ${appSettings.closeToBackground ? 'background' : 'full-exit'}`);
+      return appSettings.closeToBackground;
+    });
+    ipcMain.handle('system:isAdmin', () => isAdmin());
+    ipcMain.handle('shell:openExternal', (_event, url: string) => {
+      if (url.startsWith('https://')) shell.openExternal(url);
+    });
+    ipcMain.handle('updater:check', () => checkForUpdate());
+    ipcMain.handle('updater:getState', () => getUpdaterState());
+    ipcMain.handle('updater:download', () => downloadUpdate());
+    ipcMain.handle('updater:install', () => installUpdate());
+    ipcMain.handle('app:getVersion', () => app.getVersion());
+    ipcMain.handle('telemetry:hasConsentDecision', () => hasConsentDecision());
+    ipcMain.handle('telemetry:getConsent', () => getConsentStatus());
+    ipcMain.handle('telemetry:setConsent', (_event, granted: boolean) => {
+      setConsent(granted);
+      log('INFO', `Telemetry consent: ${granted ? 'granted' : 'declined'}`);
+    });
+
     // Phase 4: Create window
     createWindow();
     createTray();
+
+    // Phase 5: Start live system monitoring (CPU/GPU/RAM → renderer every 2s)
+    startSystemMonitor(() => mainWindow);
   });
 }
 
 app.on('before-quit', () => {
   isQuitting = true;
+  stopSystemMonitor();
   if (appTray) {
     appTray.destroy();
     appTray = null;

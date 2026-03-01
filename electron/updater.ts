@@ -39,12 +39,19 @@ const GITHUB_RELEASES_API_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${
 let getMainWindow: (() => BrowserWindow | null) | null = null;
 let listenersInitialized = false;
 
-let lastKnownUpdate: UpdateInfo = createDefaultUpdateInfo();
+let lastKnownUpdate: UpdateInfo | null = null;
 let updaterState: UpdaterState = {
   status: 'idle',
   progress: 0,
   message: '',
 };
+
+function ensureLastKnownUpdate(): UpdateInfo {
+  if (!lastKnownUpdate) {
+    lastKnownUpdate = createDefaultUpdateInfo();
+  }
+  return lastKnownUpdate;
+}
 
 function normalizeVersion(version: string): string {
   return version.replace(/^v/i, '').trim();
@@ -265,20 +272,22 @@ export function initUpdater(windowGetter: () => BrowserWindow | null): void {
 
   autoUpdater.on('update-available', (info) => {
     syncFromAutoUpdaterInfo(info, true);
+    const known = ensureLastKnownUpdate();
     setUpdaterState({
       status: 'available',
       progress: 0,
-      latestVersion: lastKnownUpdate.latestVersion,
-      message: `Update v${lastKnownUpdate.latestVersion} available. Downloading...`,
+      latestVersion: known.latestVersion,
+      message: `Update v${known.latestVersion} available. Downloading...`,
       error: undefined,
     });
   });
 
   autoUpdater.on('download-progress', (progress) => {
+    const known = ensureLastKnownUpdate();
     setUpdaterState({
       status: 'downloading',
       progress: Math.max(0, Math.min(100, Math.round(progress.percent))),
-      latestVersion: lastKnownUpdate.latestVersion,
+      latestVersion: known.latestVersion,
       message: `Downloading update... ${Math.round(progress.percent)}%`,
       error: undefined,
     });
@@ -286,22 +295,24 @@ export function initUpdater(windowGetter: () => BrowserWindow | null): void {
 
   autoUpdater.on('update-not-available', (info) => {
     syncFromAutoUpdaterInfo(info, false);
+    const known = ensureLastKnownUpdate();
     setUpdaterState({
       status: 'up-to-date',
       progress: 100,
-      latestVersion: lastKnownUpdate.latestVersion,
-      message: `You're on the latest version (v${lastKnownUpdate.currentVersion}).`,
+      latestVersion: known.latestVersion,
+      message: `You're on the latest version (v${known.currentVersion}).`,
       error: undefined,
     });
   });
 
   autoUpdater.on('update-downloaded', (info) => {
     syncFromAutoUpdaterInfo(info, true);
+    const known = ensureLastKnownUpdate();
     setUpdaterState({
       status: 'downloaded',
       progress: 100,
-      latestVersion: lastKnownUpdate.latestVersion,
-      message: `Update v${lastKnownUpdate.latestVersion} is ready to install.`,
+      latestVersion: known.latestVersion,
+      message: `Update v${known.latestVersion} is ready to install.`,
       error: undefined,
     });
   });
@@ -399,11 +410,11 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
         status: 'up-to-date',
         progress: 100,
         latestVersion,
-        message: `You're on the latest version (v${lastKnownUpdate.currentVersion}).`,
+        message: `You're on the latest version (v${lastKnownUpdate!.currentVersion}).`,
         error: undefined,
       });
     }
-    return lastKnownUpdate;
+    return lastKnownUpdate!;
   } catch (autoUpdaterError) {
     setUpdaterState({
       status: 'error',
