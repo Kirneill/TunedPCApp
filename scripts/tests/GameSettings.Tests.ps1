@@ -552,3 +552,299 @@ Describe "COD Black Ops 7 template configs" -Tag "cod" {
         }
     }
 }
+
+# ===========================================================================
+# VALORANT TESTS
+# ===========================================================================
+Describe "Valorant GameUserSettings.ini" -Tag "valorant" {
+
+    BeforeAll {
+        $ProjectRoot = (Get-Location).Path
+        $ScriptsDir = Join-Path $ProjectRoot "scripts"
+        $ReferenceDir = Join-Path $ScriptsDir "reference-configs"
+        $RefFile = Join-Path $ReferenceDir "valorant-GameUserSettings.ini"
+        $ScriptFile = Join-Path $ScriptsDir "04_Valorant_Settings.ps1"
+
+        # Helper: Check if a file starts with UTF-8 BOM (EF BB BF)
+        function Test-HasBOM {
+            param([string]$Path)
+            $bytes = [System.IO.File]::ReadAllBytes($Path)
+            return ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+        }
+
+        # Helper: Parse UE4 INI into ordered dict of section -> keys
+        function Parse-IniSections {
+            param([string]$Path)
+            $sections = [ordered]@{}
+            $currentSection = ""
+            foreach ($line in (Get-Content $Path)) {
+                if ($line -match '^\[(.+)\]$') {
+                    $currentSection = $Matches[1]
+                    if (-not $sections.Contains($currentSection)) {
+                        $sections[$currentSection] = [ordered]@{}
+                    }
+                } elseif ($currentSection -and $line -match '^(.+?)=(.*)$') {
+                    $sections[$currentSection][$Matches[1]] = $Matches[2]
+                }
+            }
+            return $sections
+        }
+
+        # Parse reference config
+        $RefSections = Parse-IniSections -Path $RefFile
+    }
+
+    # -----------------------------------------------------------------
+    Context "Reference config is valid" {
+        It "Reference file exists" {
+            $RefFile | Should -Exist
+        }
+
+        It "Reference file has all 4 required sections" {
+            $RefSections.Keys | Should -Contain '/Script/ShooterGame.ShooterGameUserSettings'
+            $RefSections.Keys | Should -Contain '/Script/Engine.GameUserSettings'
+            $RefSections.Keys | Should -Contain 'ScalabilityGroups'
+            $RefSections.Keys | Should -Contain 'ShaderPipelineCache.CacheFile'
+        }
+
+        It "ShooterGame section has expected performance keys" {
+            $sg = $RefSections['/Script/ShooterGame.ShooterGameUserSettings']
+            $sg.Keys | Should -Contain 'bUseVSync'
+            $sg.Keys | Should -Contain 'FrameRateLimit'
+            $sg.Keys | Should -Contain 'LastConfirmedFullscreenMode'
+            $sg.Keys | Should -Contain 'PreferredFullscreenMode'
+            $sg.Keys | Should -Contain 'ResolutionSizeX'
+            $sg.Keys | Should -Contain 'ResolutionSizeY'
+        }
+
+        It "ScalabilityGroups has all 9 sg. keys" {
+            $scal = $RefSections['ScalabilityGroups']
+            $scal.Keys | Should -Contain 'sg.ResolutionQuality'
+            $scal.Keys | Should -Contain 'sg.ViewDistanceQuality'
+            $scal.Keys | Should -Contain 'sg.AntiAliasingQuality'
+            $scal.Keys | Should -Contain 'sg.ShadowQuality'
+            $scal.Keys | Should -Contain 'sg.PostProcessQuality'
+            $scal.Keys | Should -Contain 'sg.TextureQuality'
+            $scal.Keys | Should -Contain 'sg.EffectsQuality'
+            $scal.Keys | Should -Contain 'sg.FoliageQuality'
+            $scal.Keys | Should -Contain 'sg.ShadingQuality'
+        }
+
+        It "Reference does NOT contain fake keys (GlobalIlluminationQuality, ReflectionQuality)" {
+            $allKeys = @()
+            foreach ($section in $RefSections.Keys) {
+                $allKeys += $RefSections[$section].Keys
+            }
+            $allKeys | Should -Not -Contain 'sg.GlobalIlluminationQuality'
+            $allKeys | Should -Not -Contain 'sg.ReflectionQuality'
+        }
+
+        It "ShaderPipelineCache section has LastOpened=ShooterGame" {
+            $RefSections['ShaderPipelineCache.CacheFile']['LastOpened'] | Should -Be 'ShooterGame'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script competitive settings use valid key names" {
+        BeforeAll {
+            $ScriptContent = Get-Content $ScriptFile -Raw
+
+            # Extract all ScalabilityGroups keys from the script overrides hashtable
+            $ScriptSgKeys = [regex]::Matches($ScriptContent, "'(sg\.\w+)'") |
+                ForEach-Object { $_.Groups[1].Value } |
+                Select-Object -Unique
+
+            # Extract ShooterGame override keys from $ShooterGameOverrides block only
+            # Match keys on the left side of '=' (pattern: 'KeyName' followed by optional whitespace and =)
+            $shooterBlock = [regex]::Match($ScriptContent, '(?s)\$ShooterGameOverrides\s*=\s*@\{(.+?)\}')
+            $ScriptShooterKeys = @()
+            if ($shooterBlock.Success) {
+                $ScriptShooterKeys = [regex]::Matches($shooterBlock.Groups[1].Value, "'(\w+)'\s*=") |
+                    ForEach-Object { $_.Groups[1].Value } |
+                    Select-Object -Unique
+            }
+
+            # All reference ScalabilityGroups keys
+            $RefScalKeys = $RefSections['ScalabilityGroups'].Keys
+
+            # All reference ShooterGame keys
+            $RefShooterKeys = $RefSections['/Script/ShooterGame.ShooterGameUserSettings'].Keys
+        }
+
+        It "All ScalabilityGroups keys in script exist in reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptSgKeys) {
+                if ($key -notin $RefScalKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These sg. keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+
+        It "All ShooterGame override keys in script exist in reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptShooterKeys) {
+                if ($key -notin $RefShooterKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These ShooterGame keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+
+        It "Script does NOT write fake keys (GlobalIlluminationQuality, ReflectionQuality)" {
+            $ScriptContent | Should -Not -Match 'GlobalIlluminationQuality'
+            $ScriptContent | Should -Not -Match 'sg\.ReflectionQuality'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script output file format" {
+        BeforeAll {
+            # Create a temp sandbox simulating Valorant's folder structure:
+            # <LOCALAPPDATA>\VALORANT\Saved\Config\<AccountID>\Windows\GameUserSettings.ini
+            $script:TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "sq-test-valorant-$(Get-Random)"
+            $accountDir = Join-Path $script:TempDir "VALORANT\Saved\Config\TestAccount123\Windows"
+            New-Item -ItemType Directory -Path $accountDir -Force | Out-Null
+
+            # Seed with reference config to test read-merge-write
+            Copy-Item $RefFile (Join-Path $accountDir "GameUserSettings.ini") -Force
+
+            # Save original LOCALAPPDATA
+            $script:OrigLocalAppData = $env:LOCALAPPDATA
+
+            # Run the script in headless mode with overridden LOCALAPPDATA
+            $env:SENSEQUALITY_HEADLESS = "1"
+            $env:MONITOR_WIDTH = "1920"
+            $env:MONITOR_HEIGHT = "1080"
+            $env:MONITOR_REFRESH = "240"
+            $env:LOCALAPPDATA = $script:TempDir
+
+            $scriptPath = Join-Path $ScriptsDir "04_Valorant_Settings.ps1"
+            # *>&1 captures all streams including Write-Host (stream 6)
+            $script:Output = & $scriptPath *>&1 | Out-String
+            $script:OutputFile = Join-Path $accountDir "GameUserSettings.ini"
+        }
+
+        AfterAll {
+            # Restore LOCALAPPDATA and clean up
+            $env:LOCALAPPDATA = $script:OrigLocalAppData
+            $env:SENSEQUALITY_HEADLESS = ""
+            if ($script:TempDir -and (Test-Path $script:TempDir)) {
+                Get-ChildItem $script:TempDir -Recurse -File -ErrorAction SilentlyContinue |
+                    ForEach-Object { if ($_.IsReadOnly) { $_.IsReadOnly = $false } }
+                Remove-Item $script:TempDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Output file exists" {
+            $script:OutputFile | Should -Exist
+        }
+
+        It "Output file has no UTF-8 BOM" {
+            Test-HasBOM $script:OutputFile | Should -BeFalse -Because "UE4 INI files should not have BOM"
+        }
+
+        It "Output file is valid INI with section headers" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match '\[ScalabilityGroups\]'
+            $content | Should -Match '\[/Script/ShooterGame\.ShooterGameUserSettings\]'
+            $content | Should -Match '\[/Script/Engine\.GameUserSettings\]'
+        }
+
+        It "Output has ShaderPipelineCache section (preserved from seed)" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match '\[ShaderPipelineCache\.CacheFile\]'
+        }
+
+        It "ScalabilityGroups values are correct competitive settings" {
+            $outSections = Parse-IniSections -Path $script:OutputFile
+            $sg = $outSections['ScalabilityGroups']
+            $sg['sg.ShadowQuality'] | Should -Be '0'
+            $sg['sg.TextureQuality'] | Should -Be '3'
+            $sg['sg.EffectsQuality'] | Should -Be '0'
+            $sg['sg.ResolutionQuality'] | Should -Be '100.000000'
+        }
+
+        It "FrameRateLimit is set to monitor refresh minus 3" {
+            $outSections = Parse-IniSections -Path $script:OutputFile
+            $sg = $outSections['/Script/ShooterGame.ShooterGameUserSettings']
+            $sg['FrameRateLimit'] | Should -Be '237.000000'
+        }
+
+        It "bUseVSync is False" {
+            $outSections = Parse-IniSections -Path $script:OutputFile
+            $sg = $outSections['/Script/ShooterGame.ShooterGameUserSettings']
+            $sg['bUseVSync'] | Should -Be 'False'
+        }
+
+        It "LastConfirmedFullscreenMode is 0 (exclusive fullscreen)" {
+            $outSections = Parse-IniSections -Path $script:OutputFile
+            $sg = $outSections['/Script/ShooterGame.ShooterGameUserSettings']
+            $sg['LastConfirmedFullscreenMode'] | Should -Be '0'
+        }
+
+        It "Read-merge-write preserved non-performance keys from seed" {
+            $outSections = Parse-IniSections -Path $script:OutputFile
+            $sg = $outSections['/Script/ShooterGame.ShooterGameUserSettings']
+            # These keys exist in reference config seed and should be preserved
+            $sg.Keys | Should -Contain 'DefaultMonitorDeviceID'
+            $sg.Keys | Should -Contain 'ResolutionSizeX'
+            $sg.Keys | Should -Contain 'bUseHDRDisplayOutput'
+            $sg.Keys | Should -Contain 'LastGPUBenchmarkResult'
+        }
+
+        It "SQ_CHECK markers are emitted for config write" {
+            $script:Output | Should -Match '\[SQ_CHECK_(OK|WARN|FAIL):VALORANT_CONFIG_WRITTEN'
+        }
+
+        It "SQ_CHECK markers are emitted for EXE flags" {
+            $script:Output | Should -Match '\[SQ_CHECK_(OK|WARN):VALORANT_EXE_FLAGS'
+        }
+
+        It "Output file does NOT contain fake keys" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Not -Match 'sg\.GlobalIlluminationQuality'
+            $content | Should -Not -Match 'sg\.ReflectionQuality'
+            $content | Should -Not -Match 'bColorVisionDeficiency'
+            $content | Should -Not -Match 'ControllerVibration'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script source code correctness" {
+        BeforeAll {
+            $ScriptContent = Get-Content $ScriptFile -Raw
+        }
+
+        It "Script runs in headless mode" {
+            $ScriptContent | Should -Match 'SENSEQUALITY_HEADLESS'
+        }
+
+        It "Script uses Write-Check or SQ_CHECK markers" {
+            $ScriptContent | Should -Match 'Write-Check|SQ_CHECK'
+        }
+
+        It "Script enumerates account subdirectories (not hardcoded path)" {
+            $ScriptContent | Should -Match 'Get-ChildItem'
+            $ScriptContent | Should -Not -Match 'Config\\Windows\\GameUserSettings'
+        }
+
+        It "Script uses read-merge-write pattern (not blind overwrite)" {
+            $ScriptContent | Should -Match 'Read-IniFile|Merge-IniSection'
+            $ScriptContent | Should -Not -Match 'Set-Content.*GameUserSettings'
+        }
+
+        It "Script writes UTF-8 without BOM" {
+            $ScriptContent | Should -Match 'UTF8Encoding.*\$false'
+        }
+
+        It "Script sets config read-only after write" {
+            $ScriptContent | Should -Match 'IsReadOnly.*\$true'
+        }
+
+        It "Script backs up existing config before writing" {
+            $ScriptContent | Should -Match 'bak_'
+            $ScriptContent | Should -Match 'Copy-Item.*BackupPath'
+        }
+    }
+}

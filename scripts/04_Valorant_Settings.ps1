@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
     Valorant - PC Optimization Script
-    Version: 1.0 | Updated: February 2026
+    Version: 2.0 | Updated: March 2026
     Engine: Unreal Engine 4 (custom fork)
     Anti-Cheat: Vanguard (kernel-level)
 
@@ -16,12 +16,26 @@
     matters more than raw FPS numbers. The game runs well on low-end hardware
     and most competitive players prioritize 240+ FPS over visual quality.
 
-.NOTES
-    Config file location:
-    %LOCALAPPDATA%\VALORANT\Saved\Config\Windows\GameUserSettings.ini
+    CONFIG FORMAT:
+    Valorant uses a standard UE4 GameUserSettings.ini with 4 sections:
+    - [/Script/ShooterGame.ShooterGameUserSettings] (display, resolution, hardware)
+    - [/Script/Engine.GameUserSettings] (UE4 base - only bUseDesiredScreenHeight)
+    - [ScalabilityGroups] (graphics quality scalability -- main performance keys)
+    - [ShaderPipelineCache.CacheFile] (shader cache metadata -- do not modify)
 
+    PATH STRUCTURE:
+    %LOCALAPPDATA%\VALORANT\Saved\Config\<AccountID>\Windows\GameUserSettings.ini
+    The <AccountID> folder varies per Riot account. We enumerate all subfolders.
+
+    SOURCES:
+    - github.com/JoShMiQueL/VALORANT-CONFIG
+    - gist.github.com/geocine/db8d8ee9fdff240031f0762144abd827
+    - github.com/SteffenCarlsen/ValorantForceLowSettings
+
+.NOTES
     VANGUARD NOTE: Do not attempt to modify game files or memory.
     This script only touches user config and Windows compatibility flags.
+    Editing GameUserSettings.ini while the game is closed is confirmed safe.
 #>
 
 # --- HEADLESS MODE ------------------------------------------------------------
@@ -42,117 +56,297 @@ if ($Headless -and $env:MONITOR_WIDTH) {
 $FrameRateLimit = $MonitorRefresh - 3    # Refresh rate minus 3 for frame stability
 # -----------------------------------------------------------------------------
 
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "  VALORANT - Optimization Script" -ForegroundColor Cyan
-Write-Host "  February 2026 | UE4 Engine | Vanguard Anti-Cheat" -ForegroundColor Cyan
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host ""
+$script:ValidationFailed = $false
 
-# -----------------------------------------------------------------------------
-# SECTION 1: BACKUP AND WRITE VALORANT CONFIG
-# -----------------------------------------------------------------------------
+function Write-Check {
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet('OK', 'FAIL', 'WARN')][string]$Status,
+        [Parameter(Mandatory = $true)][string]$Key,
+        [string]$Detail = ''
+    )
 
-$ConfigPath = "$env:LOCALAPPDATA\VALORANT\Saved\Config\Windows\GameUserSettings.ini"
-$BackupPath = "$env:LOCALAPPDATA\VALORANT\Saved\Config\Windows\GameUserSettings.ini.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
-
-if (Test-Path $ConfigPath) {
-    Copy-Item $ConfigPath $BackupPath -Force
-    Write-Host "[BACKUP] Config backed up to: $BackupPath" -ForegroundColor Yellow
-} else {
-    Write-Host "[INFO] No existing Valorant config found. Creating fresh config." -ForegroundColor DarkCyan
-    $ConfigDir = Split-Path $ConfigPath -Parent
-    if (-not (Test-Path $ConfigDir)) { New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null }
+    $suffix = if ([string]::IsNullOrWhiteSpace($Detail)) { '' } else { ":$Detail" }
+    Write-Host "[SQ_CHECK_${Status}:$Key$suffix]"
+    if ($Status -eq 'FAIL') {
+        $script:ValidationFailed = $true
+    }
 }
 
-Write-Host "[INFO] Writing optimized Valorant config..." -ForegroundColor DarkCyan
+Write-Host "======================================================" -ForegroundColor Cyan
+Write-Host "  VALORANT - Optimization Script" -ForegroundColor Cyan
+Write-Host "  March 2026 | UE4 Engine | Vanguard Anti-Cheat" -ForegroundColor Cyan
+Write-Host "======================================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  Target Resolution : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
+Write-Host "  Refresh Rate      : ${MonitorRefresh}Hz" -ForegroundColor White
+Write-Host "  FPS Cap           : $FrameRateLimit" -ForegroundColor White
+Write-Host ""
 
-# WHY THESE SETTINGS:
-# - FullscreenMode=1: Exclusive fullscreen for lowest latency GPU-to-display path
-# - bUseVSync=False: V-Sync adds 16-50ms input latency - catastrophic in Valorant
-# - FrameRateLimit: Capped at refresh-3 prevents frame-pacing irregularity
-# - sg.ShadowQuality=0: Shadows eat FPS, no competitive benefit
-# - sg.TextureQuality=3: Textures are cheap, help with agent/wall clarity
-# - NVIDIA Reflex (set via in-game, not config) reduces system latency 15-30ms
+# =============================================================================
+# INI PARSER: Read-Merge-Write for UE4 INI files
+# =============================================================================
 
-$ValorantConfig = @"
-[/Script/Engine.GameUserSettings]
-bUseVSync=False
-ResolutionSizeX=$MonitorWidth
-ResolutionSizeY=$MonitorHeight
-LastUserConfirmedResolutionSizeX=$MonitorWidth
-LastUserConfirmedResolutionSizeY=$MonitorHeight
-WindowPosX=-1
-WindowPosY=-1
-bUseDesiredScreenHeight=False
-FullscreenMode=1
-LastConfirmedFullscreenMode=1
-PreferredFullscreenMode=1
-Version=5
-AudioQualityLevel=0
-FrameRateLimit=$FrameRateLimit.000000
-DesiredScreenWidth=$MonitorWidth
-DesiredScreenHeight=$MonitorHeight
-LastUserConfirmedDesiredScreenWidth=$MonitorWidth
-LastUserConfirmedDesiredScreenHeight=$MonitorHeight
-FullscreenMode=1
+function Read-IniFile {
+    param([string]$Path)
+    $sections = [ordered]@{}
+    $currentSection = ""
+    foreach ($line in (Get-Content $Path)) {
+        if ($line -match '^\[(.+)\]$') {
+            $currentSection = $Matches[1]
+            if (-not $sections.Contains($currentSection)) {
+                $sections[$currentSection] = [ordered]@{}
+            }
+        } elseif ($currentSection -and $line -match '^(.+?)=(.*)$') {
+            $sections[$currentSection][$Matches[1]] = $Matches[2]
+        }
+    }
+    return $sections
+}
 
-[ScalabilityGroups]
-sg.ResolutionQuality=100
-sg.ViewDistanceQuality=0
-sg.AntiAliasingQuality=0
-sg.ShadowQuality=0
-sg.GlobalIlluminationQuality=0
-sg.ReflectionQuality=0
-sg.PostProcessQuality=0
-sg.TextureQuality=3
-sg.EffectsQuality=0
-sg.FoliageQuality=0
-sg.ShadingQuality=0
+function Write-IniFile {
+    param([string]$Path, [System.Collections.Specialized.OrderedDictionary]$Sections)
+    $lines = New-Object System.Collections.Generic.List[string]
+    $first = $true
+    foreach ($sectionName in $Sections.Keys) {
+        if (-not $first) { $lines.Add("") }
+        $first = $false
+        $lines.Add("[$sectionName]")
+        foreach ($key in $Sections[$sectionName].Keys) {
+            $lines.Add("$key=$($Sections[$sectionName][$key])")
+        }
+    }
+    # Write UTF-8 without BOM -- Valorant is UE4 INI, not JSON,
+    # but using no-BOM is still safest for cross-engine compatibility
+    $content = ($lines -join "`r`n") + "`r`n"
+    [System.IO.File]::WriteAllText($Path, $content, [System.Text.UTF8Encoding]::new($false))
+}
 
-[/Script/ShooterGame.ShooterGameUserSettings]
-bColorVisionDeficiency=False
-ColorVisionDeficiencyType=Deuteranopia
-bColorVisionDeficiencyStrength=True
-ColorVisionDeficiencyStrength=0
-bColorVisionDeficiencyRemovingCorrection=False
-bColorVisionDeficiencyFilterStrength=0
-ControllerVibration=True
-bGamepadEnabled=False
-bSaveTeammatesPositions=True
-"@
+function Merge-IniSection {
+    param(
+        [System.Collections.Specialized.OrderedDictionary]$Existing,
+        [string]$SectionName,
+        [hashtable]$Overrides
+    )
+    if (-not $Existing.Contains($SectionName)) {
+        $Existing[$SectionName] = [ordered]@{}
+    }
+    foreach ($key in $Overrides.Keys) {
+        $Existing[$SectionName][$key] = $Overrides[$key]
+    }
+}
 
-Set-Content -Path $ConfigPath -Value $ValorantConfig -Encoding UTF8 -Force
-Write-Host "  [OK] Config written to: $ConfigPath" -ForegroundColor Green
+# =============================================================================
+# SECTION 1: LOCATE AND WRITE VALORANT CONFIG
+# =============================================================================
+# Valorant stores configs under:
+#   %LOCALAPPDATA%\VALORANT\Saved\Config\<AccountID>\Windows\GameUserSettings.ini
+# Multiple AccountID folders may exist. We update ALL of them.
 
-# -----------------------------------------------------------------------------
+$ConfigRoot = Join-Path $env:LOCALAPPDATA "VALORANT\Saved\Config"
+$TargetConfigPaths = @()
+
+try {
+    if (Test-Path $ConfigRoot) {
+        # Enumerate all account subfolders
+        $accountDirs = Get-ChildItem -Path $ConfigRoot -Directory -ErrorAction SilentlyContinue
+        foreach ($accountDir in $accountDirs) {
+            $windowsDir = Join-Path $accountDir.FullName "Windows"
+            $iniPath = Join-Path $windowsDir "GameUserSettings.ini"
+            # Include folders that already have the config, or that have a Windows subfolder
+            if ((Test-Path $iniPath) -or (Test-Path $windowsDir)) {
+                $TargetConfigPaths += $iniPath
+            }
+        }
+    }
+} catch {
+    Write-Host "[WARN] Error scanning config folders: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
+# Fallback: if no account folders found, create under a default path
+if ($TargetConfigPaths.Count -eq 0) {
+    # Check if the VALORANT folder exists at all
+    $valorantRoot = Join-Path $env:LOCALAPPDATA "VALORANT\Saved\Config"
+    if (Test-Path $valorantRoot) {
+        # Enumerate again -- maybe there are folders without a Windows subfolder
+        $accountDirs = Get-ChildItem -Path $valorantRoot -Directory -ErrorAction SilentlyContinue
+        foreach ($accountDir in $accountDirs) {
+            $windowsDir = Join-Path $accountDir.FullName "Windows"
+            if (-not (Test-Path $windowsDir)) {
+                New-Item -ItemType Directory -Path $windowsDir -Force | Out-Null
+            }
+            $TargetConfigPaths += (Join-Path $windowsDir "GameUserSettings.ini")
+        }
+    }
+
+    if ($TargetConfigPaths.Count -eq 0) {
+        Write-Host "[INFO] No Valorant config folders found. Valorant may not be installed." -ForegroundColor DarkCyan
+        Write-Check -Status 'WARN' -Key 'VALORANT_CONFIG_WRITTEN' -Detail 'NO_CONFIG_FOLDER'
+    }
+}
+
+Write-Host "[INFO] Found $($TargetConfigPaths.Count) Valorant config target(s)" -ForegroundColor DarkCyan
+
+# --- Competitive settings to merge ---
+
+# Performance keys for [/Script/ShooterGame.ShooterGameUserSettings]
+# We ONLY override performance-related keys. Keys like DefaultMonitorDeviceID,
+# WindowPosX/Y, benchmark results, and HDR settings are PRESERVED.
+$ShooterGameOverrides = @{
+    'bUseVSync'                  = 'False'
+    'bUseDynamicResolution'      = 'False'
+    'LastConfirmedFullscreenMode'= '0'
+    'PreferredFullscreenMode'    = '1'
+    'FrameRateLimit'             = "$FrameRateLimit.000000"
+    'AudioQualityLevel'          = '0'
+    'LastConfirmedAudioQualityLevel' = '0'
+}
+
+# [/Script/Engine.GameUserSettings] -- only one key lives here
+$EngineOverrides = @{
+    'bUseDesiredScreenHeight' = 'False'
+}
+
+# [ScalabilityGroups] -- these are the main graphics quality knobs
+# WHY THESE VALUES:
+# - sg.ResolutionQuality=100: Full native render, no upscaling
+# - sg.ViewDistanceQuality=0: Reduces draw distance -- minimal competitive impact in Valorant
+# - sg.AntiAliasingQuality=0: No AA for maximum clarity and FPS
+# - sg.ShadowQuality=0: Shadows consume significant FPS with no competitive benefit
+# - sg.PostProcessQuality=0: Removes post-process effects for cleaner visuals
+# - sg.TextureQuality=3: Textures are cheap on VRAM, help with agent/wall clarity
+# - sg.EffectsQuality=0: Reduces particle/explosion effects
+# - sg.FoliageQuality=0: Reduces foliage rendering (minimal in Valorant maps)
+# - sg.ShadingQuality=0: Reduces shading complexity for FPS
+$ScalabilityOverrides = @{
+    'sg.ResolutionQuality'    = '100.000000'
+    'sg.ViewDistanceQuality'  = '0'
+    'sg.AntiAliasingQuality'  = '0'
+    'sg.ShadowQuality'        = '0'
+    'sg.PostProcessQuality'   = '0'
+    'sg.TextureQuality'       = '3'
+    'sg.EffectsQuality'       = '0'
+    'sg.FoliageQuality'       = '0'
+    'sg.ShadingQuality'       = '0'
+}
+
+# [ShaderPipelineCache.CacheFile] -- preserve as-is, only ensure it exists
+$ShaderCacheDefaults = @{
+    'LastOpened' = 'ShooterGame'
+}
+
+$WriteSuccessCount = 0
+$WriteFailures = @()
+
+foreach ($ConfigPath in $TargetConfigPaths) {
+    $ConfigDir = Split-Path $ConfigPath -Parent
+
+    if (-not (Test-Path $ConfigDir)) {
+        New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
+    }
+
+    try {
+        # READ existing config if present
+        if (Test-Path $ConfigPath) {
+            # Clear read-only if set (we may have locked it on a previous run)
+            Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
+
+            # Backup with timestamp
+            $BackupPath = "$ConfigPath.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
+            Copy-Item $ConfigPath $BackupPath -Force -ErrorAction Stop
+            Write-Host "[BACKUP] Config backed up to: $BackupPath" -ForegroundColor Yellow
+
+            # Parse existing INI
+            $iniData = Read-IniFile -Path $ConfigPath
+        } else {
+            Write-Host "[INFO] No existing config at $ConfigPath -- creating fresh" -ForegroundColor DarkCyan
+            $iniData = [ordered]@{}
+        }
+
+        # MERGE competitive settings into existing data (preserves all other keys)
+        Merge-IniSection -Existing $iniData -SectionName '/Script/ShooterGame.ShooterGameUserSettings' -Overrides $ShooterGameOverrides
+        Merge-IniSection -Existing $iniData -SectionName '/Script/Engine.GameUserSettings' -Overrides $EngineOverrides
+        Merge-IniSection -Existing $iniData -SectionName 'ScalabilityGroups' -Overrides $ScalabilityOverrides
+        Merge-IniSection -Existing $iniData -SectionName 'ShaderPipelineCache.CacheFile' -Overrides $ShaderCacheDefaults
+
+        # WRITE with UTF-8 no BOM
+        Write-IniFile -Path $ConfigPath -Sections $iniData
+
+        # LOCK read-only to prevent Valorant from overwriting on exit
+        Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $true -ErrorAction SilentlyContinue
+
+        # Verify the write
+        $verifyContent = Get-Content -Path $ConfigPath -Raw -ErrorAction SilentlyContinue
+        if ($verifyContent -match 'sg\.ShadowQuality=0' -and $verifyContent -match 'FrameRateLimit=') {
+            $WriteSuccessCount++
+            Write-Host "  [OK] Config written to: $ConfigPath" -ForegroundColor Green
+        } else {
+            $WriteFailures += "$ConfigPath (verification failed)"
+            Write-Host "  [WARN] Config write verification failed: $ConfigPath" -ForegroundColor Yellow
+        }
+    } catch {
+        $WriteFailures += "$ConfigPath ($($_.Exception.Message))"
+        Write-Host "  [FAIL] Could not write config: $ConfigPath" -ForegroundColor Red
+    }
+}
+
+$TotalTargets = $TargetConfigPaths.Count
+if ($TotalTargets -eq 0) {
+    # Already emitted WARN above
+} elseif ($WriteSuccessCount -eq $TotalTargets) {
+    Write-Check -Status 'OK' -Key 'VALORANT_CONFIG_WRITTEN' -Detail "$WriteSuccessCount/$TotalTargets"
+} elseif ($WriteSuccessCount -gt 0) {
+    Write-Check -Status 'WARN' -Key 'VALORANT_CONFIG_WRITTEN' -Detail "$WriteSuccessCount/$TotalTargets succeeded"
+} else {
+    Write-Check -Status 'FAIL' -Key 'VALORANT_CONFIG_WRITTEN' -Detail ($WriteFailures -join '; ')
+}
+
+# =============================================================================
 # SECTION 2: EXE COMPATIBILITY FLAGS FOR VALORANT
 # NOTE: Valorant has Vanguard anti-cheat. We ONLY set Windows-layer flags
 #       that Windows itself applies before the process starts.
 #       These are standard OS features, not modifications to game files.
-# -----------------------------------------------------------------------------
+# =============================================================================
 
 $ValorantExePaths = @(
     "C:\Riot Games\VALORANT\live\VALORANT.exe",
     "C:\Riot Games\VALORANT\live\ShooterGame\Binaries\Win64\VALORANT-Win64-Shipping.exe",
-    "D:\Riot Games\VALORANT\live\VALORANT.exe"
+    "D:\Riot Games\VALORANT\live\VALORANT.exe",
+    "D:\Riot Games\VALORANT\live\ShooterGame\Binaries\Win64\VALORANT-Win64-Shipping.exe"
 )
+
+# Check env var from host app
+if ($env:VALORANT_PATH -and (Test-Path $env:VALORANT_PATH)) {
+    $ValorantExePaths = @($env:VALORANT_PATH) + $ValorantExePaths
+}
 
 $AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
 if (-not (Test-Path $AppCompatLayers)) { New-Item -Path $AppCompatLayers -Force | Out-Null }
 
+$ExeFlagSet = $false
 foreach ($exePath in $ValorantExePaths) {
     if (Test-Path $exePath) {
-        # HIGHDPIAWARE: Ensures Valorant controls its own DPI scaling
-        # Note: Valorant works well with fullscreen optimizations ON (unlike most games)
-        # So we do NOT add DISABLEFULLSCREENOPTIMIZATIONS here
-        Set-ItemProperty -Path $AppCompatLayers -Name $exePath -Value "~ HIGHDPIAWARE" -Type String -Force
-        Write-Host "  [OK] EXE flags set for: $exePath" -ForegroundColor Green
+        try {
+            # HIGHDPIAWARE: Ensures Valorant controls its own DPI scaling
+            # Note: Valorant works well with fullscreen optimizations ON (unlike most games)
+            # So we do NOT add DISABLEFULLSCREENOPTIMIZATIONS here
+            Set-ItemProperty -Path $AppCompatLayers -Name $exePath -Value "~ HIGHDPIAWARE" -Type String -Force
+            Write-Host "  [OK] EXE flags set for: $exePath" -ForegroundColor Green
+            $ExeFlagSet = $true
+        } catch {
+            Write-Host "  [WARN] Could not set EXE flags for: $exePath" -ForegroundColor Yellow
+        }
     }
 }
 
-# -----------------------------------------------------------------------------
+if ($ExeFlagSet) {
+    Write-Check -Status 'OK' -Key 'VALORANT_EXE_FLAGS'
+} else {
+    Write-Check -Status 'WARN' -Key 'VALORANT_EXE_FLAGS' -Detail 'EXE_NOT_FOUND'
+}
+
+# =============================================================================
 # SECTION 3: PRINT FULL IN-GAME SETTINGS GUIDE
-# -----------------------------------------------------------------------------
+# =============================================================================
 
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Yellow
@@ -163,7 +357,7 @@ Write-Host ""
 Write-Host "  --- VIDEO SETTINGS ---" -ForegroundColor Cyan
 Write-Host "  Resolution             : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
 Write-Host "  Display Mode           : Fullscreen" -ForegroundColor White
-Write-Host "                         (Valorant's fullscreen is already optimized)" -ForegroundColor DarkGray
+Write-Host "                         (Exclusive fullscreen = lowest input latency)" -ForegroundColor DarkGray
 Write-Host "  V-Sync                 : OFF" -ForegroundColor White
 Write-Host "  Max Frame Rate         : $FrameRateLimit" -ForegroundColor White
 Write-Host "  NVIDIA Reflex          : Enabled + Boost (most important setting)" -ForegroundColor White
@@ -230,7 +424,7 @@ Write-Host "  Minimap Size           : 1.1" -ForegroundColor White
 Write-Host "  Minimap Zoom           : 0.9" -ForegroundColor White
 
 Write-Host ""
-Write-Host "  --- PRO PLAYER REFERENCE (Feb 2026, ProSettings.net) ---" -ForegroundColor Cyan
+Write-Host "  --- PRO PLAYER REFERENCE (ProSettings.net) ---" -ForegroundColor Cyan
 Write-Host "  598 pro players analyzed - universal consensus:" -ForegroundColor White
 Write-Host "  - 100% use 1920x1080 or lower (no pro uses 1440p/4K in ranked)" -ForegroundColor White
 Write-Host "  - 100% use Fullscreen (not borderless)" -ForegroundColor White
@@ -240,5 +434,10 @@ Write-Host "  - 95%+ NVIDIA Reflex Enabled + Boost" -ForegroundColor White
 Write-Host "  - Median eDPI: 280" -ForegroundColor White
 
 Write-Host ""
+if ($script:ValidationFailed) {
+    Write-Host "[FAIL] Valorant optimization completed with validation failures." -ForegroundColor Red
+    exit 1
+}
+
 Write-Host "[DONE] Valorant config written. Apply remaining settings in-game." -ForegroundColor Green
 Write-Host ""
