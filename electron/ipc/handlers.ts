@@ -291,15 +291,36 @@ function createRunLogger(win: BrowserWindow | null, runId: string): { runId: str
 const AUTO_RESTORE_POINT_SCRIPT = `
 $ErrorActionPreference = 'Stop'
 
+# Remove the 24-hour cooldown between restore points
 New-Item -Path "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\SystemRestore" -Force | Out-Null
 Set-ItemProperty -Path "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\SystemRestore" -Name "SystemRestorePointCreationFrequency" -Type DWord -Value 0
 
-if (-not (Get-ComputerRestorePoint -ErrorAction SilentlyContinue)) {
-    Enable-ComputerRestore -Drive $Env:SystemDrive | Out-Null
+# Ensure System Restore is enabled on the system drive
+# Try PowerShell cmdlet first (Pro/Enterprise), fall back to WMI (Home)
+try {
+    Enable-ComputerRestore -Drive $Env:SystemDrive -ErrorAction Stop | Out-Null
+} catch {
+    try {
+        ([wmiclass]"\\\\.\\root\\default:SystemRestore").Enable($Env:SystemDrive) | Out-Null
+    } catch {
+        Write-Warning "Could not enable System Restore: $_"
+    }
 }
 
 $description = "SENSEQUALITY Auto Restore Point $(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss')"
-Checkpoint-Computer -Description $description -RestorePointType MODIFY_SETTINGS
+
+# Create the restore point
+# Try PowerShell cmdlet first (Pro/Enterprise), fall back to WMI (Home)
+try {
+    Checkpoint-Computer -Description $description -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
+} catch {
+    # 12 = MODIFY_SETTINGS, 100 = BEGIN_SYSTEM_CHANGE
+    $result = ([wmiclass]"\\\\.\\root\\default:SystemRestore").CreateRestorePoint($description, 12, 100)
+    if ($result.ReturnValue -ne 0) {
+        throw "Failed to create restore point (WMI error code: $($result.ReturnValue))"
+    }
+}
+
 Write-Output "Restore point created: $description"
 `;
 
