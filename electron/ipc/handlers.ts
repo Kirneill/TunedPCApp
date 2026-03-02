@@ -380,7 +380,9 @@ async function populateGamePathEnvVars(
 
   try {
     const detectedGames = await detectInstalledGames();
-    for (const [gameOptId, envKey] of Object.entries(GAME_PATH_ENV_VARS)) {
+    for (const gameOptId of idsNeedingPaths) {
+      const envKey = GAME_PATH_ENV_VARS[gameOptId];
+      if (!envKey) continue;
       const gameId = gameOptId.replace('game-', '');
       const game = detectedGames.find((g) => g.id === gameId && !!g.path);
       if (game?.path) envVars[envKey] = game.path;

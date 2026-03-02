@@ -86,8 +86,8 @@ function saveAppSettings(settings: AppSettings) {
   }
 }
 
-function syncAutoLaunch(enabled: boolean): void {
-  if (process.platform !== 'win32' || !app.isPackaged) return;
+function syncAutoLaunch(enabled: boolean): boolean {
+  if (process.platform !== 'win32' || !app.isPackaged) return true;
 
   try {
     if (enabled) {
@@ -110,8 +110,10 @@ function syncAutoLaunch(enabled: boolean): void {
       ], { stdio: 'ignore' });
       log('INFO', 'Auto-launch scheduled task removed');
     }
+    return true;
   } catch (err) {
     log('WARN', `Failed to sync auto-launch: ${err instanceof Error ? err.message : err}`);
+    return false;
   }
 }
 
@@ -383,8 +385,11 @@ if (!gotLock) {
     ipcMain.handle('app:setLaunchOnStartup', (_event, enabled: boolean) => {
       appSettings.launchOnStartup = Boolean(enabled);
       saveAppSettings(appSettings);
-      syncAutoLaunch(appSettings.launchOnStartup);
-      log('INFO', `Launch on startup updated: ${appSettings.launchOnStartup}`);
+      const synced = syncAutoLaunch(appSettings.launchOnStartup);
+      if (!synced) {
+        log('WARN', `Launch on startup setting saved but scheduled task sync failed`);
+      }
+      log('INFO', `Launch on startup updated: ${appSettings.launchOnStartup} (synced: ${synced})`);
       return appSettings.launchOnStartup;
     });
     ipcMain.handle('system:isAdmin', () => isAdmin());

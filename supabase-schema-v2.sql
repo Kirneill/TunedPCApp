@@ -204,13 +204,15 @@ CREATE POLICY "Allow anonymous inserts on installed games"
     AND length(anonymous_id) <= 128
   );
 
--- Allow anon to update their own rows (for upsert on game detection changes)
+-- Restrict anon UPDATE to rows matching the same anonymous_id (prevents cross-user overwrites).
+-- The anonymous_id column is included in the ON CONFLICT for upserts, so the USING clause
+-- effectively scopes updates to the caller's own rows.
 DROP POLICY IF EXISTS "Allow anonymous updates on installed games" ON machine_installed_games;
 CREATE POLICY "Allow anonymous updates on installed games"
   ON machine_installed_games
   FOR UPDATE TO anon
-  USING (true)
-  WITH CHECK (true);
+  USING (anonymous_id IS NOT NULL AND length(anonymous_id) <= 128)
+  WITH CHECK (anonymous_id IS NOT NULL AND length(anonymous_id) <= 128);
 
 DROP POLICY IF EXISTS "Service role reads installed games" ON machine_installed_games;
 CREATE POLICY "Service role reads installed games"

@@ -115,16 +115,18 @@ function getXboxGamePassRoots(): string[] {
   for (const letter of ['C', 'D', 'E']) {
     roots.add(`${letter}:\\XboxGames`);
   }
-  // Scan all drive letters for .GamingRoot marker
-  for (let code = 65; code <= 90; code++) { // A-Z
+  // Scan drive letters C-Z for .GamingRoot marker (skip A/B legacy floppy drives)
+  for (let code = 67; code <= 90; code++) { // C-Z
     const letter = String.fromCharCode(code);
     try {
+      // Pre-check drive accessibility to avoid OS prompts for removable/network drives
+      fs.accessSync(`${letter}:\\`, fs.constants.R_OK);
       const markerPath = `${letter}:\\.GamingRoot`;
       if (fs.existsSync(markerPath)) {
         roots.add(`${letter}:\\XboxGames`);
       }
-    } catch (err) {
-      console.warn(`[game-detection] Cannot check drive ${letter}: for .GamingRoot: ${err instanceof Error ? err.message : err}`);
+    } catch {
+      // Drive not accessible or doesn't exist — skip silently
     }
   }
   return Array.from(roots);
@@ -606,7 +608,7 @@ export async function detectInstalledGames(): Promise<DetectedGame[]> {
             return { id: entry.id, name: entry.name, installed: true, path: result };
           }
         } catch (err) {
-          console.warn(`[game-detection] ${entry.name} detection failed: ${err instanceof Error ? err.message : err}`);
+          console.warn(`[game-detection] ${entry.name} custom detection threw (treating as not installed): ${err instanceof Error ? err.message : err}`);
         }
       }
 

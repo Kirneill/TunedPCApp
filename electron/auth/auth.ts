@@ -50,7 +50,11 @@ function saveSession(session: StoredSession): void {
       const encrypted = safeStorage.encryptString(data);
       fs.writeFileSync(getEncryptedPath(), encrypted);
       // Remove plaintext fallback if it exists
-      try { fs.unlinkSync(getPlaintextPath()); } catch {}
+      try { fs.unlinkSync(getPlaintextPath()); } catch (unlinkErr) {
+        if ((unlinkErr as NodeJS.ErrnoException).code !== 'ENOENT') {
+          console.warn('[auth] Failed to remove plaintext session fallback:', (unlinkErr as Error).message);
+        }
+      }
     } else {
       fs.writeFileSync(getPlaintextPath(), data);
     }
@@ -306,7 +310,15 @@ export async function getSession(): Promise<{ user: AuthUser } | null> {
   if (!supabase) return null;
 
   try {
-    const { data } = await supabase.auth.getSession();
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      if (isNetworkError(error)) {
+        console.warn('[auth] getSession failed due to network error — preserving session');
+        throw error;
+      }
+      console.warn('[auth] getSession error:', error.message);
+      return null;
+    }
     if (!data.session?.user) return null;
     return {
       user: {
@@ -315,6 +327,10 @@ export async function getSession(): Promise<{ user: AuthUser } | null> {
       },
     };
   } catch (err) {
+    if (isNetworkError(err)) {
+      console.warn('[auth] getSession network error — preserving session');
+      throw err;
+    }
     console.warn('[auth] getSession failed:', err instanceof Error ? err.message : err);
     return null;
   }
@@ -365,9 +381,9 @@ export async function registerMachine(info: {
 
     ({ data, error } = await supabase.rpc('register_machine', v2Params));
 
-    if (error?.code === '42883') {
-      // 42883 = "function does not exist" — v2 schema not deployed yet, retry with v1 params
-      console.warn('[auth] register_machine v2 not found, falling back to v1 params');
+    if (error?.code === '42883' || error?.code === '42725') {
+      // 42883 = "function does not exist", 42725 = "function is not unique" — retry with v1 params
+      console.warn(`[auth] register_machine v2 RPC error (${error.code}), falling back to v1 params`);
       ({ data, error } = await supabase.rpc('register_machine', baseParams));
     }
 
@@ -419,7 +435,8 @@ export async function joinWaitlist(feature: string): Promise<{ success: boolean;
     if (!sessionData.session) {
       return { success: false, error: 'Session expired. Please sign out and sign in again.' };
     }
-  } catch {
+  } catch (err) {
+    console.warn('[auth] joinWaitlist session check failed:', err instanceof Error ? err.message : err);
     return { success: false, error: 'Could not verify session.' };
   }
 
