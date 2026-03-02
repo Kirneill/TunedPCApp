@@ -1984,3 +1984,195 @@ Describe "Arc Raiders GameUserSettings.ini" -Tag "arcraiders" {
         }
     }
 }
+
+# ===========================================================================
+# CS2 TESTS
+# ===========================================================================
+Describe "CS2 autoexec.cfg" -Tag "cs2" {
+
+    BeforeAll {
+        $ProjectRoot = (Get-Location).Path
+        $ScriptsDir = Join-Path $ProjectRoot "scripts"
+        $ReferenceDir = Join-Path $ScriptsDir "reference-configs"
+        $RefFile = Join-Path $ReferenceDir "cs2-autoexec.cfg"
+        $ScriptFile = Join-Path $ScriptsDir "05_CS2_Settings.ps1"
+
+        # Helper: Extract command names from CFG content.
+        # Filters out comments, empty lines, and the 'echo' command.
+        function Get-CfgCommands {
+            param([string]$Content)
+            $Content -split "`n" |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { $_ -and $_ -notmatch '^\s*//' -and $_ -notmatch '^\s*$' } |
+                ForEach-Object { ($_ -split '\s+')[0] } |
+                Where-Object { $_ -ne 'echo' } |
+                Select-Object -Unique
+        }
+
+        # Load reference commands
+        $RefContent = Get-Content $RefFile -Raw
+        $RefCommands = Get-CfgCommands $RefContent
+    }
+
+    # -----------------------------------------------------------------
+    Context "Reference config is valid" {
+        It "Reference file exists" {
+            $RefFile | Should -Exist
+        }
+
+        It "Reference file uses valid CFG format (command value per line)" {
+            $lines = Get-Content $RefFile |
+                Where-Object { $_ -match '\S' -and $_ -notmatch '^\s*//' }
+            $lines.Count | Should -BeGreaterThan 0 -Because "Should have command lines"
+            foreach ($line in $lines) {
+                $line | Should -Match '^\s*\S+\s+.+' -Because "Each non-comment line should be: command value"
+            }
+        }
+
+        It "Reference file uses no equals signs (CFG uses spaces)" {
+            $lines = Get-Content $RefFile |
+                Where-Object { $_ -match '\S' -and $_ -notmatch '^\s*//' }
+            foreach ($line in $lines) {
+                $line | Should -Not -Match '^\w+=\w' -Because "CFG syntax is 'command value', not 'command=value'"
+            }
+        }
+
+        It "Reference contains core competitive commands" {
+            $RefCommands | Should -Contain "fps_max"
+            $RefCommands | Should -Contain "rate"
+            $RefCommands | Should -Contain "sensitivity"
+            $RefCommands | Should -Contain "cl_crosshairstyle"
+            $RefCommands | Should -Contain "viewmodel_fov"
+            $RefCommands | Should -Contain "snd_mixahead"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script autoexec commands use valid names" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptFile -Raw
+
+            # Extract the here-string that becomes autoexec.cfg.
+            # The script uses: $AutoExecContent = @"..."@
+            $hereStringMatch = [regex]::Match($scriptContent, '(?s)\$AutoExecContent\s*=\s*@"(.+?)"@')
+            $autoexecBlock = $hereStringMatch.Groups[1].Value
+
+            # Parse command names from the autoexec content
+            $ScriptCommands = Get-CfgCommands $autoexecBlock
+        }
+
+        It "Here-string was successfully extracted from script" {
+            $autoexecBlock | Should -Not -BeNullOrEmpty -Because "The autoexec here-string must be extractable from the script source"
+        }
+
+        It "All autoexec commands exist in the reference config" {
+            $missingCmds = @()
+            foreach ($cmd in $ScriptCommands) {
+                if ($cmd -notin $RefCommands) {
+                    $missingCmds += $cmd
+                }
+            }
+            $missingCmds | Should -BeNullOrEmpty -Because "These commands are not in the reference config: $($missingCmds -join ', ')"
+        }
+
+        It "Script sets rate to maximum (786432)" {
+            $autoexecBlock | Should -Match 'rate\s+786432'
+        }
+
+        It "Script sets static crosshair (cl_crosshairstyle 4)" {
+            $autoexecBlock | Should -Match 'cl_crosshairstyle\s+4'
+        }
+
+        It "Script sets viewmodel_fov to max (68)" {
+            $autoexecBlock | Should -Match 'viewmodel_fov\s+68'
+        }
+
+        It "Script uses dynamic fps_max based on monitor refresh" {
+            $autoexecBlock | Should -Match 'fps_max\s+\$\(' -Because "fps_max should use monitor refresh rate variable"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script autoexec content format" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptFile -Raw
+            $hereStringMatch = [regex]::Match($scriptContent, '(?s)\$AutoExecContent\s*=\s*@"(.+?)"@')
+            $autoexecBlock = $hereStringMatch.Groups[1].Value
+
+            # Get non-comment, non-empty command lines
+            $CommandLines = $autoexecBlock -split "`n" |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { $_ -and $_ -notmatch '^\s*//' -and $_ -notmatch '^\s*$' }
+        }
+
+        It "All command lines use CFG syntax (no equals signs)" {
+            foreach ($line in $CommandLines) {
+                $line | Should -Not -Match '^\w+=\S' -Because "CFG uses spaces, not equals: $line"
+            }
+        }
+
+        It "All command lines have a value after the command name" {
+            foreach ($line in $CommandLines) {
+                $line | Should -Match '^\S+\s+.+' -Because "Each line should be: command value. Got: $line"
+            }
+        }
+
+        It "Autoexec does not include deprecated launch options as commands" {
+            $autoexecBlock | Should -Not -Match '^\s*-tickrate' -Because "-tickrate is a launch option, not a convar"
+            $autoexecBlock | Should -Not -Match '^\s*-threads' -Because "-threads is a launch option, not a convar"
+            $autoexecBlock | Should -Not -Match '^\s*-novid' -Because "-novid is a launch option, not a convar"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script source code correctness" {
+        BeforeAll {
+            $ScriptContent = Get-Content $ScriptFile -Raw
+        }
+
+        It "Script runs in headless mode" {
+            $ScriptContent | Should -Match 'SENSEQUALITY_HEADLESS'
+        }
+
+        It "Script writes autoexec.cfg via Set-Content" {
+            $ScriptContent | Should -Match 'Set-Content.*AutoExec'
+        }
+
+        It "Script backs up existing autoexec.cfg before writing" {
+            $ScriptContent | Should -Match '\.bak_'
+            $ScriptContent | Should -Match 'Copy-Item'
+        }
+
+        It "Script creates cfg directory if missing" {
+            $ScriptContent | Should -Match 'New-Item.*Directory.*CfgDir'
+        }
+
+        It "Script sets Steam launch options for CS2 (App ID 730)" {
+            $ScriptContent | Should -Match 'Apps\\730'
+            $ScriptContent | Should -Match 'LaunchOptions'
+        }
+
+        It "Launch options include +exec autoexec.cfg" {
+            $ScriptContent | Should -Match '\+exec autoexec\.cfg'
+        }
+
+        It "Launch options do NOT include deprecated flags (-tickrate, -threads)" {
+            $launchMatch = [regex]::Match($ScriptContent, '\$LaunchOptions\s*=\s*"([^"]+)"')
+            $launchOpts = $launchMatch.Groups[1].Value
+            $launchOpts | Should -Not -Match '-tickrate'
+            $launchOpts | Should -Not -Match '-threads'
+            $launchOpts | Should -Not -Match '-freq'
+        }
+
+        It "Script sets EXE compatibility flags (HIGHDPIAWARE, DISABLEFULLSCREENOPTIMIZATIONS)" {
+            $ScriptContent | Should -Match 'HIGHDPIAWARE'
+            $ScriptContent | Should -Match 'DISABLEFULLSCREENOPTIMIZATIONS'
+        }
+
+        It "Script searches multiple Steam library paths" {
+            $ScriptContent | Should -Match 'SteamLibraryPaths'
+            $pathCount = [regex]::Matches($ScriptContent, 'Counter-Strike Global Offensive').Count
+            $pathCount | Should -BeGreaterOrEqual 3
+        }
+    }
+}
