@@ -264,3 +264,291 @@ Describe "R6 Siege GameSettings.ini" -Tag "r6siege" {
         }
     }
 }
+
+# ===========================================================================
+# COD BLACK OPS 7 TESTS
+# ===========================================================================
+Describe "COD Black Ops 7 template configs" -Tag "cod" {
+
+    BeforeAll {
+        $ProjectRoot = (Get-Location).Path
+        $ScriptsDir  = Join-Path $ProjectRoot "scripts"
+        $BackupDir   = Join-Path $ScriptsDir  "BO7BACKUP"
+        $RefDir      = Join-Path $ScriptsDir  "reference-configs"
+        $RefFile     = Join-Path $RefDir      "cod-s.1.0.cod25.txt0"
+        $Txt0        = Join-Path $BackupDir   "s.1.0.cod25.txt0"
+        $Txt1        = Join-Path $BackupDir   "s.1.0.cod25.txt1"
+        $DotM        = Join-Path $BackupDir   "s.1.0.cod25.m"
+        $ScriptFile  = Join-Path $ScriptsDir  "02_BlackOps7_Settings.ps1"
+
+        # Helper: parse COD config lines into a hashtable of KeyBase -> value
+        # Lines look like:  KeyName@scope;hash1;hash2 = value // comment
+        # Keys with duplicate base names (e.g. DxrMode@0 and DxrMode@1)
+        # are stored as KeyBase@scope -- first occurrence wins for value checks.
+        function Parse-CodConfig {
+            param([string]$Path)
+            $result = [ordered]@{}
+            foreach ($line in (Get-Content $Path)) {
+                if ($line -match '^(\w+@[\d;]+)\s+=\s+(.+?)(\s+//.+)?$') {
+                    $fullKey = $Matches[1]
+                    $value   = $Matches[2].Trim()
+                    $baseKey = ($fullKey -split '@')[0]
+                    # Store full-keyed entry; also store base-keyed entry (first wins)
+                    $result[$fullKey] = $value
+                    if (-not $result.Contains($baseKey)) {
+                        $result[$baseKey] = $value
+                    }
+                }
+            }
+            return $result
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Reference config is valid" {
+        It "Reference file exists" {
+            $RefFile | Should -Exist
+        }
+
+        It "Reference file uses COD config line format" {
+            $dataLines = Get-Content $RefFile |
+                Where-Object { $_ -match '\S' -and $_ -notmatch '^\s*//' -and $_ -notmatch '^\d+$' }
+            $dataLines.Count | Should -BeGreaterThan 0 -Because "Should have data lines"
+            foreach ($line in $dataLines) {
+                $line | Should -Match '^\w+@[\d;]+\s+=\s+' -Because "Each data line should match: Key@scope;h1;h2 = value"
+            }
+        }
+
+        It "Reference file contains all expected config sections" {
+            $content = Get-Content $RefFile -Raw
+            $content | Should -Match '// Audio'
+            $content | Should -Match '// Display'
+            $content | Should -Match '// Graphics'
+            $content | Should -Match '// Gameplay'
+            $content | Should -Match '// Interface'
+            $content | Should -Match '// Mouse and Gamepad'
+            $content | Should -Match '// System'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Template file integrity" {
+        It "txt0 template exists" {
+            $Txt0 | Should -Exist
+        }
+
+        It "txt1 template exists" {
+            $Txt1 | Should -Exist
+        }
+
+        It ".m template exists" {
+            $DotM | Should -Exist
+        }
+
+        It "txt0 and txt1 are byte-identical" {
+            $hash0 = (Get-FileHash $Txt0 -Algorithm SHA256).Hash
+            $hash1 = (Get-FileHash $Txt1 -Algorithm SHA256).Hash
+            $hash0 | Should -Be $hash1 -Because "Both profile templates must contain identical optimized settings"
+        }
+
+        It ".m file is exactly 2 bytes" {
+            (Get-Item $DotM).Length | Should -Be 2
+        }
+
+        It "txt0 matches the reference config" {
+            $hashTxt0 = (Get-FileHash $Txt0 -Algorithm SHA256).Hash
+            $hashRef  = (Get-FileHash $RefFile -Algorithm SHA256).Hash
+            $hashTxt0 | Should -Be $hashRef -Because "BO7BACKUP template must match the reference config"
+        }
+
+        It "txt0 has no UTF-8 BOM" {
+            $bytes = [System.IO.File]::ReadAllBytes($Txt0)
+            $hasBom = ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+            $hasBom | Should -BeFalse -Because "COD config parser may reject BOM"
+        }
+
+        It "txt0 starts with version number on line 1" {
+            $firstLine = (Get-Content $Txt0 -TotalCount 1)
+            $firstLine | Should -Match '^\d+$' -Because "First line must be the config version number"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Competitive settings values" {
+        BeforeAll {
+            $Settings = Parse-CodConfig -Path $RefFile
+        }
+
+        # -- Display --
+        It "VSync is disabled" {
+            $Settings['VSync'] | Should -Be 'disabled'
+        }
+
+        It "DisplayMode is Fullscreen" {
+            $Settings['DisplayMode'] | Should -Be 'Fullscreen'
+        }
+
+        It "Render resolution is 100 percent" {
+            $Settings['ResolutionMultiplier'] | Should -Be '100'
+        }
+
+        It "Nvidia Reflex is Enabled" {
+            $Settings['NvidiaReflex'] | Should -Be 'Enabled'
+        }
+
+        # -- Gameplay --
+        It "Depth of Field is off" {
+            $Settings['DepthOfField'] | Should -Be 'false'
+        }
+
+        It "Motion blur is off" {
+            $Settings['EnableVelocityBasedBlur'] | Should -Be 'false'
+        }
+
+        It "Custom FPS cap is off (uncapped)" {
+            $Settings['CapFps'] | Should -Be 'false'
+        }
+
+        # -- Graphics quality --
+        It "Shadow quality is Very_Low" {
+            $Settings['ShadowQuality'] | Should -Be 'Very_Low'
+        }
+
+        It "Screen Space Shadows are Off" {
+            $Settings['ScreenSpaceShadowQuality'] | Should -Be 'Off'
+        }
+
+        It "SSR quality is Off" {
+            $Settings['SSRQuality'] | Should -Be 'Off'
+        }
+
+        It "Ambient lighting is Off" {
+            $Settings['AmbientLightingQuality'] | Should -Be 'Off'
+        }
+
+        It "Weather grid volumes are Off" {
+            $Settings['WeatherGridVolumesQuality'] | Should -Be 'Off'
+        }
+
+        It "Shader quality is Low" {
+            $Settings['ShaderQuality'] | Should -Be 'Low'
+        }
+
+        It "Particle quality is very low" {
+            $Settings['ParticleQuality'] | Should -Be 'very low'
+        }
+
+        It "Volumetric quality is QUALITY_LOW" {
+            $Settings['VolumetricQuality'] | Should -Be 'QUALITY_LOW'
+        }
+
+        It "Texture quality is 3 (lowest)" {
+            $Settings['TextureQuality'] | Should -Be '3'
+        }
+
+        It "Texture filter is aniso 2x" {
+            $Settings['TextureFilter'] | Should -Be 'aniso 2x'
+        }
+
+        It "Tessellation is off" {
+            $Settings['Tessellation'] | Should -Be '0_Off'
+        }
+
+        It "Water caustics are Off" {
+            $Settings['WaterCausticsMode'] | Should -Be 'Off'
+        }
+
+        It "Water wave wetness is off" {
+            $Settings['WaterWaveWetness'] | Should -Be 'false'
+        }
+
+        It "VRS is enabled (free performance)" {
+            $Settings['VRS'] | Should -Be 'true'
+        }
+
+        It "DXR raytracing is Off" {
+            $Settings['DxrMode'] | Should -Be 'Off'
+        }
+
+        It "Dynamic scene resolution is off" {
+            $Settings['DynamicSceneResolution'] | Should -Be 'false'
+        }
+
+        It "DLSS Frame Generation is off" {
+            $Settings['DLSSFrameGeneration'] | Should -Be 'false'
+        }
+
+        It "FSR Frame Interpolation is off" {
+            $Settings['FSRFrameInterpolation'] | Should -Be 'false'
+        }
+
+        It "Persistent damage layer is off" {
+            $Settings['PersistentDamageLayer'] | Should -Be 'false'
+        }
+
+        It "AA technique is SMAA (not upscaler)" {
+            $Settings['AATechniquePreferredMP'] | Should -Be 'SMAA'
+        }
+
+        # -- Input --
+        It "Raw mouse input is enabled" {
+            $Settings['MouseUsesRawInput'] | Should -Be 'true'
+        }
+
+        # -- Cloud sync --
+        It "Cloud storage sync is disabled" {
+            $Settings['ConfigCloudStorageEnabled'] | Should -Be 'false'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script source code correctness" {
+        BeforeAll {
+            $ScriptContent = Get-Content $ScriptFile -Raw
+        }
+
+        It "Script emits SQ_CHECK marker for COD_EXE_FLAGS" {
+            $ScriptContent | Should -Match 'COD_EXE_FLAGS'
+        }
+
+        It "Script emits SQ_CHECK marker for COD_GAME_MODE_ON" {
+            $ScriptContent | Should -Match 'COD_GAME_MODE_ON'
+        }
+
+        It "Script emits SQ_CHECK marker for COD_GAME_DVR_OFF" {
+            $ScriptContent | Should -Match 'COD_GAME_DVR_OFF'
+        }
+
+        It "Script emits SQ_CHECK marker for COD_CONFIG_FILES_COPIED" {
+            $ScriptContent | Should -Match 'COD_CONFIG_FILES_COPIED'
+        }
+
+        It "Script emits SQ_CHECK marker for COD_RENDERER_WORKER_COUNT" {
+            $ScriptContent | Should -Match 'COD_RENDERER_WORKER_COUNT'
+        }
+
+        It "Script does NOT use Set-Content on template files" {
+            # v1.0.13 lesson: Set-Content rewrites corrupt BO7 template bytes
+            $ScriptContent | Should -Not -Match 'Set-Content.*cod25\.(txt0|txt1|m)' `
+                -Because "BO7 templates must be copied byte-for-byte, never rewritten (v1.0.13 regression)"
+        }
+
+        It "Script uses Copy-Item for template deployment" {
+            $ScriptContent | Should -Match 'Copy-Item'
+        }
+
+        It "Script verifies copy via hash comparison" {
+            $ScriptContent | Should -Match 'Get-FileHash'
+        }
+
+        It "Script references all three required template files" {
+            $ScriptContent | Should -Match 's\.1\.0\.cod25\.txt0'
+            $ScriptContent | Should -Match 's\.1\.0\.cod25\.txt1'
+            $ScriptContent | Should -Match 's\.1\.0\.cod25\.m'
+        }
+
+        It "Script runs in headless mode" {
+            $ScriptContent | Should -Match 'SENSEQUALITY_HEADLESS'
+        }
+    }
+}
