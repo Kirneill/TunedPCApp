@@ -58,7 +58,7 @@ if (-not [string]::IsNullOrWhiteSpace($env:TARKOV_PATH)) {
     }
 }
 
-# Registry detection — BSG launcher / uninstall key
+# Registry detection -- BSG launcher / uninstall key
 $regPaths = @(
     "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\EscapeFromTarkov",
     "HKCU:\Software\Battlestate Games\"
@@ -117,7 +117,7 @@ if (-not $foundExe) {
 # Without these, the rendering pipeline cannot initialize → infinite loading.
 #
 # Strategy: read-merge-write. If an existing config exists we parse it and only
-# override the performance keys, preserving the user's resolution & display
+# override the performance keys, preserving the user's resolution and display
 # settings. If no config exists we build a fresh envelope from monitor info.
 # -----------------------------------------------------------------------------
 
@@ -157,14 +157,14 @@ if (Test-Path $GraphicsIni) {
                        $config.PSObject.Properties['Stored'] -and
                        $config.PSObject.Properties['DisplaySettings']
         if (-not $hasEnvelope) {
-            Write-Host "[WARN] Graphics.ini missing required fields (Version/Stored/DisplaySettings) — rebuilding" -ForegroundColor Yellow
+            Write-Host "[WARN] Graphics.ini missing required fields (Version/Stored/DisplaySettings) -- rebuilding" -ForegroundColor Yellow
             $config = $null
             $AnyFailure = $true
         } else {
-            Write-Host "[INFO] Parsed existing Graphics.ini — preserving resolution settings" -ForegroundColor DarkCyan
+            Write-Host "[INFO] Parsed existing Graphics.ini -- preserving resolution settings" -ForegroundColor DarkCyan
         }
     } catch {
-        Write-Host "[WARN] Existing Graphics.ini could not be parsed — writing fresh config" -ForegroundColor Yellow
+        Write-Host "[WARN] Existing Graphics.ini could not be parsed -- writing fresh config" -ForegroundColor Yellow
         $config = $null
         $AnyFailure = $true
     }
@@ -208,7 +208,7 @@ if ($config.Stored -and $config.Stored -isnot [array]) {
     $config.Stored = @($config.Stored)
 }
 
-# --- Competitive settings — exact Tarkov key names & value types -------------
+# --- Competitive settings -- exact Tarkov key names and value types -----------
 # Reference: github.com/antheboets/tarkov-settings, github.com/td4b/TarkovOptimization
 $competitiveSettings = [ordered]@{
     ShadowsQuality       = [int]0           # Low
@@ -245,7 +245,7 @@ if ($NvidiaGPU) {
     $competitiveSettings["NVidiaReflex"] = "OnAndBoost"
 }
 
-# Merge into config — preserves Version, Stored, DisplaySettings untouched
+# Merge into config -- preserves Version, Stored, DisplaySettings untouched
 foreach ($key in $competitiveSettings.Keys) {
     if ($config.PSObject.Properties[$key]) {
         $config.$key = $competitiveSettings[$key]
@@ -269,12 +269,12 @@ try {
     $AnyFailure = $true
 }
 
-# Read-only lock (separate — a failure here should not mask a successful write)
+# Read-only lock (separate -- a failure here should not mask a successful write)
 try {
     Set-ItemProperty -Path $GraphicsIni -Name IsReadOnly -Value $true -ErrorAction Stop
     Write-Host "  [OK] Graphics.ini locked (read-only)" -ForegroundColor Green
 } catch {
-    Write-Host "[WARN] Could not set read-only flag — Tarkov may overwrite settings on exit" -ForegroundColor Yellow
+    Write-Host "[WARN] Could not set read-only flag -- Tarkov may overwrite settings on exit" -ForegroundColor Yellow
 }
 
 # -----------------------------------------------------------------------------
