@@ -13,9 +13,11 @@
     BattlEye is Tarkov's anti-cheat. Config file edits are safe.
 
 .NOTES
-    Config file keys are approximations — BSG may rename them between
-    patches. The script writes known-good settings and sets read-only
-    to preserve them. PostFX must be set in-game (not exposed in config).
+    Graphics.ini is JSON (despite .ini extension) with a required structural
+    envelope (Version, Stored[], DisplaySettings{}). The script uses a
+    read-merge-write approach to preserve the user's resolution settings
+    while overriding only performance keys. Config key names verified against
+    github.com/antheboets/tarkov-settings. PostFX must be set in-game.
 #>
 
 # --- HEADLESS MODE ------------------------------------------------------------
@@ -110,6 +112,14 @@ if (-not $foundExe) {
 # -----------------------------------------------------------------------------
 # SECTION 2: WRITE OPTIMIZED GRAPHICS CONFIG
 # -----------------------------------------------------------------------------
+# Tarkov's Graphics.ini is JSON (despite the .ini extension) parsed by Unity.
+# It REQUIRES a structural envelope: Version, Stored[], DisplaySettings{}.
+# Without these, the rendering pipeline cannot initialize → infinite loading.
+#
+# Strategy: read-merge-write. If an existing config exists we parse it and only
+# override the performance keys, preserving the user's resolution & display
+# settings. If no config exists we build a fresh envelope from monitor info.
+# -----------------------------------------------------------------------------
 
 $SettingsDir = "$env:APPDATA\Battlestate Games\Escape from Tarkov\Settings"
 
@@ -119,10 +129,10 @@ if (-not (Test-Path $SettingsDir)) {
 }
 
 $GraphicsIni = Join-Path $SettingsDir "Graphics.ini"
+$config = $null
 
-# Back up existing config
+# --- Read existing config to preserve resolution / display settings ----------
 if (Test-Path $GraphicsIni) {
-    # Remove read-only if set from previous run
     try {
         $file = Get-Item $GraphicsIni
         if ($file.IsReadOnly) { $file.IsReadOnly = $false }
@@ -131,46 +141,140 @@ if (Test-Path $GraphicsIni) {
     }
 
     $backupPath = "$GraphicsIni.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
-    Copy-Item $GraphicsIni $backupPath -Force
-    Write-Host "[BACKUP] Graphics.ini backed up to: $backupPath" -ForegroundColor Yellow
+    try {
+        Copy-Item $GraphicsIni $backupPath -Force -ErrorAction Stop
+        Write-Host "[BACKUP] Graphics.ini backed up to: $backupPath" -ForegroundColor Yellow
+    } catch {
+        Write-Host "[WARN] Could not back up Graphics.ini: $_" -ForegroundColor Yellow
+    }
+
+    try {
+        $raw = [System.IO.File]::ReadAllText($GraphicsIni, [System.Text.UTF8Encoding]::new($false))
+        $config = $raw | ConvertFrom-Json -ErrorAction Stop
+
+        # Validate the structural envelope Tarkov requires to initialize rendering
+        $hasEnvelope = $config.PSObject.Properties['Version'] -and
+                       $config.PSObject.Properties['Stored'] -and
+                       $config.PSObject.Properties['DisplaySettings']
+        if (-not $hasEnvelope) {
+            Write-Host "[WARN] Graphics.ini missing required fields (Version/Stored/DisplaySettings) — rebuilding" -ForegroundColor Yellow
+            $config = $null
+            $AnyFailure = $true
+        } else {
+            Write-Host "[INFO] Parsed existing Graphics.ini — preserving resolution settings" -ForegroundColor DarkCyan
+        }
+    } catch {
+        Write-Host "[WARN] Existing Graphics.ini could not be parsed — writing fresh config" -ForegroundColor Yellow
+        $config = $null
+        $AnyFailure = $true
+    }
 }
 
-# Tarkov stores graphics as a JSON blob inside the file.
-# We write a known-good competitive config.
-$GraphicsConfig = @{
-    TextureQuality = 1
-    ShadowQuality = 1
-    ShadowVisibility = 40
-    LodQuality = 2
-    OverallVisibility = 400
-    AntiAliasing = 1
-    SSAOMode = 0
-    SSRMode = 0
-    AnisotropicFiltering = 1
-    Sharpness = 0.7
-    ZBlur = $false
-    ChromaticAberration = $false
-    Noise = $false
-    GrassShadows = $false
-    MIPStreaming = $true
-    LobbyFPS = 60
-    GameFPS = 0
+# --- Helper: compute aspect ratio from resolution ---------------------------
+function Get-AspectRatio([int]$w, [int]$h) {
+    if ($w -le 0 -or $h -le 0) { return @{ X = 16; Y = 9 } }
+    $a = $w; $b = $h
+    while ($b -ne 0) { $t = $b; $b = $a % $b; $a = $t }
+    return @{ X = [int]($w / $a); Y = [int]($h / $a) }
 }
 
-$jsonContent = $GraphicsConfig | ConvertTo-Json -Depth 3
-# Fix PowerShell boolean serialization: "True"/"False" → true/false for JSON compliance
-$jsonContent = $jsonContent -replace ':\s*"True"', ': true' -replace ':\s*"False"', ': false'
+# --- Build structural envelope when no valid config exists -------------------
+if (-not $config) {
+    $aspect = Get-AspectRatio $MonitorWidth $MonitorHeight
+    $config = [PSCustomObject]@{
+        Version          = 5
+        Stored           = @(
+            [PSCustomObject]@{
+                Index                 = 0
+                FullScreenResolution  = [PSCustomObject]@{ Width = $MonitorWidth; Height = $MonitorHeight }
+                FullScreenAspectRatio = [PSCustomObject]@{ X = $aspect.X; Y = $aspect.Y }
+                WindowResolution      = [PSCustomObject]@{ Width = $MonitorWidth; Height = $MonitorHeight }
+                WindowAspectRatio     = [PSCustomObject]@{ X = $aspect.X; Y = $aspect.Y }
+            }
+        )
+        DisplaySettings  = [PSCustomObject]@{
+            Display        = 0
+            FullScreenMode = 0
+            Resolution     = [PSCustomObject]@{ Width = $MonitorWidth; Height = $MonitorHeight }
+            AspectRatio    = [PSCustomObject]@{ X = $aspect.X; Y = $aspect.Y }
+        }
+        GraphicsQuality  = $null
+    }
+    Write-Host "[INFO] Built fresh config for ${MonitorWidth}x${MonitorHeight}" -ForegroundColor DarkCyan
+}
+
+# PowerShell 5.1 may collapse single-element JSON arrays on parse
+if ($config.Stored -and $config.Stored -isnot [array]) {
+    $config.Stored = @($config.Stored)
+}
+
+# --- Competitive settings — exact Tarkov key names & value types -------------
+# Reference: github.com/antheboets/tarkov-settings, github.com/td4b/TarkovOptimization
+$competitiveSettings = [ordered]@{
+    ShadowsQuality       = [int]0           # Low
+    TextureQuality       = [int]1           # Medium
+    CloudsQuality        = "Low"
+    VSync                = $false
+    LobbyFramerate       = [int]60
+    GameFramerate        = [int]0           # Unlimited
+    SuperSampling        = "Off"
+    AnisotropicFiltering = "Enable"
+    OverallVisibility    = [double]400.0
+    LodBias              = [double]2.0
+    Ssao                 = "Off"
+    Sharpen              = [double]0.7
+    SSR                  = "Off"
+    AntiAliasing         = "TAA_Low"
+    GrassShadow          = $false
+    ChromaticAberrations = $false
+    Noise                = $false
+    ZBlur                = $false
+    HighQualityColor     = $true
+    MipStreaming         = $true
+    ShadowDistance       = [double]40.0
+    SuperSamplingFactor  = [double]1.0
+    DLSSMode             = "Off"
+    FSR2Mode             = "Off"
+    FSR3Mode             = "Off"
+    DLSSEnabled          = $false
+    FSR2Enabled          = $false
+    FSR3Enabled          = $false
+}
+
+if ($NvidiaGPU) {
+    $competitiveSettings["NVidiaReflex"] = "OnAndBoost"
+}
+
+# Merge into config — preserves Version, Stored, DisplaySettings untouched
+foreach ($key in $competitiveSettings.Keys) {
+    if ($config.PSObject.Properties[$key]) {
+        $config.$key = $competitiveSettings[$key]
+    } else {
+        $config | Add-Member -NotePropertyName $key -NotePropertyValue $competitiveSettings[$key] -Force
+    }
+}
+
+# --- Write JSON without UTF-8 BOM -------------------------------------------
+# PS 5.1's Set-Content -Encoding UTF8 prepends a BOM (EF BB BF) which breaks
+# Unity JSON parsers. Use .NET WriteAllText with BOM-less encoding.
+$json = $config | ConvertTo-Json -Depth 10
 
 try {
-    Set-Content -Path $GraphicsIni -Value $jsonContent -Encoding UTF8 -Force
-    # Set read-only to prevent Tarkov from overwriting on exit
-    Set-ItemProperty -Path $GraphicsIni -Name IsReadOnly -Value $true
-    Write-Host "  [OK] Graphics.ini written and locked (read-only): $GraphicsIni" -ForegroundColor Green
+    [System.IO.File]::WriteAllText($GraphicsIni, $json, [System.Text.UTF8Encoding]::new($false))
+    Write-Host "  [OK] Graphics.ini written: $GraphicsIni" -ForegroundColor Green
     Write-Host "[SQ_CHECK_OK:TARKOV_CONFIG_WRITTEN]"
 } catch {
     Write-Host "[FAIL] Failed to write Graphics.ini: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:TARKOV_CONFIG_WRITTEN:WRITE_ERROR]"
     $AnyFailure = $true
+}
+
+# Read-only lock (separate — a failure here should not mask a successful write)
+try {
+    Set-ItemProperty -Path $GraphicsIni -Name IsReadOnly -Value $true -ErrorAction Stop
+    Write-Host "  [OK] Graphics.ini locked (read-only)" -ForegroundColor Green
+} catch {
+    Write-Host "[WARN] Could not set read-only flag — Tarkov may overwrite settings on exit" -ForegroundColor Yellow
 }
 
 # -----------------------------------------------------------------------------
@@ -190,13 +294,13 @@ Write-Host "  Game FPS Limit         : 0 (Unlimited)" -ForegroundColor White
 Write-Host "  Lobby FPS Limit        : 60 (saves GPU thermals)" -ForegroundColor White
 
 Write-Host ""
-Write-Host "  --- UPSCALING ---" -ForegroundColor Cyan
+Write-Host "  --- UPSCALING (set in-game if desired) ---" -ForegroundColor Cyan
 if ($NvidiaGPU) {
-    Write-Host "  DLSS                   : Quality" -ForegroundColor White
+    Write-Host "  DLSS                   : OFF (set to Quality in-game for sharpness)" -ForegroundColor White
     Write-Host "  DLSS Frame Gen         : OFF (adds latency)" -ForegroundColor White
     Write-Host "  Reflex Low Latency     : ON + Boost" -ForegroundColor White
 } else {
-    Write-Host "  FSR                    : Quality" -ForegroundColor White
+    Write-Host "  FSR                    : OFF (set to Quality in-game for sharpness)" -ForegroundColor White
     Write-Host "  Frame Gen              : OFF (adds latency)" -ForegroundColor White
 }
 
@@ -207,8 +311,8 @@ Write-Host "  Shadow Quality         : Low (big FPS impact)" -ForegroundColor Wh
 Write-Host "  Shadow Visibility      : 40 (competitive sweet spot)" -ForegroundColor White
 Write-Host "  Object LOD Quality     : 2 (player detail at distance)" -ForegroundColor White
 Write-Host "  Overall Visibility     : 400 (min for gameplay; 1000 for sniping)" -ForegroundColor White
-Write-Host "  Anti-Aliasing          : TAA" -ForegroundColor White
-Write-Host "  HBAO                   : OFF (significant FPS cost)" -ForegroundColor White
+Write-Host "  Anti-Aliasing          : TAA Low" -ForegroundColor White
+Write-Host "  SSAO                   : OFF (significant FPS cost)" -ForegroundColor White
 Write-Host "  SSR                    : OFF (major FPS hit, cosmetic only)" -ForegroundColor White
 Write-Host "  Sharpness              : 0.7" -ForegroundColor White
 
