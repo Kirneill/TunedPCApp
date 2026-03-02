@@ -4,47 +4,70 @@ Windows desktop app (Electron + React) that applies PowerShell-based optimizatio
 
 **Stack:** Electron 33, React 19, Vite 7, Tailwind 4, Zustand 5, TypeScript 5, Supabase (auth + telemetry)
 
-## How to Use This File (for the human)
+## One-Prompt Pipelines (for the human)
 
-This CLAUDE.md is read automatically by every new Claude session. It teaches the AI the correct workflow so you don't have to re-explain it each time. Here's what you need to know:
+This CLAUDE.md is read automatically by every new Claude session. Copy-paste one prompt and the AI runs the full pipeline end-to-end.
 
-### Adding a new game (2-step process)
+### Add a new game (2-step process)
 
 **Step 1 — Research agent** (creates the settings research file):
-Prompt: **"Research the best competitive FPS settings for [Game Name]. Find the config file path, format, exact key names, value types, and structural requirements. Save to Gaming Research/[GameName]_FPS_Settings.md"**
-
-This agent creates the `.md` with all settings info, config format details, and a real reference config sample.
+```
+Research the best competitive FPS settings for [Game Name]. Find the config file path,
+format, exact key names, value types, and structural requirements.
+Save to Gaming Research/[GameName]_FPS_Settings.md
+```
 
 **Step 2 — Coding agent** (reads the research and implements):
-Prompt: **"Add [Game Name] as a new game optimization. Follow the CLAUDE.md workflow — the research file is already in Gaming Research/."**
+```
+Add [Game Name] as a new game optimization. Follow the CLAUDE.md workflow:
+1. Read existing research in Gaming Research/
+2. Create reference config in scripts/reference-configs/
+3. Write the PowerShell script
+4. Register in optimizations.ts, handlers.ts, game-detection.ts
+5. Add Pester tests and run them
+6. Commit to a branch named feature/[game-name]
+```
 
-This agent reads the research, then follows Phases 2-5 (Reference Config, Script, Register, Validate). It doesn't need to re-research — everything it needs is in the `.md` file.
+### Audit an existing game (full pipeline)
+```
+Audit [Game Name]. Follow the CLAUDE.md workflow end-to-end:
+1. Read existing research in Gaming Research/
+2. Create reference config in scripts/reference-configs/
+3. Verify the script against the reference — fix any wrong key names, encoding, or structural issues
+4. Add Pester tests and run them
+5. Commit to a branch named audit/[game-name]
+```
+Add **"Don't modify the script — it's confirmed working."** if the game is known good.
 
-### After the AI writes a new game script
-Prompt: **"Run the Pester tests for [gameid]"** — this catches wrong key names, bad encoding, missing structural fields, and wrong value types *before* you ship.
+### Fix a broken game (full pipeline)
+```
+[Game Name] settings break the game after optimization. Follow the CLAUDE.md workflow:
+1. Read existing research in Gaming Research/
+2. Research the correct config format and fix any gaps
+3. Fix the script — compare key names against a real reference config
+4. Run Pester tests
+5. Commit the fix
+```
 
-If a test fails, the AI already knows what to fix because the failure message says exactly what's wrong (e.g., "These keys are not in the reference config: ShadowQuality, LobbyFPS").
+### Batch audit multiple games
+```
+Audit these games in parallel, each on its own branch. Follow the CLAUDE.md workflow for each:
+- [Game1] (audit/game1) — don't modify script, confirmed working
+- [Game2] (audit/game2)
+- [Game3] (audit/game3)
+Read existing research in Gaming Research/ first for each game.
+```
 
-### Auditing existing games (add tests to a working game)
-Prompt: **"Audit [Game] — read the research in Gaming Research/, create a reference config, add Pester tests, and verify the script. Don't modify the script if it's confirmed working."**
-
-The AI reads the existing research first, extracts the correct key names, builds a reference config, and writes tests that validate the script output against it.
-
-### If a user reports a game-breaking bug (config related)
-Prompt: **"[Game] settings break the game after optimization. Read the research in Gaming Research/, research the correct config format, fix the script, and run the Pester tests."**
-
-The AI will read your existing research, compare the script's key names against the reference config, check encoding, and validate the structural envelope.
-
-### Releasing a fix
-Prompt: **"Commit, build, and release to both repos with user-facing release notes."**
-
-The AI knows the full release checklist (bump version, build, package, copy to hyphenated names, upload to both repos).
+### Release
+```
+Commit, build, and release to both repos with user-facing release notes.
+```
 
 ### Key things to remember
 - **Research files** live under `Gaming Research/` (both top-level and `New Games/` subfolder). The AI should ALWAYS search this entire folder for existing research before writing or auditing a script.
 - **Reference configs** (`scripts/reference-configs/`) are the source of truth. If a test fails, check whether the reference config needs updating (new game version) or the script has a typo.
 - **Pester 5 is required** (Windows ships with 3.4.0). Already installed on this machine. If running on a new machine: `Install-Module -Name Pester -Force -SkipPublisherCheck -Scope CurrentUser`
-- **Don't use em dashes (—) or bare ampersands (&) in .ps1 comments** — they cause parse errors when PowerShell processes the file in certain contexts (like Pester invocation). Use `--` and `and` instead.
+- **Don't use em dashes or bare ampersands in .ps1 comments** — they cause parse errors in Pester. Use `--` and `and` instead.
 
 ---
 
@@ -106,8 +129,8 @@ npx electron-builder --win nsis  # NSIS installer -> release/
 
 **Search `Gaming Research/` for an existing research file** (check both the top-level folder and the `New Games/` subfolder). Look for files matching the game name — e.g., `*Tarkov*`, `*BO7*`, `*Fortnite*`.
 
-- **If research exists**: READ IT. It was created by a research agent and contains the recommended settings, config format, key names, and sources. Use it as your primary source. Only do fresh research to fill gaps.
-- **If no research exists**: Either ask the user to run a research agent first, or use `Gaming Research/RESEARCH_TEMPLATE.md` to create one yourself.
+- **If research exists**: READ IT. Use it as your primary source. Only do fresh web research to fill gaps.
+- **If no research exists**: Create one using `Gaming Research/RESEARCH_TEMPLATE.md` as the template. Research the best competitive settings using web search, community GitHub repos, and pro player configs.
 
 The research file MUST contain:
 
@@ -119,7 +142,7 @@ The research file MUST contain:
 - [ ] **Anti-cheat safety** — confirm config file edits are safe
 - [ ] **Source URL** where key names were verified
 
-Save to: `Gaming Research/New Games/<GameName>_FPS_Settings.md`
+Save to: `Gaming Research/<GameName>_FPS_Settings.md` (or `Gaming Research/New Games/`)
 
 #### Phase 2: Reference Config
 
