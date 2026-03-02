@@ -18,10 +18,15 @@ Prompt: **"Run the Pester tests for [gameid]"** — this catches wrong key names
 
 If a test fails, the AI already knows what to fix because the failure message says exactly what's wrong (e.g., "These keys are not in the reference config: ShadowQuality, LobbyFPS").
 
-### If a user reports a game-breaking bug (config related)
-Prompt: **"[Game] settings break the game after optimization. Research the correct config format, fix the script, and run the Pester tests."**
+### Auditing existing games (add tests to a working game)
+Prompt: **"Audit [Game] — read the research file in Gaming Research/New Games/, create a reference config, add Pester tests, and verify the script. Don't modify the script if it's confirmed working."**
 
-The AI will compare the script's key names against the reference config, check encoding, and validate the structural envelope.
+The AI reads the existing research first, extracts the correct key names, builds a reference config, and writes tests that validate the script output against it.
+
+### If a user reports a game-breaking bug (config related)
+Prompt: **"[Game] settings break the game after optimization. Read the research in Gaming Research/New Games/, research the correct config format, fix the script, and run the Pester tests."**
+
+The AI will read your existing research, compare the script's key names against the reference config, check encoding, and validate the structural envelope.
 
 ### Releasing a fix
 Prompt: **"Commit, build, and release to both repos with user-facing release notes."**
@@ -29,6 +34,7 @@ Prompt: **"Commit, build, and release to both repos with user-facing release not
 The AI knows the full release checklist (bump version, build, package, copy to hyphenated names, upload to both repos).
 
 ### Key things to remember
+- **Research files** (`Gaming Research/New Games/<Game>_FPS_Settings.md`) contain settings research from prior sessions. The AI should ALWAYS read these before writing or auditing a script.
 - **Reference configs** (`scripts/reference-configs/`) are the source of truth. If a test fails, check whether the reference config needs updating (new game version) or the script has a typo.
 - **Pester 5 is required** (Windows ships with 3.4.0). Already installed on this machine. If running on a new machine: `Install-Module -Name Pester -Force -SkipPublisherCheck -Scope CurrentUser`
 - **Don't use em dashes (—) or bare ampersands (&) in .ps1 comments** — they cause parse errors when PowerShell processes the file in certain contexts (like Pester invocation). Use `--` and `and` instead.
@@ -91,7 +97,11 @@ npx electron-builder --win nsis  # NSIS installer -> release/
 
 #### Phase 1: Research
 
-Use `Gaming Research/RESEARCH_TEMPLATE.md` as the template. The research MUST capture:
+**FIRST: Check if research already exists** at `Gaming Research/New Games/<GameName>_FPS_Settings.md`. If it does, READ IT — it contains the recommended settings, config format details, and key names from a prior research session. Use it as your primary source and only do fresh research to fill gaps.
+
+If no research file exists, use `Gaming Research/RESEARCH_TEMPLATE.md` as the template.
+
+The research (existing or new) MUST capture:
 
 - [ ] **Exact config file path** and format (JSON, INI, ConVar, XML)
 - [ ] **A REAL reference config file** — full, not excerpted. Fetch from GitHub, community repos, or a real installation. Store in `scripts/reference-configs/`
