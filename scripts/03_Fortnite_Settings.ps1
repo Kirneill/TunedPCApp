@@ -250,7 +250,7 @@ foreach ($ConfigPath in $TargetConfigPaths) {
         Set-IniValue $ini $fortSection 'LastUserConfirmedResolutionSizeY' "$MonitorHeight"
         Set-IniValue $ini $fortSection 'LastConfirmedFullscreenMode' '0'
         Set-IniValue $ini $fortSection 'PreferredFullscreenMode' '0'
-        Set-IniValue $ini $fortSection 'FrameRateLimit' "$FrameRateLimit.000000"
+        Set-IniValue $ini $fortSection 'FrameRateLimit' "${FrameRateLimit}.000000"
         Set-IniValue $ini $fortSection 'DesiredScreenWidth' "$MonitorWidth"
         Set-IniValue $ini $fortSection 'DesiredScreenHeight' "$MonitorHeight"
         Set-IniValue $ini $fortSection 'LastUserConfirmedDesiredScreenWidth' "$MonitorWidth"
@@ -345,16 +345,21 @@ foreach ($ConfigPath in $TargetConfigPaths) {
     }
 }
 
-if ($WriteSuccessCount -eq $TotalTargets) {
-    Write-Check -Status 'OK' -Key 'FN_CONFIG_FILES_WRITTEN' -Detail "$WriteSuccessCount/$TotalTargets"
+if ($TotalTargets -eq 0) {
+    Write-Check -Status 'WARN' -Key 'FN_CONFIG_FILES_WRITTEN' -Detail 'no config paths found'
+    Write-Check -Status 'WARN' -Key 'FN_CONFIG_WRITABLE' -Detail 'no config paths found'
 } else {
-    Write-Check -Status 'FAIL' -Key 'FN_CONFIG_FILES_WRITTEN' -Detail (($WriteFailures -join '; '))
-}
+    if ($WriteSuccessCount -eq $TotalTargets) {
+        Write-Check -Status 'OK' -Key 'FN_CONFIG_FILES_WRITTEN' -Detail "$WriteSuccessCount/$TotalTargets"
+    } else {
+        Write-Check -Status 'FAIL' -Key 'FN_CONFIG_FILES_WRITTEN' -Detail (($WriteFailures -join '; '))
+    }
 
-if ($WritableSuccessCount -eq $TotalTargets) {
-    Write-Check -Status 'OK' -Key 'FN_CONFIG_WRITABLE' -Detail "$WritableSuccessCount/$TotalTargets"
-} else {
-    Write-Check -Status 'FAIL' -Key 'FN_CONFIG_WRITABLE' -Detail (($WritableFailures -join '; '))
+    if ($WritableSuccessCount -eq $TotalTargets) {
+        Write-Check -Status 'OK' -Key 'FN_CONFIG_WRITABLE' -Detail "$WritableSuccessCount/$TotalTargets"
+    } else {
+        Write-Check -Status 'FAIL' -Key 'FN_CONFIG_WRITABLE' -Detail (($WritableFailures -join '; '))
+    }
 }
 
 # -----------------------------------------------------------------------------
@@ -376,11 +381,22 @@ $FNExePaths = @(
 $AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
 if (-not (Test-Path $AppCompatLayers)) { New-Item -Path $AppCompatLayers -Force | Out-Null }
 
-foreach ($exePath in $FNExePaths) {
-    if (Test-Path $exePath) {
-        Set-ItemProperty -Path $AppCompatLayers -Name $exePath -Value "~ HIGHDPIAWARE" -Type String -Force
-        Write-Host "  [OK] EXE flags set for: $exePath" -ForegroundColor Green
+$ExeFlagCount = 0
+try {
+    foreach ($exePath in $FNExePaths) {
+        if (Test-Path $exePath) {
+            Set-ItemProperty -Path $AppCompatLayers -Name $exePath -Value "~ HIGHDPIAWARE" -Type String -Force
+            $ExeFlagCount++
+            Write-Host "  [OK] EXE flags set for: $exePath" -ForegroundColor Green
+        }
     }
+    if ($ExeFlagCount -gt 0) {
+        Write-Check -Status 'OK' -Key 'FN_EXE_FLAGS' -Detail "$ExeFlagCount exe(s)"
+    } else {
+        Write-Check -Status 'WARN' -Key 'FN_EXE_FLAGS' -Detail 'EXE_NOT_FOUND'
+    }
+} catch {
+    Write-Check -Status 'FAIL' -Key 'FN_EXE_FLAGS' -Detail $_.Exception.Message
 }
 
 # -----------------------------------------------------------------------------
@@ -435,6 +451,7 @@ Write-Host "  Nanite                 : OFF (bUseNanite=False)" -ForegroundColor 
 
 Write-Host ""
 Write-Host "  --- AUDIO (set in-game) ---" -ForegroundColor Cyan
+Write-Host "  Audio Quality          : High (AudioQualityLevel=2 in config)" -ForegroundColor White
 Write-Host "  Sound Effects          : 100" -ForegroundColor White
 Write-Host "  Music                  : 0 (eliminates audio masking of footsteps)" -ForegroundColor White
 Write-Host "  Voice Chat             : 70 (team comms)" -ForegroundColor White
