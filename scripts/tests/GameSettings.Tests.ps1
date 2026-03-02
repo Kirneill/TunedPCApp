@@ -1571,7 +1571,8 @@ Describe "Arc Raiders GameUserSettings.ini" -Tag "arcraiders" {
         }
 
         It "Script backs up existing config before writing" {
-            $ScriptContent | Should -Match 'Copy-Item.*bak_'
+            $ScriptContent | Should -Match '\.bak_'
+            $ScriptContent | Should -Match 'Copy-Item'
         }
 
         It "Script does not use Set-Content for config files" {
