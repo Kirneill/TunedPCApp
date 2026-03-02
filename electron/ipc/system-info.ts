@@ -1,31 +1,30 @@
 import { runPowerShellCommand } from './powershell';
 import { generateAnonymousId } from '../telemetry/telemetry';
 
-export interface GpuAdapter {
-  id: string;
-  name: string;
-  vendor: 'nvidia' | 'amd' | 'intel' | 'other';
-  vramGB: number;
-  isIntegrated: boolean;
-}
-
-export interface SystemInfo {
-  gpu: string;
-  gpuVram: string;
-  gpuAdapters: GpuAdapter[];
-  primaryGpuId: string;
-  cpu: string;
-  cpuCores: number;
-  cpuThreads: number;
-  ramGB: number;
-  os: string;
-  osBuild: string;
-  isNvidia: boolean;
-  isAmd: boolean;
-  machineId: string;
-}
+export type { GpuAdapter, SystemInfo } from '../../src/types/index';
+import type { GpuAdapter, SystemInfo } from '../../src/types/index';
 
 const SYSTEM_INFO_SCRIPT = `
+# Build a lookup of 64-bit VRAM values from the display adapter registry.
+# Win32_VideoController.AdapterRAM is uint32, so it wraps modulo 2^32 (4 GB).
+# Common VRAM sizes (4, 8, 12, 16, 24 GB) wrap to exactly 0; other sizes
+# above 4 GB report incorrect but nonzero values (e.g. 6 GB reports as 2 GB).
+$vramLookup = @{}
+try {
+  $classPath = 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}'
+  Get-ChildItem $classPath -ErrorAction SilentlyContinue | ForEach-Object {
+    $r = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
+    if ($r -and $r.MatchingDeviceId) {
+      $qw = $r.'HardwareInformation.qwMemorySize'
+      if ($qw -and [int64]$qw -gt 0) {
+        $vramLookup[$r.MatchingDeviceId.ToLower()] = [math]::Round([int64]$qw / 1GB, 1)
+      }
+    }
+  }
+} catch {
+  Write-Warning "[VRAM-LOOKUP] Registry VRAM detection failed: $_"
+}
+
 $gpus = Get-CimInstance Win32_VideoController | ForEach-Object {
   $name = [string]$_.Name
   if ([string]::IsNullOrWhiteSpace($name)) { return }
@@ -53,12 +52,26 @@ $gpus = Get-CimInstance Win32_VideoController | ForEach-Object {
     $vram = [math]::Round($_.AdapterRAM / 1GB, 1)
   }
 
+  # Fix uint32 overflow: look up 64-bit VRAM from registry when WMI reports 0
+  # or suspiciously low values (<2 GB) for a discrete GPU
+  $pnpId = $_.PNPDeviceID
+  if ($pnpId -and ($vram -le 0 -or ($vendor -ne 'intel' -and -not $isIntegrated -and $vram -lt 2))) {
+    $pnpLower = $pnpId.ToLower()
+    foreach ($matchId in $vramLookup.Keys) {
+      if ($pnpLower -like "*$matchId*") {
+        $vram = $vramLookup[$matchId]
+        break
+      }
+    }
+  }
+
   [PSCustomObject]@{
-    id = if ([string]::IsNullOrWhiteSpace($_.PNPDeviceID)) { [string]$name } else { [string]$_.PNPDeviceID }
+    id = if ([string]::IsNullOrWhiteSpace($pnpId)) { [string]$name } else { [string]$pnpId }
     name = $name.Trim()
     vendor = $vendor
     vramGB = $vram
     isIntegrated = $isIntegrated
+    driverVersion = if ($_.DriverVersion) { [string]$_.DriverVersion } else { '' }
   }
 }
 
@@ -102,6 +115,7 @@ function normalizeGpuAdapters(raw: unknown): GpuAdapter[] {
         ? record.vramGB
         : Number(record.vramGB || 0);
       const isIntegrated = Boolean(record.isIntegrated);
+      const driverVersion = typeof record.driverVersion === 'string' ? record.driverVersion.trim() : '';
 
       return {
         id,
@@ -109,6 +123,7 @@ function normalizeGpuAdapters(raw: unknown): GpuAdapter[] {
         vendor,
         vramGB: Number.isFinite(vramGB) ? Math.max(0, vramGB) : 0,
         isIntegrated,
+        driverVersion,
       } satisfies GpuAdapter;
     })
     .filter((adapter): adapter is GpuAdapter => adapter !== null);
@@ -136,8 +151,11 @@ export async function getSystemInfo(): Promise<SystemInfo> {
   const result = await runPowerShellCommand(SYSTEM_INFO_SCRIPT);
 
   if (!result.success || result.output.length === 0) {
+    console.warn(
+      `[system-info] PowerShell system info script failed. success=${result.success}, outputLines=${result.output.length}`,
+    );
     return {
-      gpu: 'Unknown', gpuVram: '0 GB', gpuAdapters: [], primaryGpuId: '', cpu: 'Unknown',
+      gpu: 'Unknown', gpuVram: '0 GB', gpuDriver: '', gpuAdapters: [], primaryGpuId: '', cpu: 'Unknown',
       cpuCores: 0, cpuThreads: 0, ramGB: 0,
       os: 'Unknown', osBuild: '', isNvidia: false, isAmd: false,
       machineId: generateAnonymousId(),
@@ -152,9 +170,20 @@ export async function getSystemInfo(): Promise<SystemInfo> {
     const gpuName = primary?.name || 'Unknown';
     const gpuVram = primary?.vramGB ?? 0;
 
+    // Log all detected adapters and their scores for debugging GPU selection issues
+    if (gpuAdapters.length > 0) {
+      const adapterLog = gpuAdapters.map((a) => {
+        const score = scoreAdapter(a);
+        const tag = a === primary ? ' [PRIMARY]' : '';
+        return `  ${a.name} (${a.vendor}, ${a.vramGB}GB, ${a.isIntegrated ? 'integrated' : 'discrete'}, score=${score})${tag}`;
+      });
+      console.log(`[system-info] Detected ${gpuAdapters.length} GPU(s):\n${adapterLog.join('\n')}`);
+    }
+
     return {
       gpu: gpuName,
       gpuVram: `${gpuVram} GB`,
+      gpuDriver: primary?.driverVersion || '',
       gpuAdapters,
       primaryGpuId: primary?.id || '',
       cpu: (data.cpuName || 'Unknown').trim(),
@@ -167,9 +196,11 @@ export async function getSystemInfo(): Promise<SystemInfo> {
       isAmd: primary?.vendor === 'amd',
       machineId: generateAnonymousId(),
     };
-  } catch {
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    console.warn(`[system-info] Failed to parse system info: ${errorText}`);
     return {
-      gpu: 'Detection failed', gpuVram: '0 GB', gpuAdapters: [], primaryGpuId: '', cpu: 'Detection failed',
+      gpu: 'Detection failed', gpuVram: '0 GB', gpuDriver: '', gpuAdapters: [], primaryGpuId: '', cpu: 'Detection failed',
       cpuCores: 0, cpuThreads: 0, ramGB: 0,
       os: 'Unknown', osBuild: '', isNvidia: false, isAmd: false,
       machineId: generateAnonymousId(),

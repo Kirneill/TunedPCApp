@@ -4,8 +4,10 @@ import fs from 'fs';
 import { execFileSync } from 'child_process';
 import { registerIpcHandlers } from './ipc/handlers';
 import { registerAuthHandlers } from './ipc/auth-handlers';
-import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackFailureStage } from './telemetry/telemetry';
+import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackFailureStage, trackAppLaunch, trackInstalledGames, buildHardwareInfo } from './telemetry/telemetry';
 import { initAuth } from './auth/auth';
+import { getSystemInfo } from './ipc/system-info';
+import { detectInstalledGames } from './ipc/game-detection';
 import { checkForUpdate, initUpdater, getUpdaterState, downloadUpdate, installUpdate } from './updater';
 import { startSystemMonitor, stopSystemMonitor } from './ipc/system-monitor';
 
@@ -17,10 +19,12 @@ const APP_SETTINGS_FILE = 'app-settings.json';
 
 interface AppSettings {
   closeToBackground: boolean;
+  launchOnStartup: boolean;
 }
 
 const DEFAULT_APP_SETTINGS: AppSettings = {
   closeToBackground: true,
+  launchOnStartup: true,
 };
 
 function ensureLogPaths() {
@@ -38,10 +42,13 @@ function log(level: 'INFO' | 'WARN' | 'ERROR', message: string) {
     if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
     fs.appendFileSync(LOG_FILE, line);
   } catch {
-    // Before app ready, just write to stderr
     if (level === 'ERROR') console.error(line.trim());
+    else if (level === 'WARN') console.warn(line.trim());
   }
 }
+
+const STARTUP_TASK_NAME = 'SENSEQUALITY Optimizer';
+const startHidden = process.argv.includes('--hidden');
 
 let mainWindow: BrowserWindow | null = null;
 let appTray: Tray | null = null;
@@ -62,8 +69,10 @@ function loadAppSettings(): AppSettings {
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
     return {
       closeToBackground: parsed.closeToBackground !== false,
+      launchOnStartup: parsed.launchOnStartup !== false,
     };
-  } catch {
+  } catch (err) {
+    log('WARN', `Failed to load app settings, using defaults: ${err instanceof Error ? err.message : err}`);
     return { ...DEFAULT_APP_SETTINGS };
   }
 }
@@ -74,6 +83,37 @@ function saveAppSettings(settings: AppSettings) {
   } catch (err) {
     const errorText = err instanceof Error ? err.message : String(err);
     log('WARN', `Failed to save app settings: ${errorText}`);
+  }
+}
+
+function syncAutoLaunch(enabled: boolean): boolean {
+  if (process.platform !== 'win32' || !app.isPackaged) return true;
+
+  try {
+    if (enabled) {
+      const exePath = process.execPath;
+      execFileSync('schtasks.exe', [
+        '/Create',
+        '/TN', STARTUP_TASK_NAME,
+        '/TR', `"${exePath}" --hidden`,
+        '/SC', 'ONLOGON',
+        // LIMITED — app will request admin elevation via its manifest when needed, rather than running elevated silently
+        '/RL', 'LIMITED',
+        '/F',
+      ], { stdio: 'ignore' });
+      log('INFO', 'Auto-launch scheduled task created');
+    } else {
+      execFileSync('schtasks.exe', [
+        '/Delete',
+        '/TN', STARTUP_TASK_NAME,
+        '/F',
+      ], { stdio: 'ignore' });
+      log('INFO', 'Auto-launch scheduled task removed');
+    }
+    return true;
+  } catch (err) {
+    log('WARN', `Failed to sync auto-launch: ${err instanceof Error ? err.message : err}`);
+    return false;
   }
 }
 
@@ -212,7 +252,9 @@ function ensureElevatedOrQuit(): boolean {
   // Do not hard-stop on failed/denied elevation because admin detection can be unreliable on some systems.
   // Scripts will still enforce required privileges at execution time.
   log('WARN', 'Elevation prompt was denied or failed. Continuing without forced shutdown.');
-  void trackFailureStage('elevation', 'Elevation prompt was denied or failed.');
+  void trackFailureStage('elevation', 'Elevation prompt was denied or failed.').catch(err => {
+    log('WARN', `trackFailureStage (elevation) failed: ${err instanceof Error ? err.message : err}`);
+  });
   return true;
 }
 
@@ -249,8 +291,10 @@ function createWindow() {
   }
 
   mainWindow.once('ready-to-show', () => {
-    log('INFO', 'Window ready-to-show');
-    mainWindow?.show();
+    log('INFO', `Window ready-to-show (startHidden: ${startHidden})`);
+    if (!startHidden) {
+      mainWindow?.show();
+    }
   });
 
   mainWindow.on('close', (event) => {
@@ -337,6 +381,17 @@ if (!gotLock) {
       log('INFO', `Close behavior updated: ${appSettings.closeToBackground ? 'background' : 'full-exit'}`);
       return appSettings.closeToBackground;
     });
+    ipcMain.handle('app:getLaunchOnStartup', () => appSettings.launchOnStartup);
+    ipcMain.handle('app:setLaunchOnStartup', (_event, enabled: boolean) => {
+      appSettings.launchOnStartup = Boolean(enabled);
+      saveAppSettings(appSettings);
+      const synced = syncAutoLaunch(appSettings.launchOnStartup);
+      if (!synced) {
+        log('WARN', `Launch on startup setting saved but scheduled task sync failed`);
+      }
+      log('INFO', `Launch on startup updated: ${appSettings.launchOnStartup} (synced: ${synced})`);
+      return appSettings.launchOnStartup;
+    });
     ipcMain.handle('system:isAdmin', () => isAdmin());
     ipcMain.handle('shell:openExternal', (_event, url: string) => {
       if (url.startsWith('https://')) shell.openExternal(url);
@@ -357,8 +412,33 @@ if (!gotLock) {
     createWindow();
     createTray();
 
+    // Phase 4b: Sync auto-launch scheduled task with settings (deferred to avoid blocking window creation)
+    setTimeout(() => syncAutoLaunch(appSettings.launchOnStartup), 0);
+
     // Phase 5: Start live system monitoring (CPU/GPU/RAM → renderer every 2s)
     startSystemMonitor(() => mainWindow);
+
+    // Phase 6: Detached IIFE — telemetry calls are consent-gated internally
+    void (async () => {
+      try {
+        const sysInfo = await getSystemInfo();
+        const hw = buildHardwareInfo(sysInfo);
+        trackAppLaunch(hw).catch(err => {
+          log('WARN', `app_launch telemetry failed: ${err instanceof Error ? err.message : err}`);
+        });
+
+        try {
+          const games = await detectInstalledGames();
+          trackInstalledGames(games.map(g => ({ id: g.id, installed: g.installed }))).catch(err => {
+            log('WARN', `installed games telemetry failed: ${err instanceof Error ? err.message : err}`);
+          });
+        } catch (err) {
+          log('WARN', `Game detection failed: ${err instanceof Error ? err.message : err}`);
+        }
+      } catch (err) {
+        log('WARN', `System info unavailable, skipping launch telemetry: ${err instanceof Error ? err.message : err}`);
+      }
+    })();
   });
 }
 

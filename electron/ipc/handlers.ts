@@ -3,7 +3,7 @@ import { getSystemInfo } from './system-info';
 import { detectInstalledGames } from './game-detection';
 import { listBackups, createBackup, restoreBackup, deleteBackup } from './backup-manager';
 import { runPowerShellScript, runPowerShellCommand, getScriptPath } from './powershell';
-import { trackOptimizationResult, trackFailureStage, type HardwareInfo } from '../telemetry/telemetry';
+import { trackOptimizationResult, trackFailureStage, sendRunDetail, buildHardwareInfo } from '../telemetry/telemetry';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
@@ -19,6 +19,18 @@ interface UserConfig {
   cs2Stretched: boolean;
   restorePointEnabled: boolean;
 }
+
+/**
+ * Maps game optimization IDs to the env var name that passes the detected
+ * install path into the corresponding PowerShell script.
+ */
+const GAME_PATH_ENV_VARS: Record<string, string> = {
+  'game-arcraiders': 'ARC_RAIDERS_PATH',
+  'game-apexlegends': 'APEX_PATH',
+  'game-tarkov': 'TARKOV_PATH',
+  'game-rust': 'RUST_PATH',
+  'game-r6siege': 'R6_PATH',
+};
 
 // Maps optimization IDs to script files and env var configurations
 const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
@@ -48,6 +60,9 @@ const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   'game-cs2': { script: '05_CS2_Settings.ps1' },
   'game-apexlegends': { script: '12_ApexLegends_Settings.ps1' },
   'game-arcraiders': { script: '06_ArcRaiders_Settings.ps1' },
+  'game-tarkov': { script: '14_Tarkov_Settings.ps1' },
+  'game-rust': { script: '15_Rust_Settings.ps1' },
+  'game-r6siege': { script: '16_RainbowSixSiege_Settings.ps1' },
 };
 
 // Maps env prefix (e.g. 'POWER_PLAN') back to optimization ID (e.g. 'win-power-plan')
@@ -119,6 +134,15 @@ const CHECK_LABELS: Record<string, string> = {
   GPU_PROFILE_TOOL_READY: 'GPU profile tool ready',
   GPU_PROFILE_TOOL_DOWNLOADED: 'GPU profile tool downloaded automatically',
   GPU_PROFILE_TOOL_DOWNLOAD_FAILED: 'GPU profile tool download failed',
+  TARKOV_EXE_FLAGS: 'Tarkov EXE compatibility flags',
+  TARKOV_CONFIG_WRITTEN: 'Tarkov Graphics.ini written',
+  TARKOV_SETTINGS_APPLIED: 'Tarkov settings applied',
+  RUST_EXE_FLAGS: 'Rust EXE compatibility flags',
+  RUST_CONFIG_WRITTEN: 'Rust client.cfg written',
+  RUST_SETTINGS_APPLIED: 'Rust settings applied',
+  R6_EXE_FLAGS: 'R6 Siege EXE compatibility flags',
+  R6_CONFIG_WRITTEN: 'R6 Siege GameSettings.ini written',
+  R6_SETTINGS_APPLIED: 'R6 Siege settings applied',
 };
 
 function parseScriptCheck(line: string): ScriptCheck | null {
@@ -316,7 +340,9 @@ async function createSystemRestorePoint(log: RunLogFn, options: RestorePointOpti
       success: false,
       errorCode: 'RESTORE_POINT_FAILED',
     });
-    void trackFailureStage('restore-point', errorText);
+    void trackFailureStage('restore-point', errorText).catch(err => {
+      console.warn(`[telemetry] trackFailureStage failed: ${err instanceof Error ? err.message : err}`);
+    });
     return { success: false, errors: result.errors };
   }
 
@@ -337,6 +363,37 @@ async function ensureSystemRestorePoint(log: RunLogFn): Promise<boolean> {
 
 function escapePowerShellSingleQuoted(value: string): string {
   return value.replace(/'/g, "''");
+}
+
+/**
+ * Detects installed games and populates envVars with paths for any games
+ * in `requestedIds` that need path env vars (per GAME_PATH_ENV_VARS).
+ * Logs a warning on failure but never throws.
+ */
+async function populateGamePathEnvVars(
+  requestedIds: string[],
+  envVars: Record<string, string>,
+  log: RunLogFn,
+): Promise<void> {
+  const idsNeedingPaths = requestedIds.filter((id) => GAME_PATH_ENV_VARS[id]);
+  if (idsNeedingPaths.length === 0) return;
+
+  try {
+    const detectedGames = await detectInstalledGames();
+    for (const gameOptId of idsNeedingPaths) {
+      const envKey = GAME_PATH_ENV_VARS[gameOptId];
+      if (!envKey) continue;
+      const gameId = gameOptId.replace('game-', '');
+      const game = detectedGames.find((g) => g.id === gameId && !!g.path);
+      if (game?.path) envVars[envKey] = game.path;
+    }
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    log('warning', `Game path detection failed: ${errorText}`, {
+      component: 'Game',
+      action: 'game-path-detection-failed',
+    });
+  }
 }
 
 function exportDiagnosticsBundle(): { success: boolean; path: string; error?: string } {
@@ -445,15 +502,7 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       GPU_BUNDLED_TOOLS_PATH: getBundledGpuToolsPath(),
     };
 
-    if (id === 'game-arcraiders' || id === 'game-apexlegends') {
-      try {
-        const detectedGames = await detectInstalledGames();
-        const arcGame = detectedGames.find((game) => game.id === 'arcraiders' && !!game.path);
-        const apexGame = detectedGames.find((game) => game.id === 'apexlegends' && !!game.path);
-        if (arcGame?.path) envVars.ARC_RAIDERS_PATH = arcGame.path;
-        if (apexGame?.path) envVars.APEX_PATH = apexGame.path;
-      } catch {}
-    }
+    await populateGamePathEnvVars([id], envVars, log);
 
     log('start', `Run started for optimization: ${id}`, {
       component: 'Run',
@@ -530,7 +579,9 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
 
     if (!finalSuccess) {
       const failureText = combinedErrors.join(' | ') || `Script exited with code ${result.exitCode}`;
-      void trackFailureStage('script-exit', failureText, undefined, [id]);
+      void trackFailureStage('script-exit', failureText, undefined, [id]).catch(err => {
+        console.warn(`[telemetry] trackFailureStage failed: ${err instanceof Error ? err.message : err}`);
+      });
     }
 
     return { success: finalSuccess, errors: combinedErrors };
@@ -567,15 +618,7 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       GPU_BUNDLED_TOOLS_PATH: getBundledGpuToolsPath(),
     };
 
-    if (ids.includes('game-arcraiders') || ids.includes('game-apexlegends')) {
-      try {
-        const detectedGames = await detectInstalledGames();
-        const arcGame = detectedGames.find((game) => game.id === 'arcraiders' && !!game.path);
-        const apexGame = detectedGames.find((game) => game.id === 'apexlegends' && !!game.path);
-        if (arcGame?.path) envVars.ARC_RAIDERS_PATH = arcGame.path;
-        if (apexGame?.path) envVars.APEX_PATH = apexGame.path;
-      } catch {}
-    }
+    await populateGamePathEnvVars(ids, envVars, log);
 
     log('start', `Run started for ${ids.length} optimization(s).`, {
       component: 'Run',
@@ -693,7 +736,9 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
 
       if (!result.success) {
         const failureText = result.errors.join(' | ') || `Windows script exited with code ${result.exitCode}`;
-        void trackFailureStage('script-exit', failureText, undefined, windowsSectionIds);
+        void trackFailureStage('script-exit', failureText, undefined, windowsSectionIds).catch(err => {
+          console.warn(`[telemetry] trackFailureStage failed: ${err instanceof Error ? err.message : err}`);
+        });
       }
     }
 
@@ -758,7 +803,9 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
           ? `Validation failed: ${validationSummary.failedKeys.join(', ')}`
           : '';
         const failureText = [validationError, ...result.errors].filter(Boolean).join(' | ') || `Script exited with code ${result.exitCode}`;
-        void trackFailureStage('script-exit', failureText, undefined, [id]);
+        void trackFailureStage('script-exit', failureText, undefined, [id]).catch(err => {
+          console.warn(`[telemetry] trackFailureStage failed: ${err instanceof Error ? err.message : err}`);
+        });
       }
     }
 
@@ -825,7 +872,9 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
           ? [`Validation failed: ${validationSummary.failedKeys.join(', ')}`]
           : [];
         const failureText = [...result.errors, ...validationError].join(' | ') || `Script exited with code ${result.exitCode}`;
-        void trackFailureStage('script-exit', failureText, undefined, [id]);
+        void trackFailureStage('script-exit', failureText, undefined, [id]).catch(err => {
+          console.warn(`[telemetry] trackFailureStage failed: ${err instanceof Error ? err.message : err}`);
+        });
       }
     }
 
@@ -859,24 +908,42 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       }
     );
 
-    // Telemetry — fire and forget, never blocks the UI
-    try {
-      const sysInfo = await getSystemInfo();
-      const hw: HardwareInfo = {
-        gpu: sysInfo.gpu,
-        cpu: sysInfo.cpu,
-        ram_gb: sysInfo.ramGB,
-        os_build: sysInfo.osBuild,
-      };
-      trackOptimizationResult(hw, ids, allSuccess, Date.now() - startTime, errorCount);
-    } catch (err) {
-      const errorText = err instanceof Error ? err.message : String(err);
-      log('warning', `Telemetry tracking failed: ${errorText}`, {
-        component: 'Telemetry',
-        action: 'telemetry-failed',
-        errorCode: 'TELEMETRY_SEND_FAILED',
-      });
-    }
+    // Telemetry — detached IIFE so it never delays the IPC response.
+    // Snapshot mutable objects before the IIFE runs asynchronously after return.
+    const telemetryResults = { ...results };
+    const telemetryReasons = { ...failureReasons };
+    void (async () => {
+      try {
+        const sysInfo = await getSystemInfo();
+        const hw = buildHardwareInfo(sysInfo);
+        trackOptimizationResult(hw, ids, allSuccess, Date.now() - startTime, errorCount, {
+          monitor_resolution: `${config.monitorWidth}x${config.monitorHeight}`,
+          monitor_refresh_hz: config.monitorRefresh,
+          run_id: runId,
+        }).catch(err => {
+          console.warn(`[telemetry] trackOptimizationResult failed: ${err instanceof Error ? err.message : err}`);
+        });
+
+        // Per-setting granular results
+        for (const [settingId, success] of Object.entries(telemetryResults)) {
+          sendRunDetail({
+            run_id: runId,
+            setting_id: settingId,
+            success,
+            failure_reason: telemetryReasons[settingId] || null,
+          }).catch(err => {
+            console.warn(`[telemetry] sendRunDetail failed for ${settingId}: ${err instanceof Error ? err.message : err}`);
+          });
+        }
+      } catch (err) {
+        const errorText = err instanceof Error ? err.message : String(err);
+        log('warning', `Telemetry tracking failed: ${errorText}`, {
+          component: 'Telemetry',
+          action: 'telemetry-failed',
+          errorCode: 'TELEMETRY_SEND_FAILED',
+        });
+      }
+    })();
 
     return { success: allSuccess, results };
   });

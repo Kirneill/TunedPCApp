@@ -62,6 +62,8 @@ export default function App() {
         cpu: sysInfo.cpu,
         ram_gb: sysInfo.ramGB,
         os_build: sysInfo.osBuild,
+        gpu_driver: sysInfo.gpuDriver || undefined,
+        gpu_vram_gb: primaryAdapter ? Math.round(primaryAdapter.vramGB) : undefined,
       });
 
       if (!regResult.success) {
@@ -71,11 +73,22 @@ export default function App() {
           return;
         }
 
-        try {
-          await window.sensequality.signOut();
-        } catch {}
-        clearAuthState();
-        return;
+        if (regResult.reason === 'not_authenticated') {
+          // Genuinely not authenticated — sign out and show login
+          try {
+            await window.sensequality.signOut();
+          } catch (err) {
+            console.warn('[app] Sign-out failed during auth recovery:', err instanceof Error ? err.message : err);
+          }
+          clearAuthState();
+          return;
+        } else if (regResult.reason === 'network_error') {
+          console.warn('[app] Machine registration skipped (network error) — continuing offline');
+        } else {
+          // Non-auth failure (e.g. RPC error, DB schema mismatch) — don't sign out,
+          // just log and continue so the user can still use the app
+          console.warn('[app] Machine registration failed (non-auth):', regResult.reason);
+        }
       }
 
       setShowMaxDevices(false);
@@ -111,7 +124,9 @@ export default function App() {
       // Phase 6: Check for updates (fire-and-forget)
       window.sensequality.checkForUpdate().then((info) => {
         if (info.hasUpdate) setUpdateInfo(info);
-      }).catch(() => {});
+      }).catch((err: unknown) => {
+        console.warn('[app] Update check failed:', err instanceof Error ? err.message : err);
+      });
     } finally {
       setIsLoading(false);
     }
@@ -126,7 +141,9 @@ export default function App() {
         try {
           const closeToBackground = await window.sensequality.getCloseToBackground();
           setCloseToBackground(closeToBackground);
-        } catch {}
+        } catch (err) {
+          console.warn('[app] Failed to read close-to-background setting:', err instanceof Error ? err.message : err);
+        }
 
         // Phase 1: Check for offline state
         const offline = await window.sensequality.isOffline();
@@ -147,8 +164,7 @@ export default function App() {
         setAuthUser(session.user);
         await initializeAuthenticatedApp();
       } catch (err) {
-        console.error('Bootstrap failed:', err);
-        // If bootstrap fails entirely, show auth gate as fallback
+        console.error('[app] Bootstrap failed:', err);
         setShowAuthGate(true);
       } finally {
         setAuthLoading(false);

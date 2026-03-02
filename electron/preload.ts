@@ -1,73 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-
-export interface LogEntry {
-  type: 'info' | 'success' | 'error' | 'warning' | 'start' | 'complete';
-  message: string;
-  timestamp: number;
-  section?: string;
-  runId?: string;
-}
-
-export interface GpuAdapter {
-  id: string;
-  name: string;
-  vendor: 'nvidia' | 'amd' | 'intel' | 'other';
-  vramGB: number;
-  isIntegrated: boolean;
-}
-
-export interface SystemInfo {
-  gpu: string;
-  gpuVram: string;
-  gpuAdapters: GpuAdapter[];
-  primaryGpuId: string;
-  cpu: string;
-  cpuCores: number;
-  cpuThreads: number;
-  ramGB: number;
-  os: string;
-  osBuild: string;
-  isNvidia: boolean;
-  isAmd: boolean;
-}
-
-export interface DetectedGame {
-  id: string;
-  name: string;
-  installed: boolean;
-  path?: string;
-}
-
-export interface BackupInfo {
-  name: string;
-  path: string;
-  date: string;
-  files: string[];
-}
-
-export interface UserConfig {
-  monitorWidth: number;
-  monitorHeight: number;
-  monitorRefresh: number;
-  nvidiaGpu: boolean;
-  gpuMode: 'auto' | 'manual';
-  selectedGpuId: string;
-  cs2Stretched: boolean;
-  restorePointEnabled: boolean;
-}
-
-export interface UpdaterState {
-  status: 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'up-to-date' | 'error';
-  progress: number;
-  message: string;
-  latestVersion?: string;
-  error?: string;
-}
-
-export interface UpdaterActionResult {
-  started: boolean;
-  reason?: string;
-}
+import type { LogEntry, GpuAdapter, SystemInfo, DetectedGame, BackupInfo, UserConfig, UpdaterState, UpdaterActionResult } from '../src/types/index';
 
 const api = {
   // System
@@ -103,6 +35,8 @@ const api = {
   closeWindow: () => ipcRenderer.send('window:close'),
   getCloseToBackground: (): Promise<boolean> => ipcRenderer.invoke('app:getCloseToBackground'),
   setCloseToBackground: (enabled: boolean): Promise<boolean> => ipcRenderer.invoke('app:setCloseToBackground', enabled),
+  getLaunchOnStartup: (): Promise<boolean> => ipcRenderer.invoke('app:getLaunchOnStartup'),
+  setLaunchOnStartup: (enabled: boolean): Promise<boolean> => ipcRenderer.invoke('app:setLaunchOnStartup', enabled),
 
   // External links
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
@@ -123,7 +57,7 @@ const api = {
   getMachineId: () => ipcRenderer.invoke('auth:getMachineId'),
 
   // Machine management
-  registerMachine: (info: { machine_name: string; gpu: string; cpu: string; ram_gb: number; os_build: string }) =>
+  registerMachine: (info: { machine_name: string; gpu: string; cpu: string; ram_gb: number; os_build: string; gpu_driver?: string; gpu_vram_gb?: number }) =>
     ipcRenderer.invoke('auth:registerMachine', info),
   deactivateMachine: (machineId: string) => ipcRenderer.invoke('auth:deactivateMachine', machineId),
 

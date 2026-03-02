@@ -1,22 +1,93 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { runPowerShellCommand } from './powershell';
+export type { DetectedGame } from '../../src/types/index';
+import type { DetectedGame } from '../../src/types/index';
 
-export interface DetectedGame {
-  id: string;
-  name: string;
+// ---------------------------------------------------------------------------
+// Unified game registry — the SINGLE source of truth for game detection.
+//
+// To add a new game:
+//   1. Add an entry to GAME_REGISTRY below.
+//      - If on Steam, populate steamFolders with the folder name(s) under
+//        steamapps/common/. VDF detection handles the rest automatically.
+//      - If non-Steam detection is needed (Epic, registry, etc.), write a
+//        findX() function and assign it to the detect property.
+//   2. No other wiring needed — the pipeline handles VDF lookup, custom
+//      detection, and result mapping automatically.
+// ---------------------------------------------------------------------------
+
+interface GameDetectionResult {
   installed: boolean;
-  path?: string;
+  gamePath: string | null;
 }
 
-const GAMES = [
-  { id: 'blackops7', name: 'Call of Duty: Black Ops 7', scriptId: '02' },
-  { id: 'fortnite', name: 'Fortnite', scriptId: '03' },
-  { id: 'valorant', name: 'Valorant', scriptId: '04' },
-  { id: 'cs2', name: 'Counter-Strike 2', scriptId: '05' },
-  { id: 'apexlegends', name: 'Apex Legends', scriptId: '12' },
-  { id: 'arcraiders', name: 'Arc Raiders', scriptId: '06' },
+interface GameRegistryEntry {
+  id: string;
+  name: string;
+  /** Steam folder names to search via VDF. Empty array = not on Steam. */
+  steamFolders: string[];
+  /**
+   * Custom detection beyond Steam VDF.
+   * Only called if VDF didn't find the game. Return:
+   *   - a path string if the install directory was found
+   *   - null if the game is not installed
+   *   - GameDetectionResult for cases where installation is confirmed
+   *     but no game root path is available (e.g., only config files found)
+   */
+  detect?: () => Promise<string | null | GameDetectionResult>;
+}
+
+const GAME_REGISTRY: GameRegistryEntry[] = [
+  {
+    id: 'blackops7', name: 'Call of Duty: Black Ops 7',
+    steamFolders: ['Call of Duty HQ'],
+    detect: findBlackOps7,
+  },
+  {
+    id: 'fortnite', name: 'Fortnite',
+    steamFolders: [],
+    detect: findFortnite,
+  },
+  {
+    id: 'valorant', name: 'Valorant',
+    steamFolders: [],
+    detect: findValorant,
+  },
+  {
+    id: 'cs2', name: 'Counter-Strike 2',
+    steamFolders: ['Counter-Strike Global Offensive'],
+  },
+  {
+    id: 'apexlegends', name: 'Apex Legends',
+    steamFolders: ['Apex Legends'],
+    detect: findApexLegends,
+  },
+  {
+    id: 'arcraiders', name: 'Arc Raiders',
+    steamFolders: ['ArcRaiders', 'Arc Raiders'],
+    detect: findArcRaiders,
+  },
+  {
+    id: 'tarkov', name: 'Escape from Tarkov',
+    steamFolders: [],
+    detect: findTarkov,
+  },
+  {
+    id: 'rust', name: 'Rust',
+    steamFolders: ['Rust'],
+    detect: findRust,
+  },
+  {
+    id: 'r6siege', name: 'Rainbow Six Siege',
+    steamFolders: ["Tom Clancy's Rainbow Six Siege"],
+    detect: findR6Siege,
+  },
 ];
+
+// ---------------------------------------------------------------------------
+// Helper utilities
+// ---------------------------------------------------------------------------
 
 interface EpicInstallation {
   AppName?: string;
@@ -33,6 +104,34 @@ function firstExistingPath(paths: string[]): string | null {
   return null;
 }
 
+/**
+ * Discovers Xbox Game Pass install roots by scanning drive letters for the
+ * `.GamingRoot` marker file that the Xbox app creates when a drive is used
+ * for game installations. Falls back to common hardcoded paths.
+ */
+function getXboxGamePassRoots(): string[] {
+  const roots = new Set<string>();
+  // Always include the common defaults
+  for (const letter of ['C', 'D', 'E']) {
+    roots.add(`${letter}:\\XboxGames`);
+  }
+  // Scan drive letters C-Z for .GamingRoot marker (skip A/B legacy floppy drives)
+  for (let code = 67; code <= 90; code++) { // C-Z
+    const letter = String.fromCharCode(code);
+    try {
+      // Pre-check drive accessibility to avoid OS prompts for removable/network drives
+      fs.accessSync(`${letter}:\\`, fs.constants.R_OK);
+      const markerPath = `${letter}:\\.GamingRoot`;
+      if (fs.existsSync(markerPath)) {
+        roots.add(`${letter}:\\XboxGames`);
+      }
+    } catch {
+      // Drive not accessible or doesn't exist — skip silently
+    }
+  }
+  return Array.from(roots);
+}
+
 function readEpicLauncherInstallations(): EpicInstallation[] {
   const launcherInstalledPath = 'C:\\ProgramData\\Epic\\UnrealEngineLauncher\\LauncherInstalled.dat';
   if (!fs.existsSync(launcherInstalledPath)) return [];
@@ -41,7 +140,8 @@ function readEpicLauncherInstallations(): EpicInstallation[] {
     const raw = fs.readFileSync(launcherInstalledPath, 'utf-8');
     const parsed = JSON.parse(raw) as { InstallationList?: EpicInstallation[] };
     return Array.isArray(parsed.InstallationList) ? parsed.InstallationList : [];
-  } catch {
+  } catch (err) {
+    console.warn(`[game-detection] Failed to read Epic launcher installations: ${err instanceof Error ? err.message : err}`);
     return [];
   }
 }
@@ -82,6 +182,7 @@ function findEpicManifestInstallPath(matchers: RegExp[]): string | null {
           return parsed.InstallLocation;
         }
       } catch {
+        // JSON parse failed — fall through to regex fallback below
         if (!matchers.some((matcher) => matcher.test(content))) continue;
         const locationMatch = content.match(/"InstallLocation"\s*:\s*"([^"]+)"/);
         if (locationMatch) {
@@ -89,15 +190,20 @@ function findEpicManifestInstallPath(matchers: RegExp[]): string | null {
         }
       }
     }
-  } catch {}
+  } catch (err) {
+    console.warn(`[game-detection] Failed to read Epic manifest directory: ${err instanceof Error ? err.message : err}`);
+  }
 
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Steam VDF detection — folder list is derived from GAME_REGISTRY
+// ---------------------------------------------------------------------------
+
 async function findSteamGames(): Promise<Map<string, string>> {
   const found = new Map<string, string>();
 
-  // CS2 appid = 730, Apex Legends appid = 1172470
   const steamPaths = [
     'C:\\Program Files (x86)\\Steam',
     'C:\\Program Files\\Steam',
@@ -106,6 +212,11 @@ async function findSteamGames(): Promise<Map<string, string>> {
     'E:\\Steam',
     'E:\\SteamLibrary',
   ];
+
+  // Derived from the registry — no separate list to keep in sync
+  const steamGameDirs = GAME_REGISTRY.flatMap((game) =>
+    game.steamFolders.map((folder) => ({ id: game.id, folder }))
+  );
 
   for (const steamPath of steamPaths) {
     const vdfPath = path.join(steamPath, 'steamapps', 'libraryfolders.vdf');
@@ -117,33 +228,36 @@ async function findSteamGames(): Promise<Map<string, string>> {
         if (pathMatches) {
           for (const match of pathMatches) {
             const libPath = match.replace(/"path"\s+"/, '').replace(/"$/, '').replace(/\\\\/g, '\\');
-            // Check for CS2
-            const cs2Path = path.join(libPath, 'steamapps', 'common', 'Counter-Strike Global Offensive');
-            if (fs.existsSync(cs2Path)) {
-              found.set('cs2', cs2Path);
-            }
-            const apexPath = path.join(libPath, 'steamapps', 'common', 'Apex Legends');
-            if (fs.existsSync(apexPath)) {
-              found.set('apexlegends', apexPath);
+            for (const game of steamGameDirs) {
+              const gamePath = path.join(libPath, 'steamapps', 'common', game.folder);
+              if (fs.existsSync(gamePath)) {
+                found.set(game.id, gamePath);
+              }
             }
           }
         }
-      } catch {}
+      } catch (err) {
+        console.warn(`[game-detection] Failed to parse Steam VDF: ${err instanceof Error ? err.message : err}`);
+      }
     }
 
-    // Direct check
-    const cs2Direct = path.join(steamPath, 'steamapps', 'common', 'Counter-Strike Global Offensive');
-    if (fs.existsSync(cs2Direct)) {
-      found.set('cs2', cs2Direct);
-    }
-    const apexDirect = path.join(steamPath, 'steamapps', 'common', 'Apex Legends');
-    if (fs.existsSync(apexDirect)) {
-      found.set('apexlegends', apexDirect);
+    // Fallback: check base Steam install directly (VDF may not list it as a library)
+    for (const game of steamGameDirs) {
+      const directPath = path.join(steamPath, 'steamapps', 'common', game.folder);
+      if (fs.existsSync(directPath)) {
+        found.set(game.id, directPath);
+      }
     }
   }
 
   return found;
 }
+
+// ---------------------------------------------------------------------------
+// Per-game custom detection functions
+// Called only if Steam VDF detection didn't find the game.
+// Steam common/ paths are NOT duplicated here — VDF handles them via steamFolders.
+// ---------------------------------------------------------------------------
 
 async function findFortnite(): Promise<string | null> {
   const localAppData = process.env.LOCALAPPDATA || '';
@@ -243,7 +357,7 @@ async function findBlackOps7(): Promise<string | null> {
   }
 
   // Dynamic Xbox Game Pass scan for "Call of Duty*" installs
-  const xboxRoots = ['C:\\XboxGames', 'D:\\XboxGames', 'E:\\XboxGames'];
+  const xboxRoots = getXboxGamePassRoots();
   for (const root of xboxRoots) {
     if (!fs.existsSync(root)) continue;
     try {
@@ -263,7 +377,9 @@ async function findBlackOps7(): Promise<string | null> {
         const hit = firstExistingPath(dynamicCandidates);
         if (hit) return path.dirname(hit);
       }
-    } catch {}
+    } catch (err) {
+      console.warn(`[game-detection] Failed to scan Xbox games directory: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   // Fallback root checks
@@ -274,53 +390,51 @@ async function findBlackOps7(): Promise<string | null> {
     'E:\\Call of Duty',
     'C:\\Games\\Call of Duty',
   ];
-  const fallback = firstExistingPath(commonRoots);
-  return fallback || null;
+  return firstExistingPath(commonRoots);
 }
 
-async function findArcRaiders(): Promise<string | null> {
+async function findArcRaiders(): Promise<GameDetectionResult> {
+  // Epic launcher
+  const epicInstall = findEpicInstallPath([/arc\s*raiders/i, /arcraiders/i]);
+  if (epicInstall) return { installed: true, gamePath: epicInstall };
+
+  const manifestInstall = findEpicManifestInstallPath([/arc\s*raiders/i, /arcraiders/i]);
+  if (manifestInstall) return { installed: true, gamePath: manifestInstall };
+
+  // Hardcoded fallback paths (Epic installs not covered by manifest)
+  const commonInstallPaths = [
+    'C:\\Program Files\\Epic Games\\ArcRaiders',
+    'D:\\Epic Games\\ArcRaiders',
+    'E:\\Epic Games\\ArcRaiders',
+  ];
+  const commonInstall = firstExistingPath(commonInstallPaths);
+  if (commonInstall) return { installed: true, gamePath: commonInstall };
+
+  // Config folder existence proves the game is installed,
+  // but config paths must NOT be passed as ARC_RAIDERS_PATH (the PS1
+  // script expects a game root dir and would construct invalid exe paths).
+  // The PS1 script has its own independent config folder detection.
   const localAppData = process.env.LOCALAPPDATA || '';
   if (localAppData) {
     const configCandidates = [
       path.join(localAppData, 'ArcRaiders', 'Saved', 'Config', 'Windows'),
       path.join(localAppData, 'ArcRaiders', 'Saved', 'Config', 'WindowsClient'),
       path.join(localAppData, 'ArcRaiders', 'Saved', 'Config', 'WinGDK'),
+      // UE5 internal project name — Arc Raiders stores configs here on most installs
+      path.join(localAppData, 'PioneerGame', 'Saved', 'Config', 'WindowsClient'),
+      path.join(localAppData, 'PioneerGame', 'Saved', 'Config', 'Windows'),
     ];
     const configPath = firstExistingPath(configCandidates);
-    if (configPath) return configPath;
+    if (configPath) {
+      console.log(`[game-detection] Arc Raiders config found at ${configPath} but no install directory located. PS1 script will use its own detection.`);
+      return { installed: true, gamePath: null };
+    }
   }
 
-  const epicInstall = findEpicInstallPath([/arc\s*raiders/i, /arcraiders/i]);
-  if (epicInstall) return epicInstall;
-
-  const manifestInstall = findEpicManifestInstallPath([/arc\s*raiders/i, /arcraiders/i]);
-  if (manifestInstall) return manifestInstall;
-
-  const commonInstallPaths = [
-    'C:\\Program Files (x86)\\Steam\\steamapps\\common\\ArcRaiders',
-    'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arc Raiders',
-    'D:\\Steam\\steamapps\\common\\ArcRaiders',
-    'D:\\Steam\\steamapps\\common\\Arc Raiders',
-    'D:\\SteamLibrary\\steamapps\\common\\ArcRaiders',
-    'D:\\SteamLibrary\\steamapps\\common\\Arc Raiders',
-    'E:\\Steam\\steamapps\\common\\ArcRaiders',
-    'E:\\Steam\\steamapps\\common\\Arc Raiders',
-    'E:\\SteamLibrary\\steamapps\\common\\ArcRaiders',
-    'E:\\SteamLibrary\\steamapps\\common\\Arc Raiders',
-    'C:\\Program Files\\Epic Games\\ArcRaiders',
-    'D:\\Epic Games\\ArcRaiders',
-    'E:\\Epic Games\\ArcRaiders',
-  ];
-  const commonInstall = firstExistingPath(commonInstallPaths);
-  if (commonInstall) return commonInstall;
-
-  return null;
+  return { installed: false, gamePath: null };
 }
 
-async function findApexLegends(steamGames: Map<string, string>): Promise<string | null> {
-  const steamPath = steamGames.get('apexlegends');
-  if (steamPath) return steamPath;
-
+async function findApexLegends(): Promise<string | null> {
   const registryQueries = [
     `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Respawn\\Apex' -ErrorAction SilentlyContinue).'Install Dir'`,
     `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Respawn\\Apex' -ErrorAction SilentlyContinue).InstallDir`,
@@ -335,12 +449,6 @@ async function findApexLegends(steamGames: Map<string, string>): Promise<string 
   }
 
   const commonInstallPaths = [
-    'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Apex Legends',
-    'C:\\Program Files\\Steam\\steamapps\\common\\Apex Legends',
-    'D:\\Steam\\steamapps\\common\\Apex Legends',
-    'D:\\SteamLibrary\\steamapps\\common\\Apex Legends',
-    'E:\\Steam\\steamapps\\common\\Apex Legends',
-    'E:\\SteamLibrary\\steamapps\\common\\Apex Legends',
     'C:\\Program Files\\EA Games\\Apex Legends',
     'D:\\EA Games\\Apex Legends',
     'E:\\EA Games\\Apex Legends',
@@ -351,47 +459,160 @@ async function findApexLegends(steamGames: Map<string, string>): Promise<string 
   return firstExistingPath(commonInstallPaths);
 }
 
-export async function detectInstalledGames(): Promise<DetectedGame[]> {
-  const [steamGames, fortnitePath, valorantPath, bo7Path, arcPath] = await Promise.all([
-    findSteamGames(),
-    findFortnite(),
-    findValorant(),
-    findBlackOps7(),
-    findArcRaiders(),
-  ]);
-  const apexPath = await findApexLegends(steamGames);
+async function findTarkov(): Promise<GameDetectionResult> {
+  // Registry: BSG uninstall key
+  const result = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\EscapeFromTarkov' -ErrorAction SilentlyContinue).InstallLocation`
+  );
+  if (result.success && result.output.length > 0 && result.output[0] && fs.existsSync(result.output[0])) {
+    return { installed: true, gamePath: result.output[0] };
+  }
 
-  return GAMES.map((game) => {
-    let installed = false;
-    let gamePath: string | undefined;
+  // Common install paths
+  const commonPaths = [
+    'C:\\Battlestate Games\\EFT',
+    'D:\\Battlestate Games\\EFT',
+    'E:\\Battlestate Games\\EFT',
+    'C:\\Games\\Battlestate Games\\EFT',
+    'D:\\Games\\Battlestate Games\\EFT',
+  ];
+  const commonInstall = firstExistingPath(commonPaths);
+  if (commonInstall) return { installed: true, gamePath: commonInstall };
 
-    switch (game.id) {
-      case 'cs2':
-        installed = steamGames.has('cs2');
-        gamePath = steamGames.get('cs2');
-        break;
-      case 'fortnite':
-        installed = !!fortnitePath;
-        gamePath = fortnitePath || undefined;
-        break;
-      case 'valorant':
-        installed = !!valorantPath;
-        gamePath = valorantPath || undefined;
-        break;
-      case 'blackops7':
-        installed = !!bo7Path;
-        gamePath = bo7Path || undefined;
-        break;
-      case 'apexlegends':
-        installed = !!apexPath;
-        gamePath = apexPath || undefined;
-        break;
-      case 'arcraiders':
-        installed = !!arcPath;
-        gamePath = arcPath || undefined;
-        break;
+  // Config folder proves installation but is NOT a valid game path
+  // (PS1 script has its own config folder detection)
+  const appData = process.env.APPDATA || '';
+  if (appData) {
+    const settingsDir = path.join(appData, 'Battlestate Games', 'Escape from Tarkov', 'Settings');
+    if (fs.existsSync(settingsDir)) {
+      console.log(`[game-detection] Tarkov config found at ${settingsDir} but no install directory located. PS1 script will use its own detection.`);
+      return { installed: true, gamePath: null };
     }
+  }
 
-    return { id: game.id, name: game.name, installed, path: gamePath };
+  return { installed: false, gamePath: null };
+}
+
+async function findRust(): Promise<string | null> {
+  // Uninstall registry (Steam App 252490)
+  const result = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 252490' -ErrorAction SilentlyContinue).InstallLocation`
+  );
+  if (result.success && result.output.length > 0 && result.output[0] && fs.existsSync(result.output[0])) {
+    return result.output[0];
+  }
+
+  return null;
+}
+
+async function findR6Siege(): Promise<GameDetectionResult> {
+  // Uninstall registry (Steam App 359550)
+  const result = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 359550' -ErrorAction SilentlyContinue).InstallLocation`
+  );
+  if (result.success && result.output.length > 0 && result.output[0] && fs.existsSync(result.output[0])) {
+    return { installed: true, gamePath: result.output[0] };
+  }
+
+  // Ubisoft Connect registry
+  const ubisoftResult = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Ubisoft\\Launcher' -ErrorAction SilentlyContinue).InstallDir`
+  );
+  if (ubisoftResult.success && ubisoftResult.output.length > 0 && ubisoftResult.output[0]) {
+    const ubisoftR6 = path.join(ubisoftResult.output[0], 'games', "Tom Clancy's Rainbow Six Siege");
+    if (fs.existsSync(ubisoftR6)) return { installed: true, gamePath: ubisoftR6 };
+  }
+
+  // Xbox Game Pass detection
+  const xboxRoots = getXboxGamePassRoots();
+  for (const root of xboxRoots) {
+    if (!fs.existsSync(root)) continue;
+    try {
+      const entries = fs.readdirSync(root, { withFileTypes: true })
+        .filter((d) => d.isDirectory() && /rainbow\s*six/i.test(d.name));
+      for (const entry of entries) {
+        const contentDir = path.join(root, entry.name, 'Content');
+        if (fs.existsSync(contentDir)) return { installed: true, gamePath: contentDir };
+      }
+    } catch (err) {
+      console.warn(`[game-detection] Failed to scan Xbox games directory for R6 Siege: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  // Config folder detection (proves game is installed but is NOT a valid game path).
+  // The PS1 script has its own config folder detection.
+  const userProfile = process.env.USERPROFILE;
+  if (userProfile) {
+    const docsBase = path.join(userProfile, 'Documents', 'My Games', 'Rainbow Six - Siege');
+    if (fs.existsSync(docsBase)) {
+      try {
+        const accountFolders = fs.readdirSync(docsBase, { withFileTypes: true })
+          .filter((d) => d.isDirectory());
+        for (const folder of accountFolders) {
+          const settingsFile = path.join(docsBase, folder.name, 'GameSettings.ini');
+          if (fs.existsSync(settingsFile)) {
+            console.log(`[game-detection] R6 Siege config found at ${docsBase} but no install directory located. PS1 script will use its own detection.`);
+            return { installed: true, gamePath: null };
+          }
+        }
+      } catch (err) {
+        console.warn(`[game-detection] Failed to scan R6 Siege config: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+  }
+
+  // Common install paths
+  const commonPaths = [
+    "C:\\Program Files (x86)\\Ubisoft\\Ubisoft Game Launcher\\games\\Tom Clancy's Rainbow Six Siege",
+  ];
+  const commonInstall = firstExistingPath(commonPaths);
+  if (commonInstall) return { installed: true, gamePath: commonInstall };
+
+  return { installed: false, gamePath: null };
+}
+
+// ---------------------------------------------------------------------------
+// Detection pipeline — data-driven from GAME_REGISTRY
+// ---------------------------------------------------------------------------
+
+function isGameDetectionResult(value: unknown): value is GameDetectionResult {
+  return typeof value === 'object' && value !== null
+    && 'installed' in value && typeof (value as GameDetectionResult).installed === 'boolean';
+}
+
+export async function detectInstalledGames(): Promise<DetectedGame[]> {
+  // Step 1: Resolve all Steam library folders via VDF (must complete first —
+  // per-game checks use Map.get on this result)
+  const steamGames = await findSteamGames().catch((err) => {
+    console.warn(`[game-detection] Steam library detection failed: ${err instanceof Error ? err.message : err}`);
+    return new Map<string, string>();
   });
+
+  // Step 2: For each game, check Steam VDF first, then custom detection
+  return Promise.all(
+    GAME_REGISTRY.map(async (entry): Promise<DetectedGame> => {
+      // Steam VDF hit — already resolved, no async needed
+      const steamPath = steamGames.get(entry.id);
+      if (steamPath) {
+        return { id: entry.id, name: entry.name, installed: true, path: steamPath };
+      }
+
+      // Custom detection fallback
+      if (entry.detect) {
+        try {
+          const result = await entry.detect();
+          if (isGameDetectionResult(result)) {
+            return { id: entry.id, name: entry.name, installed: result.installed, path: result.gamePath || undefined };
+          }
+          if (typeof result === 'string') {
+            return { id: entry.id, name: entry.name, installed: true, path: result };
+          }
+        } catch (err) {
+          console.warn(`[game-detection] ${entry.name} custom detection threw (treating as not installed): ${err instanceof Error ? err.message : err}`);
+        }
+      }
+
+      return { id: entry.id, name: entry.name, installed: false, path: undefined };
+    })
+  );
 }

@@ -4,38 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../telemetry/config';
 import { generateAnonymousId } from '../telemetry/telemetry';
-
-// ─── Types ───────────────────────────────────────────────
-
-export interface AuthUser {
-  id: string;
-  email: string;
-}
-
-export interface AuthResult {
-  success: boolean;
-  error?: string;
-  user?: AuthUser;
-}
-
-export interface MachineRegistrationResult {
-  success: boolean;
-  reason?: 'max_devices' | 'registered' | 'new' | 'not_authenticated';
-  machines?: UserMachine[];
-}
-
-export interface UserMachine {
-  id: string;
-  machine_id: string;
-  machine_name: string;
-  gpu: string;
-  cpu: string;
-  ram_gb: number;
-  os_build: string;
-  registered_at: string;
-  last_seen_at: string;
-  is_active: boolean;
-}
+export type { AuthUser, AuthResult, MachineRegistrationResult, UserMachine } from '../../src/types/index';
+import type { AuthUser, AuthResult, MachineRegistrationResult, UserMachine } from '../../src/types/index';
 
 // ─── State ───────────────────────────────────────────────
 
@@ -80,7 +50,11 @@ function saveSession(session: StoredSession): void {
       const encrypted = safeStorage.encryptString(data);
       fs.writeFileSync(getEncryptedPath(), encrypted);
       // Remove plaintext fallback if it exists
-      try { fs.unlinkSync(getPlaintextPath()); } catch {}
+      try { fs.unlinkSync(getPlaintextPath()); } catch (unlinkErr) {
+        if ((unlinkErr as NodeJS.ErrnoException).code !== 'ENOENT') {
+          console.warn('[auth] Failed to remove plaintext session fallback:', (unlinkErr as Error).message);
+        }
+      }
     } else {
       fs.writeFileSync(getPlaintextPath(), data);
     }
@@ -112,8 +86,15 @@ function loadSession(): StoredSession | null {
 }
 
 function clearSession(): void {
-  try { fs.unlinkSync(getEncryptedPath()); } catch {}
-  try { fs.unlinkSync(getPlaintextPath()); } catch {}
+  for (const filePath of [getEncryptedPath(), getPlaintextPath()]) {
+    try {
+      fs.unlinkSync(filePath);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        console.warn(`[auth] Failed to clear session file ${filePath}:`, (err as Error).message);
+      }
+    }
+  }
 }
 
 // ─── Error Mapping ───────────────────────────────────────
@@ -300,7 +281,11 @@ export async function signIn(email: string, password: string): Promise<AuthResul
 
 export async function signOut(): Promise<void> {
   if (supabase) {
-    try { await supabase.auth.signOut(); } catch {}
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn('[auth] signOut server call failed (local session cleared anyway):', err instanceof Error ? err.message : err);
+    }
   }
   clearSession();
   isOffline = false;
@@ -310,7 +295,9 @@ export async function resetPassword(email: string): Promise<AuthResult> {
   if (!supabase) return { success: false, error: 'Auth not initialized' };
 
   try {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://sensequality.com/reset-password',
+    });
     if (error) return { success: false, error: mapAuthError(error) };
     return { success: true };
   } catch (err) {
@@ -323,7 +310,15 @@ export async function getSession(): Promise<{ user: AuthUser } | null> {
   if (!supabase) return null;
 
   try {
-    const { data } = await supabase.auth.getSession();
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      if (isNetworkError(error)) {
+        console.warn('[auth] getSession failed due to network error — preserving session');
+        throw error;
+      }
+      console.warn('[auth] getSession error:', error.message);
+      return null;
+    }
     if (!data.session?.user) return null;
     return {
       user: {
@@ -331,7 +326,12 @@ export async function getSession(): Promise<{ user: AuthUser } | null> {
         email: data.session.user.email || '',
       },
     };
-  } catch {
+  } catch (err) {
+    if (isNetworkError(err)) {
+      console.warn('[auth] getSession network error — preserving session');
+      throw err;
+    }
+    console.warn('[auth] getSession failed:', err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -353,21 +353,45 @@ export async function registerMachine(info: {
   cpu: string;
   ram_gb: number;
   os_build: string;
+  gpu_driver?: string;
+  gpu_vram_gb?: number;
 }): Promise<MachineRegistrationResult> {
   if (!supabase) return { success: false, reason: 'not_authenticated' };
 
+  const baseParams = {
+    p_machine_id: getMachineId(),
+    p_machine_name: info.machine_name,
+    p_gpu: info.gpu,
+    p_cpu: info.cpu,
+    p_ram_gb: info.ram_gb,
+    p_os_build: info.os_build,
+  };
+
+  const v2Params = {
+    ...baseParams,
+    p_app_version: app.getVersion(),
+    p_gpu_driver: info.gpu_driver || null,
+    p_gpu_vram_gb: info.gpu_vram_gb != null ? Math.round(info.gpu_vram_gb) : null,
+  };
+
   try {
-    const { data, error } = await supabase.rpc('register_machine', {
-      p_machine_id: getMachineId(),
-      p_machine_name: info.machine_name,
-      p_gpu: info.gpu,
-      p_cpu: info.cpu,
-      p_ram_gb: info.ram_gb,
-      p_os_build: info.os_build,
-    });
+    // Try v2 schema first (with extra columns), fall back to v1 if function signature doesn't match
+    let data: unknown;
+    let error: { message?: string; code?: string } | null;
+
+    ({ data, error } = await supabase.rpc('register_machine', v2Params));
+
+    if (error?.code === '42883' || error?.code === '42725') {
+      // 42883 = "function does not exist", 42725 = "function is not unique" — retry with v1 params
+      console.warn(`[auth] register_machine v2 RPC error (${error.code}), falling back to v1 params`);
+      ({ data, error } = await supabase.rpc('register_machine', baseParams));
+    }
 
     if (error) {
-      return { success: false, reason: 'not_authenticated' };
+      console.error('[auth] registerMachine RPC error:', error.message, error.code);
+      if (isNetworkError(error)) return { success: false, reason: 'network_error' };
+      // RPC infrastructure error — don't treat as auth failure
+      return { success: false, reason: 'rpc_error' };
     }
 
     const result = data as { success: boolean; reason: string; machines?: UserMachine[] };
@@ -377,8 +401,9 @@ export async function registerMachine(info: {
       machines: result.machines,
     };
   } catch (err) {
-    if (isNetworkError(err)) return { success: false, reason: 'not_authenticated' };
-    return { success: false, reason: 'not_authenticated' };
+    console.error('[auth] registerMachine exception:', err instanceof Error ? err.message : err);
+    if (isNetworkError(err)) return { success: false, reason: 'network_error' };
+    return { success: false, reason: 'rpc_error' };
   }
 }
 
@@ -394,6 +419,7 @@ export async function deactivateMachine(machineId: string): Promise<{ success: b
     const result = data as { success: boolean; reason?: string };
     return { success: result.success, error: result.reason };
   } catch (err) {
+    console.error('[auth] deactivateMachine exception:', err instanceof Error ? err.message : err);
     return { success: false, error: 'Failed to deactivate machine' };
   }
 }
@@ -409,7 +435,8 @@ export async function joinWaitlist(feature: string): Promise<{ success: boolean;
     if (!sessionData.session) {
       return { success: false, error: 'Session expired. Please sign out and sign in again.' };
     }
-  } catch {
+  } catch (err) {
+    console.warn('[auth] joinWaitlist session check failed:', err instanceof Error ? err.message : err);
     return { success: false, error: 'Could not verify session.' };
   }
 

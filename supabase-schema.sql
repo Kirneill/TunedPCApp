@@ -4,9 +4,13 @@
 -- Setup steps:
 -- 1. Create a free project at https://supabase.com
 -- 2. Go to SQL Editor and run this entire file
--- 3. Go to Settings → API, copy the Project URL and anon/public key
--- 4. Paste them into electron/telemetry/config.ts
--- 5. Set TELEMETRY_CONFIGURED = true
+-- 3. Run supabase-schema-auth.sql (creates user_machines + waitlist tables + RPCs)
+-- 4. Run supabase-schema-v2.sql (adds columns, tables, tightens RLS, creates all analytics views)
+-- NOTE: Do NOT re-run this file after v2.sql. The v2 file supersedes the "Allow anonymous inserts"
+--       RLS policy with stricter checks. Re-running this file would downgrade that policy.
+-- 5. Go to Settings → API, copy the Project URL and anon/public key
+-- 6. Paste them into electron/telemetry/config.ts
+-- 7. Set TELEMETRY_CONFIGURED = true
 
 -- Main telemetry events table
 CREATE TABLE IF NOT EXISTS telemetry_events (
@@ -68,12 +72,19 @@ CREATE INDEX IF NOT EXISTS idx_telemetry_error_fingerprint ON telemetry_events (
 ALTER TABLE telemetry_events ENABLE ROW LEVEL SECURITY;
 
 -- Allow the anon key to INSERT (the app sends data)
+-- Basic validation: require anonymous_id and event_type (columns are NOT NULL anyway)
+-- and limit payload size by constraining text field lengths
 DROP POLICY IF EXISTS "Allow anonymous inserts" ON telemetry_events;
 CREATE POLICY "Allow anonymous inserts"
   ON telemetry_events
   FOR INSERT
   TO anon
-  WITH CHECK (true);
+  WITH CHECK (
+    anonymous_id IS NOT NULL
+    AND length(anonymous_id) <= 128
+    AND event_type IS NOT NULL
+    AND (app_version IS NULL OR length(app_version) <= 32)
+  );
 
 -- Only the service_role (your dashboard / backend) can read data
 DROP POLICY IF EXISTS "Service role can read all" ON telemetry_events;
@@ -86,7 +97,10 @@ CREATE POLICY "Service role can read all"
 -- ─── Useful Views for Analysis ───────────────────────────
 
 -- Hardware distribution: what GPU/CPU combos are your users on?
-CREATE OR REPLACE VIEW hardware_distribution AS
+-- SECURITY INVOKER: view respects caller's RLS (access restricted to service_role via GRANT below)
+CREATE OR REPLACE VIEW hardware_distribution
+  WITH (security_invoker = true)
+AS
 SELECT
   gpu,
   cpu,
@@ -98,42 +112,13 @@ WHERE event_type = 'app_launch'
 GROUP BY gpu, cpu, ram_gb
 ORDER BY unique_users DESC;
 
--- Optimization success rates: which settings fail most often?
-CREATE OR REPLACE VIEW optimization_success_rates AS
-SELECT
-  unnest(settings_applied) AS setting_id,
-  COUNT(*) AS total_runs,
-  COUNT(*) FILTER (WHERE success = true) AS successful,
-  COUNT(*) FILTER (WHERE success = false) AS failed,
-  ROUND(
-    100.0 * COUNT(*) FILTER (WHERE success = true) / NULLIF(COUNT(*), 0),
-    1
-  ) AS success_rate_pct,
-  ROUND(AVG(duration_ms)) AS avg_duration_ms
-FROM telemetry_events
-WHERE event_type = 'optimization_result'
-GROUP BY setting_id
-ORDER BY failed DESC;
-
--- GPU-specific failure patterns
-CREATE OR REPLACE VIEW gpu_failure_patterns AS
-SELECT
-  gpu,
-  unnest(settings_applied) AS setting_id,
-  COUNT(*) AS total_runs,
-  COUNT(*) FILTER (WHERE success = false) AS failures,
-  ROUND(
-    100.0 * COUNT(*) FILTER (WHERE success = false) / NULLIF(COUNT(*), 0),
-    1
-  ) AS failure_rate_pct
-FROM telemetry_events
-WHERE event_type = 'optimization_result'
-GROUP BY gpu, setting_id
-HAVING COUNT(*) FILTER (WHERE success = false) > 0
-ORDER BY failures DESC;
+-- optimization_success_rates: replaced by setting_failure_rates in supabase-schema-v2.sql
+-- gpu_failure_patterns: defined in supabase-schema-v2.sql (requires optimization_run_details + run_id column)
 
 -- Daily active users
-CREATE OR REPLACE VIEW daily_active_users AS
+CREATE OR REPLACE VIEW daily_active_users
+  WITH (security_invoker = true)
+AS
 SELECT
   DATE(created_at) AS day,
   COUNT(DISTINCT anonymous_id) AS unique_users,
@@ -141,3 +126,9 @@ SELECT
 FROM telemetry_events
 GROUP BY DATE(created_at)
 ORDER BY day DESC;
+
+-- Restrict view access to service_role only (admin/dashboard)
+REVOKE ALL ON hardware_distribution FROM anon, authenticated;
+REVOKE ALL ON daily_active_users FROM anon, authenticated;
+GRANT SELECT ON hardware_distribution TO service_role;
+GRANT SELECT ON daily_active_users TO service_role;

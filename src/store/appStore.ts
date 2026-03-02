@@ -124,6 +124,9 @@ const DEFAULT_TOGGLES: Record<string, boolean> = {
   'game-cs2': true,
   'game-apexlegends': true,
   'game-arcraiders': true,
+  'game-tarkov': true,
+  'game-rust': true,
+  'game-r6siege': true,
 };
 
 const DEFAULT_USER_CONFIG: UserConfig = {

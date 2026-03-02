@@ -28,12 +28,12 @@ ALTER TABLE user_machines ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users read own machines" ON user_machines;
 CREATE POLICY "Users read own machines"
   ON user_machines FOR SELECT TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 DROP POLICY IF EXISTS "Users update own machines" ON user_machines;
 CREATE POLICY "Users update own machines"
   ON user_machines FOR UPDATE TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- No direct INSERT policy — all inserts go through register_machine RPC
 DROP POLICY IF EXISTS "Service role full access machines" ON user_machines;
@@ -60,7 +60,7 @@ ALTER TABLE waitlist ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users read own waitlist" ON waitlist;
 CREATE POLICY "Users read own waitlist"
   ON waitlist FOR SELECT TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- No direct INSERT policy — all inserts go through join_waitlist RPC
 DROP POLICY IF EXISTS "Service role full access waitlist" ON waitlist;
@@ -102,10 +102,11 @@ BEGIN
   WHERE user_id = v_user_id AND machine_id = p_machine_id;
 
   IF FOUND THEN
-    -- Machine exists — update last_seen and reactivate if needed
+    -- Machine exists — update last_seen, reactivate, and clear deactivation timestamp
     UPDATE user_machines
     SET last_seen_at = now(),
         is_active = true,
+        deactivated_at = NULL,
         machine_name = COALESCE(p_machine_name, machine_name),
         gpu = COALESCE(p_gpu, gpu),
         cpu = COALESCE(p_cpu, cpu),
@@ -153,31 +154,9 @@ BEGIN
 END;
 $$;
 
--- Deactivate a machine
-CREATE OR REPLACE FUNCTION deactivate_machine(p_machine_id TEXT)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_user_id UUID := auth.uid();
-BEGIN
-  IF v_user_id IS NULL THEN
-    RETURN jsonb_build_object('success', false, 'reason', 'not_authenticated');
-  END IF;
-
-  UPDATE user_machines
-  SET is_active = false
-  WHERE user_id = v_user_id AND machine_id = p_machine_id;
-
-  IF NOT FOUND THEN
-    RETURN jsonb_build_object('success', false, 'reason', 'not_found');
-  END IF;
-
-  RETURN jsonb_build_object('success', true);
-END;
-$$;
+-- ─── deactivate_machine ──────────────────────────────────────
+-- Defined in supabase-schema-v2.sql (adds deactivated_at timestamp + audit log).
+-- Run v2.sql after this file to complete the setup.
 
 -- Join a feature waitlist (derives email from auth context)
 CREATE OR REPLACE FUNCTION join_waitlist(p_feature_name TEXT)
@@ -227,6 +206,6 @@ $$;
 
 -- Grant execute permissions to authenticated users
 GRANT EXECUTE ON FUNCTION register_machine TO authenticated;
-GRANT EXECUTE ON FUNCTION deactivate_machine TO authenticated;
+-- deactivate_machine GRANT is in supabase-schema-v2.sql
 GRANT EXECUTE ON FUNCTION join_waitlist TO authenticated;
 GRANT EXECUTE ON FUNCTION has_joined_waitlist TO authenticated;
