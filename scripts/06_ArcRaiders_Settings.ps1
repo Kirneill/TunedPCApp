@@ -2,26 +2,28 @@
 <#
 .SYNOPSIS
     Arc Raiders - PC Optimization Script
-    Version: 1.0 | Updated: February 2026
-    Engine: Unreal Engine 5
+    Version: 2.0 | Updated: March 2026
+    Engine: Unreal Engine 5 (Embark Studios custom fork)
 
 .DESCRIPTION
-    Applies Windows EXE flags for Arc Raiders competitive optimization.
-    Arc Raiders uses Unreal Engine 5 and has most settings in-game.
+    Applies Windows EXE flags and Arc Raiders config file optimizations.
+    Arc Raiders uses UE5 with internal project name "PioneerGame".
+    Config path: %LOCALAPPDATA%\PioneerGame\Saved\Config\WindowsClient\
 
     ARC RAIDERS OPTIMIZATION PHILOSOPHY:
     Unlike pure competitive shooters, Arc Raiders is a PvPvE extraction game
     where visual clarity matters for both PvP fights and environmental awareness.
     Settings balance maximum FPS with maintaining enemy visibility, especially:
-    - Shadow settings (Medium minimum - Low disables player shadows = big disadvantage)
+    - Shadow settings (Medium minimum -- Low disables player shadows = big disadvantage)
     - Upscaling is recommended for performance gains
     - Night Mode audio is critical for hearing enemy footsteps
 
 .NOTES
-    Arc Raiders is Unreal Engine 5, so DLSS/FSR performance can be excellent.
-    As of early access 2026, the game occasionally stutters during shader
-    compilation on first run - this improves after the first hour of gameplay.
-    Patch 1.0.7 significantly improved shadow LOD transitions.
+    Key names verified against: github.com/aj-geddes/arc-raiders-tuner
+    Embark uses a custom UE5 fork that strips Nanite, Lumen, and Virtual Shadow Maps.
+    Config sections: [/Script/EmbarkUserSettings.EmbarkGameUserSettings],
+    [ScalabilityGroups], [SystemSettings], [/Script/Engine.InputSettings],
+    [/Script/Engine.Engine], [/Script/Engine.GameUserSettings]
 #>
 
 # --- HEADLESS MODE ------------------------------------------------------------
@@ -45,9 +47,66 @@ if ($Headless -and $env:MONITOR_WIDTH) {
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "  Arc Raiders - Optimization Script" -ForegroundColor Cyan
-Write-Host "  February 2026 | Unreal Engine 5" -ForegroundColor Cyan
+Write-Host "  March 2026 | Unreal Engine 5 | PioneerGame" -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host ""
+
+# -----------------------------------------------------------------------------
+# HELPER FUNCTIONS: Read-Merge-Write for UE5 INI files
+# -----------------------------------------------------------------------------
+
+function Read-IniFile {
+    param([string]$Path)
+    $sections = [ordered]@{}
+    $currentSection = ""
+    if (-not (Test-Path $Path)) { return $sections }
+    foreach ($line in (Get-Content $Path)) {
+        if ($line -match '^\[(.+)\]$') {
+            $currentSection = $Matches[1]
+            if (-not $sections.Contains($currentSection)) {
+                $sections[$currentSection] = [ordered]@{}
+            }
+        } elseif ($currentSection -and $line -match '^(.+?)=(.*)$') {
+            $sections[$currentSection][$Matches[1]] = $Matches[2]
+        }
+    }
+    return $sections
+}
+
+function Merge-IniSection {
+    param(
+        [System.Collections.Specialized.OrderedDictionary]$Config,
+        [string]$SectionName,
+        [System.Collections.Specialized.OrderedDictionary]$Overrides
+    )
+    if (-not $Config.Contains($SectionName)) {
+        $Config[$SectionName] = [ordered]@{}
+    }
+    foreach ($key in $Overrides.Keys) {
+        $Config[$SectionName][$key] = $Overrides[$key]
+    }
+}
+
+function Write-IniFile {
+    param(
+        [string]$Path,
+        [System.Collections.Specialized.OrderedDictionary]$Config
+    )
+    $lines = @()
+    $first = $true
+    foreach ($section in $Config.Keys) {
+        if (-not $first) { $lines += "" }
+        $first = $false
+        $lines += "[$section]"
+        foreach ($key in $Config[$section].Keys) {
+            $lines += "$key=$($Config[$section][$key])"
+        }
+    }
+    $content = ($lines -join "`r`n") + "`r`n"
+    $dir = Split-Path $Path -Parent
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    [System.IO.File]::WriteAllText($Path, $content, [System.Text.UTF8Encoding]::new($false))
+}
 
 # -----------------------------------------------------------------------------
 # SECTION 1: LOCATE ARC RAIDERS AND SET EXE FLAGS
@@ -71,8 +130,6 @@ if (-not [string]::IsNullOrWhiteSpace($DetectedArcPath)) {
         Add-UniquePath -List $ArcRaidersPaths -Path $DetectedArcPath
     } else {
         Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $DetectedArcPath "ArcRaiders.exe")
-        Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $DetectedArcPath "Binaries\Win64\ArcRaiders-Win64-Shipping.exe")
-        # UE5 internal project name "PioneerGame" — some installs use this subdirectory
         Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $DetectedArcPath "PioneerGame\Binaries\Win64\PioneerGame-Win64-Shipping.exe")
         Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $DetectedArcPath "PioneerGame\Binaries\Win64\ArcRaiders-Win64-Shipping.exe")
     }
@@ -94,16 +151,11 @@ $CommonArcRoots = @(
     "E:\Steam\steamapps\common\ArcRaiders",
     "E:\Steam\steamapps\common\Arc Raiders",
     "E:\SteamLibrary\steamapps\common\ArcRaiders",
-    "E:\SteamLibrary\steamapps\common\Arc Raiders",
-    "C:\Program Files\Epic Games\ArcRaiders",
-    "D:\Epic Games\ArcRaiders",
-    "E:\Epic Games\ArcRaiders"
+    "E:\SteamLibrary\steamapps\common\Arc Raiders"
 )
 
 foreach ($root in $CommonArcRoots) {
     Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $root "ArcRaiders.exe")
-    Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $root "Binaries\Win64\ArcRaiders-Win64-Shipping.exe")
-    # UE5 internal project name "PioneerGame" — some installs use this subdirectory
     Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $root "PioneerGame\Binaries\Win64\PioneerGame-Win64-Shipping.exe")
     Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $root "PioneerGame\Binaries\Win64\ArcRaiders-Win64-Shipping.exe")
 }
@@ -130,24 +182,18 @@ if (-not $foundExe) {
 }
 
 # -----------------------------------------------------------------------------
-# SECTION 2: UE5 ENGINE CONFIG OVERRIDE
-# Unreal Engine 5 games support an Engine.ini override in the user folder
+# SECTION 2: WRITE OPTIMIZED CONFIG (Read-Merge-Write)
+# Arc Raiders internal UE5 project name is "PioneerGame"
+# Config: %LOCALAPPDATA%\PioneerGame\Saved\Config\WindowsClient\
 # -----------------------------------------------------------------------------
 
-$ConfigRootCandidates = @(
-    "$env:LOCALAPPDATA\ArcRaiders\Saved\Config",
-    "$env:LOCALAPPDATA\Arc Raiders\Saved\Config",
-    "$env:LOCALAPPDATA\ARCRaiders\Saved\Config",
-    "$env:LOCALAPPDATA\ArcRaidersGame\Saved\Config"
-)
-
-$PlatformDirs = @("Windows", "WindowsClient", "WindowsNoEditor", "WinGDK")
+$ConfigRoot = "$env:LOCALAPPDATA\PioneerGame\Saved\Config"
+$PlatformDirs = @("WindowsClient", "WinGDKClient")
 $TargetConfigDirs = New-Object 'System.Collections.Generic.List[string]'
 
-foreach ($root in $ConfigRootCandidates) {
-    if (-not (Test-Path $root)) { continue }
+if (Test-Path $ConfigRoot) {
     foreach ($platform in $PlatformDirs) {
-        $dirPath = Join-Path $root $platform
+        $dirPath = Join-Path $ConfigRoot $platform
         if (Test-Path $dirPath) {
             Add-UniquePath -List $TargetConfigDirs -Path $dirPath
         }
@@ -155,92 +201,154 @@ foreach ($root in $ConfigRootCandidates) {
 }
 
 if ($TargetConfigDirs.Count -eq 0) {
-    $fallbackDir = "$env:LOCALAPPDATA\ArcRaiders\Saved\Config\WindowsClient"
+    $fallbackDir = "$env:LOCALAPPDATA\PioneerGame\Saved\Config\WindowsClient"
     New-Item -ItemType Directory -Path $fallbackDir -Force | Out-Null
     Add-UniquePath -List $TargetConfigDirs -Path $fallbackDir
-    Write-Host "[INFO] No existing Arc config folders found. Created fallback: $fallbackDir" -ForegroundColor DarkCyan
+    Write-Host "[INFO] No existing PioneerGame config found. Created fallback: $fallbackDir" -ForegroundColor DarkCyan
 }
+
+# --- Competitive overrides by section ---
+
+# Embark custom settings section
+$EmbarkOverrides = [ordered]@{
+    'ResolutionScalingMethod' = 'None'
+    'DLSSMode'                = if ($NvidiaGPU) { 'Quality' } else { 'Off' }
+    'DLSSModel'               = 'Transformer'
+    'XeSSMode'                = 'Off'
+    'FSR3Mode'                = if ($NvidiaGPU) { 'Off' } else { 'Quality' }
+    'DLSSFrameGenerationMode' = 'Off'
+    'FSR3FrameGenerationMode' = 'Off'
+    'NvReflexMode'            = if ($NvidiaGPU) { 'Enabled+Boost' } else { 'Off' }
+    'ReflexLatewarpMode'      = 'Off'
+    'bAntiLag2Enabled'        = if ($NvidiaGPU) { 'False' } else { 'True' }
+    'RTXGIQuality'            = 'Static'
+    'RTXGIResolutionQuality'  = '1'
+    'FullscreenMode'          = '0'
+    'bUseVSync'               = 'False'
+    'FrameRateLimit'          = '0'
+    'bUseHDRDisplayOutput'    = 'False'
+    'MotionBlurEnabled'       = 'False'
+    'LensDistortionEnabled'   = 'False'
+    'AudioQualityLevel'       = '2'
+    'bEnableAudioSpatialisation' = 'True'
+}
+
+# Scalability quality groups (0=Low, 1=Medium, 2=High, 3=Epic)
+$ScalabilityOverrides = [ordered]@{
+    'sg.ViewDistanceQuality'        = '2'
+    'sg.ShadowQuality'             = '1'
+    'sg.TextureQuality'            = '2'
+    'sg.EffectsQuality'            = '0'
+    'sg.FoliageQuality'            = '0'
+    'sg.PostProcessQuality'        = '0'
+    'sg.ReflectionQuality'         = '0'
+    'sg.ShadingQuality'            = '1'
+    'sg.GlobalIlluminationQuality' = '0'
+    'sg.AntiAliasingQuality'       = '2'
+    'sg.ResolutionQuality'         = '100.000000'
+}
+
+# System settings (r.* render commands)
+$SystemSettingsOverrides = [ordered]@{
+    'r.DepthOfFieldQuality'         = '0'
+    'r.BloomQuality'                = '0'
+    'r.LensFlareQuality'           = '0'
+    'r.SceneColorFringe.Max'       = '0'
+    'r.Tonemapper.Sharpen'         = '1'
+    'r.Tonemapper.GrainQuantization' = '0'
+    'r.Vignette.Quality'           = '0'
+    'r.OneFrameThreadLag'          = '1'
+    'r.CreateShadersOnLoad'        = '1'
+    'r.Streaming.PoolSize'         = '4096'
+    'r.MaxAnisotropy'              = '16'
+    'r.TextureStreaming'           = '1'
+}
+
+# Input settings
+$InputOverrides = [ordered]@{
+    'bEnableMouseSmoothing'     = 'False'
+    'bViewAccelerationEnabled'  = 'False'
+}
+
+# Engine settings
+$EngineOverrides = [ordered]@{
+    'bSmoothFrameRate' = 'False'
+}
+
+# GameUserSettings (UE5 base)
+$GameUserOverrides = [ordered]@{
+    'bEnableMouseSmoothing' = 'False'
+}
+
+# Engine.ini content (separate file, user-level engine overrides)
+$EngineIniContent = @"
+[SystemSettings]
+r.ShaderPipelineCache.Mode=1
+r.ShaderPipelineCache.BackgroundBatchSize=0
+r.PSOPrecache.Validation=0
+r.Streaming.MipBias=0
+r.TemporalAASamples=8
+r.AmbientOcclusionLevels=0
+r.LensFlareQuality=0
+r.BloomQuality=0
+r.DepthOfFieldQuality=0
+r.MotionBlurQuality=0
+r.Tonemapper.GrainQuantization=0
+r.DynamicGlobalIlluminationMethod=0
+
+[ConsoleVariables]
+r.Streaming.FullyLoadUsedTextures=1
+"@
 
 $AnyConfigWritten = $false
 $WrittenCount = 0
 
-# UE5 Engine.ini performance tweaks
-# These are user-side engine config overrides (safe, no anti-cheat conflict)
-$EngineIniContent = @"
-[SystemSettings]
-; Reduces shader compilation stutter on new areas
-r.ShaderPipelineCache.Mode=1
-r.ShaderPipelineCache.BackgroundBatchSize=0
-; Reduces PSO compilation hitches at runtime
-r.PSOPrecache.Validation=0
-; Smoother streaming of world geometry
-r.Streaming.MipBias=0
-; Disable temporal dithering (cleaner image)
-r.TemporalAASamples=8
-; Reduce GPU memory fragmentation
-r.streaming.limitpoolsizetodownloadedmips=1
-; Ambient Occlusion OFF for competitive clarity
-r.AmbientOcclusionLevels=0
-; Screen Space Ambient Occlusion OFF
-r.SSAO.Enabled=0
-; Lens flare OFF (visual distraction)
-r.LensFlareQuality=0
-; Bloom OFF (reduces visual noise)
-r.BloomQuality=0
-; Depth of Field OFF (clarity at all ranges)
-r.DepthOfFieldQuality=0
-; Motion Blur OFF
-r.MotionBlurQuality=0
-; Film grain OFF
-r.Tonemapper.GrainQuantization=0
-; Reduce draw call overhead
-r.DynamicGlobalIlluminationMethod=0
-
-[ConsoleVariables]
-; Ensures engine tweaks load immediately
-r.Streaming.FullyLoadUsedTextures=1
-"@
-
-$GameUserSettingsContent = @"
-[/Script/Engine.GameUserSettings]
-bUseVSync=False
-FrameRateLimit=$MonitorRefresh.000000
-ResolutionSizeX=$MonitorWidth
-ResolutionSizeY=$MonitorHeight
-LastUserConfirmedResolutionSizeX=$MonitorWidth
-LastUserConfirmedResolutionSizeY=$MonitorHeight
-FullscreenMode=1
-LastConfirmedFullscreenMode=1
-PreferredFullscreenMode=1
-Version=5
-"@
-
 foreach ($ConfigDir in $TargetConfigDirs) {
-    $UE5EngineIni = Join-Path $ConfigDir "Engine.ini"
     $GameUserSettingsIni = Join-Path $ConfigDir "GameUserSettings.ini"
+    $EngineIni = Join-Path $ConfigDir "Engine.ini"
 
-    if (-not (Test-Path $ConfigDir)) {
-        New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
+    try {
+        # --- Backup existing files ---
+        if (Test-Path $GameUserSettingsIni) {
+            # Clear read-only if set from previous run
+            $item = Get-Item $GameUserSettingsIni
+            if ($item.IsReadOnly) { $item.IsReadOnly = $false }
+            $gusBackup = "$GameUserSettingsIni.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
+            Copy-Item $GameUserSettingsIni $gusBackup -Force
+            Write-Host "[BACKUP] GameUserSettings.ini backed up to: $gusBackup" -ForegroundColor Yellow
+        }
+        if (Test-Path $EngineIni) {
+            $eItem = Get-Item $EngineIni
+            if ($eItem.IsReadOnly) { $eItem.IsReadOnly = $false }
+            $engBackup = "$EngineIni.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
+            Copy-Item $EngineIni $engBackup -Force
+            Write-Host "[BACKUP] Engine.ini backed up to: $engBackup" -ForegroundColor Yellow
+        }
+
+        # --- Read-Merge-Write GameUserSettings.ini ---
+        $config = Read-IniFile -Path $GameUserSettingsIni
+        Merge-IniSection -Config $config -SectionName '/Script/EmbarkUserSettings.EmbarkGameUserSettings' -Overrides $EmbarkOverrides
+        Merge-IniSection -Config $config -SectionName 'ScalabilityGroups' -Overrides $ScalabilityOverrides
+        Merge-IniSection -Config $config -SectionName 'SystemSettings' -Overrides $SystemSettingsOverrides
+        Merge-IniSection -Config $config -SectionName '/Script/Engine.InputSettings' -Overrides $InputOverrides
+        Merge-IniSection -Config $config -SectionName '/Script/Engine.Engine' -Overrides $EngineOverrides
+        Merge-IniSection -Config $config -SectionName '/Script/Engine.GameUserSettings' -Overrides $GameUserOverrides
+        Write-IniFile -Path $GameUserSettingsIni -Config $config
+        (Get-Item $GameUserSettingsIni).IsReadOnly = $true
+        Write-Host "  [OK] GameUserSettings.ini written to: $GameUserSettingsIni" -ForegroundColor Green
+
+        # --- Write Engine.ini (user-level engine override, safe to overwrite) ---
+        [System.IO.File]::WriteAllText($EngineIni, $EngineIniContent, [System.Text.UTF8Encoding]::new($false))
+        (Get-Item $EngineIni).IsReadOnly = $true
+        Write-Host "  [OK] Engine.ini written to: $EngineIni" -ForegroundColor Green
+
+        $AnyConfigWritten = $true
+        $WrittenCount++
     }
-
-    $engineBackupPath = "$UE5EngineIni.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
-    if (Test-Path $UE5EngineIni) {
-        Copy-Item $UE5EngineIni $engineBackupPath -Force
-        Write-Host "[BACKUP] Engine.ini backed up to: $engineBackupPath" -ForegroundColor Yellow
+    catch {
+        Write-Host "[FAIL] Error writing config to ${ConfigDir}: $_" -ForegroundColor Red
+        Write-Host "[SQ_CHECK_FAIL:ARC_CONFIG_FILES_WRITTEN:WRITE_ERROR]"
     }
-
-    $gusBackupPath = "$GameUserSettingsIni.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
-    if (Test-Path $GameUserSettingsIni) {
-        Copy-Item $GameUserSettingsIni $gusBackupPath -Force
-        Write-Host "[BACKUP] GameUserSettings.ini backed up to: $gusBackupPath" -ForegroundColor Yellow
-    }
-
-    Set-Content -Path $UE5EngineIni -Value $EngineIniContent -Encoding UTF8 -Force
-    Set-Content -Path $GameUserSettingsIni -Value $GameUserSettingsContent -Encoding UTF8 -Force
-    Write-Host "  [OK] Engine.ini written to: $UE5EngineIni" -ForegroundColor Green
-    Write-Host "  [OK] GameUserSettings.ini written to: $GameUserSettingsIni" -ForegroundColor Green
-    $AnyConfigWritten = $true
-    $WrittenCount++
 }
 
 if ($AnyConfigWritten) {
@@ -265,92 +373,57 @@ Write-Host ""
 Write-Host "  --- DISPLAY SETTINGS ---" -ForegroundColor Cyan
 Write-Host "  Window Mode            : Fullscreen Exclusive" -ForegroundColor White
 Write-Host "  Resolution             : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
-Write-Host "  Frame Rate Limit       : Unlimited (or monitor refresh rate)" -ForegroundColor White
+Write-Host "  Frame Rate Limit       : Unlimited (FrameRateLimit=0)" -ForegroundColor White
 Write-Host "  V-Sync                 : OFF" -ForegroundColor White
-Write-Host "  Brightness             : 50 (default, adjust for your monitor)" -ForegroundColor White
 
 Write-Host ""
-Write-Host "  --- UPSCALING (Critical for UE5 performance) ---" -ForegroundColor Cyan
+Write-Host "  --- UPSCALING ---" -ForegroundColor Cyan
 if ($NvidiaGPU) {
-    Write-Host "  Upscaling Mode         : DLSS (strongly recommended for NVIDIA)" -ForegroundColor White
-    Write-Host "  DLSS Quality           : Quality (best image with ~20% FPS gain)" -ForegroundColor White
-    Write-Host "                         Balanced if still FPS-limited" -ForegroundColor DarkGray
-    Write-Host "  DLSS Frame Gen         : OFF (adds input latency - not competitive)" -ForegroundColor White
-    Write-Host "  NVIDIA Reflex          : On + Boost" -ForegroundColor White
+    Write-Host "  DLSS Mode              : Quality (best image with ~20% FPS gain)" -ForegroundColor White
+    Write-Host "  DLSS Model             : Transformer" -ForegroundColor White
+    Write-Host "  DLSS Frame Gen         : OFF (adds input latency)" -ForegroundColor White
+    Write-Host "  NVIDIA Reflex          : Enabled + Boost" -ForegroundColor White
 } else {
-    Write-Host "  Upscaling Mode         : FSR 3 or TSR" -ForegroundColor White
-    Write-Host "  FSR Quality            : Quality (best balance)" -ForegroundColor White
-    Write-Host "  FSR Frame Gen          : OFF (adds input latency - not competitive)" -ForegroundColor White
-    Write-Host "  AMD Anti-Lag            : Enabled" -ForegroundColor White
+    Write-Host "  FSR 3 Mode             : Quality (best balance)" -ForegroundColor White
+    Write-Host "  FSR Frame Gen          : OFF (adds input latency)" -ForegroundColor White
+    Write-Host "  AMD Anti-Lag 2         : Enabled" -ForegroundColor White
 }
-Write-Host "  Anti-Aliasing          : TAA or DLSS (not TAAU - too blurry)" -ForegroundColor White
-Write-Host "                         TSR is good alternative if not using DLSS/FSR" -ForegroundColor DarkGray
 
 Write-Host ""
-Write-Host "  --- GRAPHICS QUALITY (COMPETITIVE COMPETITIVE) ---" -ForegroundColor Cyan
-Write-Host "  Shadows                : MEDIUM (minimum for competitive!)" -ForegroundColor Red
-Write-Host "                         LOW disables player shadows - massive disadvantage" -ForegroundColor Red
-Write-Host "                         Player shadows reveal enemy positions behind cover" -ForegroundColor DarkGray
-Write-Host "  Shadow Distance        : Medium" -ForegroundColor White
-Write-Host "  Texture Quality        : High (minimal FPS cost, much better visibility)" -ForegroundColor White
-Write-Host "  Post Processing        : Low (disables bloom, lens effects)" -ForegroundColor White
-Write-Host "  Effects Quality        : Low (less visual clutter in combat)" -ForegroundColor White
-Write-Host "  Foliage Quality        : Low (clearer sightlines through vegetation)" -ForegroundColor White
-Write-Host "  Terrain Quality        : Low-Medium" -ForegroundColor White
-Write-Host "  Object Detail          : Medium" -ForegroundColor White
-Write-Host "  Global Illumination    : Static GI (not Dynamic - major FPS drain)" -ForegroundColor White
-Write-Host "  Ambient Occlusion      : OFF (Engine.ini also enforces this)" -ForegroundColor White
+Write-Host "  --- GRAPHICS QUALITY (COMPETITIVE) ---" -ForegroundColor Cyan
+Write-Host "  Shadows                : MEDIUM (sg=1, minimum for competitive!)" -ForegroundColor Red
+Write-Host "                         LOW disables player shadows - big disadvantage" -ForegroundColor Red
+Write-Host "  Textures               : High (sg=2, minimal FPS cost)" -ForegroundColor White
+Write-Host "  View Distance          : High (sg=2)" -ForegroundColor White
+Write-Host "  Effects                : Low (sg=0)" -ForegroundColor White
+Write-Host "  Foliage                : Low (sg=0, clearer sightlines)" -ForegroundColor White
+Write-Host "  Post Processing        : Low (sg=0)" -ForegroundColor White
+Write-Host "  Reflections            : Low (sg=0)" -ForegroundColor White
+Write-Host "  Shading                : Medium (sg=1)" -ForegroundColor White
+Write-Host "  Global Illumination    : Low/Static (sg=0)" -ForegroundColor White
+Write-Host "  Anti-Aliasing          : High (sg=2)" -ForegroundColor White
+Write-Host "  Resolution Quality     : 100%%" -ForegroundColor White
 Write-Host "  Motion Blur            : OFF" -ForegroundColor White
-Write-Host "  Depth of Field         : OFF" -ForegroundColor White
-Write-Host "  Lens Flare             : OFF" -ForegroundColor White
-Write-Host "  Bloom                  : OFF" -ForegroundColor White
-
-Write-Host ""
-Write-Host "  --- HARDWARE TIER RECOMMENDATIONS ---" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "  [ENTRY-LEVEL: RTX 3060 / RX 6600]" -ForegroundColor Yellow
-Write-Host "  Quality Preset         : Low (then adjust shadows to Medium)" -ForegroundColor White
-Write-Host "  DLSS/FSR               : Performance mode" -ForegroundColor White
-Write-Host "  Target FPS             : 100-144" -ForegroundColor White
-Write-Host ""
-Write-Host "  [MID-RANGE: RTX 4070 / RX 7800 XT]" -ForegroundColor Yellow
-Write-Host "  Quality Preset         : Medium (then lower effects/foliage to Low)" -ForegroundColor White
-Write-Host "  DLSS/FSR               : Quality mode" -ForegroundColor White
-Write-Host "  Target FPS             : 144-240" -ForegroundColor White
-Write-Host ""
-Write-Host "  [HIGH-END: RTX 4090 / RX 7900 XTX]" -ForegroundColor Yellow
-Write-Host "  Quality Preset         : High (keep shadows High, effects Medium)" -ForegroundColor White
-Write-Host "  DLSS/FSR               : Quality or off (if native 1440p perf allows)" -ForegroundColor White
-Write-Host "  Target FPS             : 240+" -ForegroundColor White
+Write-Host "  Lens Distortion        : OFF" -ForegroundColor White
+Write-Host "  Depth of Field         : OFF (r.DepthOfFieldQuality=0)" -ForegroundColor White
+Write-Host "  Bloom                  : OFF (r.BloomQuality=0)" -ForegroundColor White
+Write-Host "  Lens Flare             : OFF (r.LensFlareQuality=0)" -ForegroundColor White
+Write-Host "  Film Grain             : OFF (r.Tonemapper.GrainQuantization=0)" -ForegroundColor White
+Write-Host "  Ambient Occlusion      : OFF (Engine.ini r.AmbientOcclusionLevels=0)" -ForegroundColor White
 
 Write-Host ""
 Write-Host "  --- AUDIO (CRITICAL FOR ARC RAIDERS) ---" -ForegroundColor Cyan
-Write-Host "  Audio Preset           : Night Mode" -ForegroundColor White
-Write-Host "                         Compresses dynamic range - quiet sounds louder" -ForegroundColor DarkGray
-Write-Host "                         Makes footsteps, enemy movements much clearer" -ForegroundColor DarkGray
+Write-Host "  Audio Quality          : High (AudioQualityLevel=2)" -ForegroundColor White
+Write-Host "  Spatial Audio          : ON (bEnableAudioSpatialisation=True)" -ForegroundColor White
 Write-Host "  Master Volume          : 80" -ForegroundColor White
-Write-Host "  Music Volume           : 0 (extraction tension music masks footsteps)" -ForegroundColor White
+Write-Host "  Music Volume           : 0 (masks footsteps)" -ForegroundColor White
 Write-Host "  SFX Volume             : 100" -ForegroundColor White
-Write-Host "  UI Volume              : 50" -ForegroundColor White
-Write-Host "  Voice Chat Volume      : 70" -ForegroundColor White
-Write-Host "  Spatial Audio          : ON (3D positional audio for enemy detection)" -ForegroundColor White
 
 Write-Host ""
-Write-Host "  --- SENSITIVITY ---" -ForegroundColor Cyan
-Write-Host "  Mouse Sensitivity      : 0.15-0.25 (slower than pure FPS games)" -ForegroundColor White
-Write-Host "                         Arc Raiders has larger play spaces than Valorant" -ForegroundColor DarkGray
-Write-Host "  ADS Sensitivity        : 0.85 (consistent with hipfire muscle memory)" -ForegroundColor White
-Write-Host "  Scope Sensitivity      : 0.85" -ForegroundColor White
-Write-Host "  FOV                    : 80-90 (80 is competitive standard)" -ForegroundColor White
-Write-Host "                         Higher FOV hurts precision aiming at distance" -ForegroundColor DarkGray
-Write-Host "  Polling Rate           : 1000Hz recommended" -ForegroundColor White
-
-Write-Host ""
-Write-Host "  --- NOTES ON ARC RAIDERS UE5 SPECIFICS ---" -ForegroundColor Cyan
-Write-Host "  - First launch: Expect shader compilation stutter (first ~1 hour)" -ForegroundColor DarkGray
-Write-Host "  - Patch 1.0.7: Shadow LOD transitions significantly improved" -ForegroundColor DarkGray
-Write-Host "  - Frame Generation (DLSS/FSR): Always OFF for competitive - adds latency" -ForegroundColor DarkGray
-Write-Host "  - The game is well-optimized for UE5 - mid-range can hit 144fps at 1080p" -ForegroundColor DarkGray
+Write-Host "  --- INPUT ---" -ForegroundColor Cyan
+Write-Host "  Mouse Smoothing        : OFF" -ForegroundColor White
+Write-Host "  Mouse Acceleration     : OFF" -ForegroundColor White
+Write-Host "  Smooth Frame Rate      : OFF" -ForegroundColor White
 
 Write-Host ""
 Write-Host "[DONE] Arc Raiders config files written. Apply remaining settings in-game." -ForegroundColor Green
