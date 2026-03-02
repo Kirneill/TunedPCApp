@@ -8,10 +8,17 @@ Windows desktop app (Electron + React) that applies PowerShell-based optimizatio
 
 This CLAUDE.md is read automatically by every new Claude session. It teaches the AI the correct workflow so you don't have to re-explain it each time. Here's what you need to know:
 
-### Adding a new game
-Prompt: **"Add [Game Name] as a new game optimization. Follow the CLAUDE.md workflow."**
+### Adding a new game (2-step process)
 
-That's it. The AI will follow all 5 phases (Research, Reference Config, Script, Register, Validate) and run the Pester tests automatically. You don't need to remind it about BOM, key names, or structural envelopes — it's all documented below.
+**Step 1 — Research agent** (creates the settings research file):
+Prompt: **"Research the best competitive FPS settings for [Game Name]. Find the config file path, format, exact key names, value types, and structural requirements. Save to Gaming Research/[GameName]_FPS_Settings.md"**
+
+This agent creates the `.md` with all settings info, config format details, and a real reference config sample.
+
+**Step 2 — Coding agent** (reads the research and implements):
+Prompt: **"Add [Game Name] as a new game optimization. Follow the CLAUDE.md workflow — the research file is already in Gaming Research/."**
+
+This agent reads the research, then follows Phases 2-5 (Reference Config, Script, Register, Validate). It doesn't need to re-research — everything it needs is in the `.md` file.
 
 ### After the AI writes a new game script
 Prompt: **"Run the Pester tests for [gameid]"** — this catches wrong key names, bad encoding, missing structural fields, and wrong value types *before* you ship.
@@ -95,13 +102,14 @@ npx electron-builder --win nsis  # NSIS installer -> release/
 
 ### Step-by-step Checklist
 
-#### Phase 1: Research
+#### Phase 1: Research (usually done by a separate research agent BEFORE the coding agent)
 
-**FIRST: Search `Gaming Research/` for existing research** (check both the top-level folder and the `New Games/` subfolder). Look for files matching the game name — e.g., `*Tarkov*`, `*BO7*`, `*Fortnite*`. If research exists, READ IT — it contains the recommended settings, config format details, and key names from a prior research session. Use it as your primary source and only do fresh research to fill gaps.
+**Search `Gaming Research/` for an existing research file** (check both the top-level folder and the `New Games/` subfolder). Look for files matching the game name — e.g., `*Tarkov*`, `*BO7*`, `*Fortnite*`.
 
-If no research file exists, use `Gaming Research/RESEARCH_TEMPLATE.md` as the template.
+- **If research exists**: READ IT. It was created by a research agent and contains the recommended settings, config format, key names, and sources. Use it as your primary source. Only do fresh research to fill gaps.
+- **If no research exists**: Either ask the user to run a research agent first, or use `Gaming Research/RESEARCH_TEMPLATE.md` to create one yourself.
 
-The research (existing or new) MUST capture:
+The research file MUST contain:
 
 - [ ] **Exact config file path** and format (JSON, INI, ConVar, XML)
 - [ ] **A REAL reference config file** — full, not excerpted. Fetch from GitHub, community repos, or a real installation. Store in `scripts/reference-configs/`
