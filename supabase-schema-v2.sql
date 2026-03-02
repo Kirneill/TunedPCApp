@@ -141,6 +141,10 @@ CREATE INDEX IF NOT EXISTS idx_run_details_run_id
 CREATE INDEX IF NOT EXISTS idx_run_details_setting_success
   ON optimization_run_details (setting_id, success);
 
+-- Table-level grants (required in addition to RLS policies)
+GRANT INSERT ON optimization_run_details TO anon;
+GRANT SELECT ON optimization_run_details TO service_role;
+
 -- ─── 6. USER PREFERENCES TABLE ──────────────────────────────
 -- Server-side backup of user config (monitor, GPU mode, etc.)
 
@@ -182,6 +186,10 @@ CREATE POLICY "Service role full access preferences"
   ON user_preferences FOR ALL TO service_role
   USING (true) WITH CHECK (true);
 
+-- Table-level grants (required in addition to RLS policies)
+GRANT SELECT, INSERT, UPDATE ON user_preferences TO authenticated;
+GRANT ALL ON user_preferences TO service_role;
+
 -- ─── 7. INSTALLED GAMES SNAPSHOT TABLE ───────────────────────
 
 CREATE TABLE IF NOT EXISTS machine_installed_games (
@@ -214,11 +222,22 @@ CREATE POLICY "Allow anonymous updates on installed games"
   USING (anonymous_id IS NOT NULL AND length(anonymous_id) <= 128)
   WITH CHECK (anonymous_id IS NOT NULL AND length(anonymous_id) <= 128);
 
+-- Anon SELECT is required for upsert conflict detection (ON CONFLICT needs to read the conflicting row).
+DROP POLICY IF EXISTS "Allow anonymous select own installed games" ON machine_installed_games;
+CREATE POLICY "Allow anonymous select own installed games"
+  ON machine_installed_games
+  FOR SELECT TO anon
+  USING (anonymous_id IS NOT NULL AND length(anonymous_id) <= 128);
+
 DROP POLICY IF EXISTS "Service role reads installed games" ON machine_installed_games;
 CREATE POLICY "Service role reads installed games"
   ON machine_installed_games
   FOR SELECT TO service_role
   USING (true);
+
+-- Table-level grants (required in addition to RLS policies)
+GRANT SELECT, INSERT, UPDATE ON machine_installed_games TO anon;
+GRANT SELECT ON machine_installed_games TO service_role;
 
 -- ─── 8. AUDIT LOG TABLE ─────────────────────────────────────
 -- Tracks auth events and machine management actions
