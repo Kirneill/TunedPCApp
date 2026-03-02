@@ -848,3 +848,746 @@ Describe "Valorant GameUserSettings.ini" -Tag "valorant" {
         }
     }
 }
+
+# ===========================================================================
+# FORTNITE TESTS
+# ===========================================================================
+Describe "Fortnite GameUserSettings.ini" -Tag "fortnite" {
+
+    BeforeAll {
+        $ProjectRoot = (Get-Location).Path
+        $ScriptsDir = Join-Path $ProjectRoot "scripts"
+        $ReferenceDir = Join-Path $ScriptsDir "reference-configs"
+        $RefFile = Join-Path $ReferenceDir "fortnite-GameUserSettings.ini"
+        $ScriptFile = Join-Path $ScriptsDir "03_Fortnite_Settings.ps1"
+
+        # Helper: Parse UE4 INI file into section -> key names hashtable
+        function Parse-FortniteIni {
+            param([string]$Path)
+            $sections = @{}
+            $currentSection = ''
+            foreach ($line in (Get-Content $Path)) {
+                if ($line -match '^\[(.+)\]$') {
+                    $currentSection = $Matches[1]
+                    if (-not $sections.ContainsKey($currentSection)) {
+                        $sections[$currentSection] = @()
+                    }
+                } elseif ($currentSection -and $line -match '^([^;=][^=]*)=') {
+                    $keyName = $Matches[1].Trim()
+                    $sections[$currentSection] += $keyName
+                }
+            }
+            return $sections
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Reference config is valid" {
+        It "Reference file exists" {
+            $RefFile | Should -Exist
+        }
+
+        It "Reference file has required INI sections" {
+            $content = Get-Content $RefFile -Raw
+            $content | Should -Match '\[/Script/FortniteGame\.FortGameUserSettings\]'
+            $content | Should -Match '\[ScalabilityGroups\]'
+        }
+
+        It "Reference file has competitive sections (D3DRHIPreference, PerformanceMode)" {
+            $content = Get-Content $RefFile -Raw
+            $content | Should -Match '\[D3DRHIPreference\]'
+            $content | Should -Match '\[PerformanceMode\]'
+        }
+
+        It "Reference has all 12 scalability group keys" {
+            $ref = Parse-FortniteIni $RefFile
+            $sgKeys = $ref['ScalabilityGroups']
+            $sgKeys | Should -Contain 'sg.ResolutionQuality'
+            $sgKeys | Should -Contain 'sg.ViewDistanceQuality'
+            $sgKeys | Should -Contain 'sg.AntiAliasingQuality'
+            $sgKeys | Should -Contain 'sg.ShadowQuality'
+            $sgKeys | Should -Contain 'sg.GlobalIlluminationQuality'
+            $sgKeys | Should -Contain 'sg.ReflectionQuality'
+            $sgKeys | Should -Contain 'sg.PostProcessQuality'
+            $sgKeys | Should -Contain 'sg.TextureQuality'
+            $sgKeys | Should -Contain 'sg.EffectsQuality'
+            $sgKeys | Should -Contain 'sg.FoliageQuality'
+            $sgKeys | Should -Contain 'sg.ShadingQuality'
+            $sgKeys | Should -Contain 'sg.LandscapeQuality'
+        }
+
+        It "Reference has UE5 competitive keys (bRayTracing, bUseNanite, FortAntiAliasingMethod)" {
+            $ref = Parse-FortniteIni $RefFile
+            $fortKeys = $ref['/Script/FortniteGame.FortGameUserSettings']
+            $fortKeys | Should -Contain 'bRayTracing'
+            $fortKeys | Should -Contain 'bUseNanite'
+            $fortKeys | Should -Contain 'FortAntiAliasingMethod'
+            $fortKeys | Should -Contain 'LowInputLatencyModeIsEnabled'
+            $fortKeys | Should -Contain 'DesiredGlobalIlluminationQuality'
+            $fortKeys | Should -Contain 'DesiredReflectionQuality'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script uses valid key names from reference config" {
+        BeforeAll {
+            $ref = Parse-FortniteIni $RefFile
+            $scriptContent = Get-Content $ScriptFile -Raw
+
+            # Extract all Set-IniValue calls. The script uses two patterns:
+            #   Set-IniValue $ini $fortSection 'Key' 'Value'  (variable section)
+            #   Set-IniValue $ini 'Section' 'Key' 'Value'     (literal section)
+            # Use single-quoted regex to avoid PS variable expansion.
+
+            # Pattern 1: literal section names like 'ScalabilityGroups'
+            $LiteralCalls = [regex]::Matches(
+                $scriptContent,
+                'Set-IniValue\s+\$ini\s+''([^'']+)''\s+''([^'']+)''\s+'
+            )
+            # Pattern 2: variable section names like $fortSection
+            $VarCalls = [regex]::Matches(
+                $scriptContent,
+                'Set-IniValue\s+\$ini\s+\$fortSection\s+''([^'']+)''\s+'
+            )
+
+            $TotalCallCount = $LiteralCalls.Count + $VarCalls.Count
+
+            # Build a hashtable of section -> keys used by the script
+            $ScriptSections = @{}
+            foreach ($m in $LiteralCalls) {
+                $section = $m.Groups[1].Value
+                $key = $m.Groups[2].Value
+                if (-not $ScriptSections.ContainsKey($section)) {
+                    $ScriptSections[$section] = @()
+                }
+                $ScriptSections[$section] += $key
+            }
+            # Variable-section calls map to the FortGameUserSettings section
+            $fortSectionName = '/Script/FortniteGame.FortGameUserSettings'
+            if (-not $ScriptSections.ContainsKey($fortSectionName)) {
+                $ScriptSections[$fortSectionName] = @()
+            }
+            foreach ($m in $VarCalls) {
+                $key = $m.Groups[1].Value
+                $ScriptSections[$fortSectionName] += $key
+            }
+        }
+
+        It "Script Set-IniValue calls were successfully extracted" {
+            $TotalCallCount | Should -BeGreaterThan 20 -Because "Script should write 20+ competitive settings"
+        }
+
+        It "All FortGameUserSettings keys exist in reference config" {
+            $section = '/Script/FortniteGame.FortGameUserSettings'
+            $refKeys = $ref[$section]
+            $scriptKeys = $ScriptSections[$section]
+            $missingKeys = @()
+            foreach ($key in $scriptKeys) {
+                if ($key -notin $refKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+
+        It "All ScalabilityGroups keys exist in reference config" {
+            $section = 'ScalabilityGroups'
+            $refKeys = $ref[$section]
+            $scriptKeys = $ScriptSections[$section]
+            $missingKeys = @()
+            foreach ($key in $scriptKeys) {
+                if ($key -notin $refKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These scalability keys are not in the reference: $($missingKeys -join ', ')"
+        }
+
+        It "All D3DRHIPreference keys exist in reference config" {
+            $section = 'D3DRHIPreference'
+            $refKeys = $ref[$section]
+            $scriptKeys = $ScriptSections[$section]
+            $missingKeys = @()
+            foreach ($key in $scriptKeys) {
+                if ($key -notin $refKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These D3DRHIPreference keys are not in the reference: $($missingKeys -join ', ')"
+        }
+
+        It "Script does NOT use nonexistent keys (bFullscreenMode, bRunningOnHighEndMachine, etc.)" {
+            # These keys were in the old script but do not exist in real Fortnite configs
+            $scriptContent | Should -Not -Match 'bFullscreenMode' -Because "Real Fortnite uses PreferredFullscreenMode, not bFullscreenMode"
+            $scriptContent | Should -Not -Match 'bRunningOnHighEndMachine' -Because "This key does not exist in real Fortnite configs"
+            $scriptContent | Should -Not -Match 'LastConfirmedScalability' -Because "Scalability is in [ScalabilityGroups] section, not as a string"
+            $scriptContent | Should -Not -Match 'GameUserSettingsVersion' -Because "This key does not exist in real Fortnite configs"
+            $scriptContent | Should -Not -Match 'bCinematicMode' -Because "This key does not exist in real Fortnite configs"
+            $scriptContent | Should -Not -Match 'bForceClientExclusive' -Because "This key does not exist in real Fortnite configs"
+        }
+
+        It "Script does NOT write a [/Script/Engine.GameUserSettings] section" {
+            # Fortnite puts all engine settings in FortGameUserSettings, not a separate Engine section
+            $scriptContent | Should -Not -Match 'Engine\.GameUserSettings' -Because "Fortnite does not use a separate Engine.GameUserSettings section"
+        }
+
+        It "Script does NOT use named audio volume keys (MusicVolume, SoundFXVolume)" {
+            # Real Fortnite uses [/Script/FortniteGame.FortAudioMixSubsystem] with UserMixCurrentValues array
+            $scriptContent | Should -Not -Match "'MusicVolume'" -Because "Real Fortnite uses UserMixCurrentValues array, not named volume keys"
+            $scriptContent | Should -Not -Match "'SoundFXVolume'" -Because "Real Fortnite uses UserMixCurrentValues array, not named volume keys"
+            $scriptContent | Should -Not -Match "'DialogueVolume'" -Because "Real Fortnite uses UserMixCurrentValues array, not named volume keys"
+            $scriptContent | Should -Not -Match "'VoiceChatVolume'" -Because "Real Fortnite uses UserMixCurrentValues array, not named volume keys"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script output file format (read-merge-write)" {
+        BeforeAll {
+            # Create temp sandbox simulating %LOCALAPPDATA%
+            $script:TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "sq-test-fortnite-$(Get-Random)"
+            $configDir = Join-Path $script:TempDir "FortniteGame\Saved\Config\WindowsClient"
+            New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+
+            # Seed with reference config to test read-merge-write preservation
+            Copy-Item $RefFile (Join-Path $configDir "GameUserSettings.ini") -Force
+
+            # Save original LOCALAPPDATA
+            $script:OrigLocalAppData = $env:LOCALAPPDATA
+
+            # Run the script in headless mode with overridden LOCALAPPDATA
+            $env:SENSEQUALITY_HEADLESS = "1"
+            $env:MONITOR_WIDTH = "1920"
+            $env:MONITOR_HEIGHT = "1080"
+            $env:MONITOR_REFRESH = "240"
+            $env:NVIDIA_GPU = "1"
+            $env:LOCALAPPDATA = $script:TempDir
+
+            $scriptPath = Join-Path $ScriptsDir "03_Fortnite_Settings.ps1"
+            $Output = & $scriptPath *>&1 | Out-String
+            $OutputFile = Join-Path $configDir "GameUserSettings.ini"
+        }
+
+        AfterAll {
+            # Restore LOCALAPPDATA and clean up
+            $env:LOCALAPPDATA = $script:OrigLocalAppData
+            $env:SENSEQUALITY_HEADLESS = ""
+            if ($script:TempDir -and (Test-Path $script:TempDir)) {
+                Get-ChildItem $script:TempDir -Recurse -File -ErrorAction SilentlyContinue |
+                    ForEach-Object { if ($_.IsReadOnly) { $_.IsReadOnly = $false } }
+                Remove-Item $script:TempDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Output file exists" {
+            $OutputFile | Should -Exist
+        }
+
+        It "Output file has no UTF-8 BOM" {
+            $bytes = [System.IO.File]::ReadAllBytes($OutputFile)
+            $hasBom = ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+            $hasBom | Should -BeFalse -Because "UE4 INI parser may have issues with BOM"
+        }
+
+        It "Output file has [/Script/FortniteGame.FortGameUserSettings] section" {
+            $content = Get-Content $OutputFile -Raw
+            $content | Should -Match '\[/Script/FortniteGame\.FortGameUserSettings\]'
+        }
+
+        It "Output file has [ScalabilityGroups] section" {
+            $content = Get-Content $OutputFile -Raw
+            $content | Should -Match '\[ScalabilityGroups\]'
+        }
+
+        It "Output file has [D3DRHIPreference] section with dx11" {
+            $content = Get-Content $OutputFile -Raw
+            $content | Should -Match '\[D3DRHIPreference\]'
+            $content | Should -Match 'PreferredRHI=dx11'
+        }
+
+        It "Output file has [PerformanceMode] section" {
+            $content = Get-Content $OutputFile -Raw
+            $content | Should -Match '\[PerformanceMode\]'
+            $content | Should -Match 'MeshQuality=0'
+        }
+
+        It "Competitive scalability groups are set to low/off" {
+            $content = Get-Content $OutputFile -Raw
+            $content | Should -Match 'sg\.ShadowQuality=0'
+            $content | Should -Match 'sg\.EffectsQuality=0'
+            $content | Should -Match 'sg\.PostProcessQuality=0'
+            $content | Should -Match 'sg\.FoliageQuality=0'
+            $content | Should -Match 'sg\.ShadingQuality=0'
+            $content | Should -Match 'sg\.LandscapeQuality=2'
+        }
+
+        It "Resolution is set to monitor values" {
+            $content = Get-Content $OutputFile -Raw
+            $content | Should -Match 'ResolutionSizeX=1920'
+            $content | Should -Match 'ResolutionSizeY=1080'
+        }
+
+        It "Fullscreen mode is exclusive (PreferredFullscreenMode=0)" {
+            $content = Get-Content $OutputFile -Raw
+            $content | Should -Match 'PreferredFullscreenMode=0'
+            $content | Should -Match 'LastConfirmedFullscreenMode=0'
+        }
+
+        It "Read-merge-write preserves existing user data (bEulaAccepted, etc.)" {
+            $content = Get-Content $OutputFile -Raw
+            # These keys exist in the reference config (seeded) and must survive merge
+            $content | Should -Match 'bEulaAccepted=True' -Because "Read-merge-write must preserve user account data"
+            $content | Should -Match 'FortniteReleaseVersion=' -Because "Read-merge-write must preserve game version"
+        }
+
+        It "Read-merge-write preserves [ChatSettings] section" {
+            $content = Get-Content $OutputFile -Raw
+            $content | Should -Match '\[ChatSettings\]' -Because "Read-merge-write must preserve non-competitive sections"
+        }
+
+        It "Output file does NOT have [/Script/Engine.GameUserSettings] section" {
+            $content = Get-Content $OutputFile -Raw
+            $content | Should -Not -Match '\[/Script/Engine\.GameUserSettings\]'
+        }
+
+        It "SQ_CHECK markers are emitted for config write" {
+            $Output | Should -Match '\[SQ_CHECK_(OK|WARN|FAIL):FN_CONFIG_FILES_WRITTEN'
+        }
+
+        It "SQ_CHECK markers are emitted for writable check" {
+            $Output | Should -Match '\[SQ_CHECK_(OK|WARN|FAIL):FN_CONFIG_WRITABLE'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script source code correctness" {
+        BeforeAll {
+            $ScriptContent = Get-Content $ScriptFile -Raw
+        }
+
+        It "Script runs in headless mode" {
+            $ScriptContent | Should -Match 'SENSEQUALITY_HEADLESS'
+        }
+
+        It "Script uses read-merge-write pattern (not blind overwrite)" {
+            # Should read existing config, not just create from scratch
+            $ScriptContent | Should -Match 'Read-FortniteIni' -Because "Script must read existing config before writing"
+            $ScriptContent | Should -Match 'Set-IniValue' -Because "Script must merge individual keys, not overwrite entire file"
+        }
+
+        It "Script backs up existing config before writing" {
+            $ScriptContent | Should -Match '\.bak_'
+            $ScriptContent | Should -Match 'Copy-Item'
+        }
+
+        It "Script writes UTF-8 without BOM" {
+            $ScriptContent | Should -Match 'UTF8Encoding.*\$false' -Because "WriteAllText must use UTF8Encoding without BOM"
+        }
+
+        It "Script sets EXE compatibility flags" {
+            $ScriptContent | Should -Match 'HIGHDPIAWARE'
+            $ScriptContent | Should -Match 'AppCompatFlags'
+        }
+
+        It "Script forces Performance Mode via D3DRHIPreference section" {
+            $ScriptContent | Should -Match "'D3DRHIPreference'"
+            $ScriptContent | Should -Match "'PreferredRHI'"
+            $ScriptContent | Should -Match "'dx11'"
+        }
+
+        It "Guide text matches config values (fullscreen = 0, not 1)" {
+            # PreferredFullscreenMode=0 means exclusive fullscreen
+            $ScriptContent | Should -Match 'PreferredFullscreenMode=0' -Because "Guide says Fullscreen, so value must be 0 (exclusive)"
+        }
+    }
+}
+
+# ===========================================================================
+# ARC RAIDERS TESTS
+# ===========================================================================
+Describe "Arc Raiders GameUserSettings.ini" -Tag "arcraiders" {
+
+    BeforeAll {
+        $ProjectRoot = (Get-Location).Path
+        $ScriptsDir = Join-Path $ProjectRoot "scripts"
+        $ReferenceDir = Join-Path $ScriptsDir "reference-configs"
+        $RefGUS = Join-Path $ReferenceDir "arcraiders-GameUserSettings.ini"
+        $RefEngine = Join-Path $ReferenceDir "arcraiders-Engine.ini"
+        $ScriptFile = Join-Path $ScriptsDir "06_ArcRaiders_Settings.ps1"
+
+        # Helper: Check if a file starts with UTF-8 BOM (EF BB BF)
+        function Test-HasBOM {
+            param([string]$Path)
+            $bytes = [System.IO.File]::ReadAllBytes($Path)
+            return ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+        }
+
+        # Helper: Parse UE5 INI into ordered dict of section -> keys
+        function Parse-IniSections {
+            param([string]$Path)
+            $sections = [ordered]@{}
+            $currentSection = ""
+            foreach ($line in (Get-Content $Path)) {
+                if ($line -match '^\[(.+)\]$') {
+                    $currentSection = $Matches[1]
+                    if (-not $sections.Contains($currentSection)) {
+                        $sections[$currentSection] = [ordered]@{}
+                    }
+                } elseif ($currentSection -and $line -match '^(.+?)=(.*)$') {
+                    $sections[$currentSection][$Matches[1]] = $Matches[2]
+                }
+            }
+            return $sections
+        }
+
+        # Parse reference configs
+        $RefSections = Parse-IniSections -Path $RefGUS
+        $RefEngineSections = Parse-IniSections -Path $RefEngine
+    }
+
+    # -----------------------------------------------------------------
+    Context "Reference configs are valid" {
+        It "GameUserSettings.ini reference file exists" {
+            $RefGUS | Should -Exist
+        }
+
+        It "Engine.ini reference file exists" {
+            $RefEngine | Should -Exist
+        }
+
+        It "Reference GameUserSettings.ini has Embark section" {
+            $RefSections.Keys | Should -Contain '/Script/EmbarkUserSettings.EmbarkGameUserSettings'
+        }
+
+        It "Reference GameUserSettings.ini has ScalabilityGroups section" {
+            $RefSections.Keys | Should -Contain 'ScalabilityGroups'
+        }
+
+        It "Reference GameUserSettings.ini has SystemSettings section" {
+            $RefSections.Keys | Should -Contain 'SystemSettings'
+        }
+
+        It "Embark section has expected keys" {
+            $embark = $RefSections['/Script/EmbarkUserSettings.EmbarkGameUserSettings']
+            $embark.Keys | Should -Contain 'DLSSMode'
+            $embark.Keys | Should -Contain 'NvReflexMode'
+            $embark.Keys | Should -Contain 'FullscreenMode'
+            $embark.Keys | Should -Contain 'bUseVSync'
+            $embark.Keys | Should -Contain 'FrameRateLimit'
+            $embark.Keys | Should -Contain 'MotionBlurEnabled'
+            $embark.Keys | Should -Contain 'LensDistortionEnabled'
+            $embark.Keys | Should -Contain 'RTXGIQuality'
+        }
+
+        It "ScalabilityGroups has all 11 sg. keys" {
+            $scal = $RefSections['ScalabilityGroups']
+            $scal.Keys | Should -Contain 'sg.ViewDistanceQuality'
+            $scal.Keys | Should -Contain 'sg.ShadowQuality'
+            $scal.Keys | Should -Contain 'sg.TextureQuality'
+            $scal.Keys | Should -Contain 'sg.EffectsQuality'
+            $scal.Keys | Should -Contain 'sg.FoliageQuality'
+            $scal.Keys | Should -Contain 'sg.PostProcessQuality'
+            $scal.Keys | Should -Contain 'sg.ReflectionQuality'
+            $scal.Keys | Should -Contain 'sg.ShadingQuality'
+            $scal.Keys | Should -Contain 'sg.GlobalIlluminationQuality'
+            $scal.Keys | Should -Contain 'sg.AntiAliasingQuality'
+            $scal.Keys | Should -Contain 'sg.ResolutionQuality'
+        }
+
+        It "SystemSettings has visual clarity keys" {
+            $sys = $RefSections['SystemSettings']
+            $sys.Keys | Should -Contain 'r.DepthOfFieldQuality'
+            $sys.Keys | Should -Contain 'r.BloomQuality'
+            $sys.Keys | Should -Contain 'r.LensFlareQuality'
+            $sys.Keys | Should -Contain 'r.Tonemapper.Sharpen'
+            $sys.Keys | Should -Contain 'r.Tonemapper.GrainQuantization'
+        }
+
+        It "Engine.ini reference has SystemSettings section" {
+            $RefEngineSections.Keys | Should -Contain 'SystemSettings'
+        }
+
+        It "Engine.ini reference has ConsoleVariables section" {
+            $RefEngineSections.Keys | Should -Contain 'ConsoleVariables'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script competitive settings use valid key names" {
+        BeforeAll {
+            $ScriptContent = Get-Content $ScriptFile -Raw
+
+            # Extract Embark override keys from the ordered hashtable
+            $ScriptEmbarkKeys = [regex]::Matches($ScriptContent, "\`$EmbarkOverrides\['(\w+)'\]") |
+                ForEach-Object { $_.Groups[1].Value } |
+                Select-Object -Unique
+
+            # Extract ScalabilityGroups keys
+            $ScriptSgKeys = [regex]::Matches($ScriptContent, "'(sg\.\w+)'") |
+                ForEach-Object { $_.Groups[1].Value } |
+                Select-Object -Unique
+
+            # Extract SystemSettings keys from the script
+            $ScriptSysKeys = [regex]::Matches($ScriptContent, "'(r\.\w+[\.\w]*)'") |
+                ForEach-Object { $_.Groups[1].Value } |
+                Select-Object -Unique
+
+            # All reference keys by section
+            $RefEmbarkKeys = $RefSections['/Script/EmbarkUserSettings.EmbarkGameUserSettings'].Keys
+            $RefScalKeys = $RefSections['ScalabilityGroups'].Keys
+            $RefSysKeys = $RefSections['SystemSettings'].Keys
+            # Also include Engine.ini SystemSettings keys
+            $RefEngSysKeys = $RefEngineSections['SystemSettings'].Keys
+        }
+
+        It "All Embark override keys in script exist in reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptEmbarkKeys) {
+                if ($key -notin $RefEmbarkKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These Embark keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+
+        It "All ScalabilityGroups keys in script exist in reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptSgKeys) {
+                if ($key -notin $RefScalKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These sg. keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+
+        It "All SystemSettings r.* keys in script exist in reference or Engine.ini" {
+            $allRefSysKeys = @()
+            if ($RefSysKeys) { $allRefSysKeys += $RefSysKeys }
+            if ($RefEngSysKeys) { $allRefSysKeys += $RefEngSysKeys }
+            $missingKeys = @()
+            foreach ($key in $ScriptSysKeys) {
+                if ($key -notin $allRefSysKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These r.* keys are not in any reference config: $($missingKeys -join ', ')"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script output file format" {
+        BeforeAll {
+            # Create temp sandbox simulating PioneerGame config structure
+            $script:TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "sq-test-arcraiders-$(Get-Random)"
+            $configDir = Join-Path $script:TempDir "PioneerGame\Saved\Config\WindowsClient"
+            New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+
+            # Seed with reference config to test read-merge-write
+            Copy-Item $RefGUS (Join-Path $configDir "GameUserSettings.ini") -Force
+
+            # Save original LOCALAPPDATA
+            $script:OrigLocalAppData = $env:LOCALAPPDATA
+
+            # Run the script in headless mode
+            $env:SENSEQUALITY_HEADLESS = "1"
+            $env:MONITOR_WIDTH = "1920"
+            $env:MONITOR_HEIGHT = "1080"
+            $env:MONITOR_REFRESH = "240"
+            $env:NVIDIA_GPU = "1"
+            $env:LOCALAPPDATA = $script:TempDir
+
+            $scriptPath = Join-Path $ScriptsDir "06_ArcRaiders_Settings.ps1"
+            $script:Output = & $scriptPath *>&1 | Out-String
+            $script:GUSFile = Join-Path $configDir "GameUserSettings.ini"
+            $script:EngineFile = Join-Path $configDir "Engine.ini"
+        }
+
+        AfterAll {
+            $env:LOCALAPPDATA = $script:OrigLocalAppData
+            $env:SENSEQUALITY_HEADLESS = ""
+            if ($script:TempDir -and (Test-Path $script:TempDir)) {
+                Get-ChildItem $script:TempDir -Recurse -File -ErrorAction SilentlyContinue |
+                    ForEach-Object { if ($_.IsReadOnly) { $_.IsReadOnly = $false } }
+                Remove-Item $script:TempDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "GameUserSettings.ini output file exists" {
+            $script:GUSFile | Should -Exist
+        }
+
+        It "Engine.ini output file exists" {
+            $script:EngineFile | Should -Exist
+        }
+
+        It "GameUserSettings.ini has no UTF-8 BOM" {
+            Test-HasBOM $script:GUSFile | Should -BeFalse -Because "UE5 INI parser can reject BOM"
+        }
+
+        It "Engine.ini has no UTF-8 BOM" {
+            Test-HasBOM $script:EngineFile | Should -BeFalse -Because "UE5 INI parser can reject BOM"
+        }
+
+        It "GameUserSettings.ini has Embark section" {
+            $content = Get-Content $script:GUSFile -Raw
+            $content | Should -Match '\[/Script/EmbarkUserSettings\.EmbarkGameUserSettings\]'
+        }
+
+        It "GameUserSettings.ini has ScalabilityGroups section" {
+            $content = Get-Content $script:GUSFile -Raw
+            $content | Should -Match '\[ScalabilityGroups\]'
+        }
+
+        It "GameUserSettings.ini has SystemSettings section" {
+            $content = Get-Content $script:GUSFile -Raw
+            $content | Should -Match '\[SystemSettings\]'
+        }
+
+        It "GameUserSettings.ini has InputSettings section" {
+            $content = Get-Content $script:GUSFile -Raw
+            $content | Should -Match '\[/Script/Engine\.InputSettings\]'
+        }
+
+        It "Engine.ini has SystemSettings section" {
+            $content = Get-Content $script:EngineFile -Raw
+            $content | Should -Match '\[SystemSettings\]'
+        }
+
+        It "Engine.ini has ConsoleVariables section" {
+            $content = Get-Content $script:EngineFile -Raw
+            $content | Should -Match '\[ConsoleVariables\]'
+        }
+
+        It "Competitive shadow quality is Medium (sg=1)" {
+            $outSections = Parse-IniSections -Path $script:GUSFile
+            $outSections['ScalabilityGroups']['sg.ShadowQuality'] | Should -Be '1'
+        }
+
+        It "Texture quality is High (sg=2)" {
+            $outSections = Parse-IniSections -Path $script:GUSFile
+            $outSections['ScalabilityGroups']['sg.TextureQuality'] | Should -Be '2'
+        }
+
+        It "Effects quality is Low (sg=0)" {
+            $outSections = Parse-IniSections -Path $script:GUSFile
+            $outSections['ScalabilityGroups']['sg.EffectsQuality'] | Should -Be '0'
+        }
+
+        It "Resolution quality is 100 percent" {
+            $outSections = Parse-IniSections -Path $script:GUSFile
+            $outSections['ScalabilityGroups']['sg.ResolutionQuality'] | Should -Be '100.000000'
+        }
+
+        It "VSync is False in Embark section" {
+            $outSections = Parse-IniSections -Path $script:GUSFile
+            $outSections['/Script/EmbarkUserSettings.EmbarkGameUserSettings']['bUseVSync'] | Should -Be 'False'
+        }
+
+        It "Motion blur is disabled" {
+            $outSections = Parse-IniSections -Path $script:GUSFile
+            $outSections['/Script/EmbarkUserSettings.EmbarkGameUserSettings']['MotionBlurEnabled'] | Should -Be 'False'
+        }
+
+        It "DLSS Frame Generation is Off (NVIDIA test)" {
+            $outSections = Parse-IniSections -Path $script:GUSFile
+            $outSections['/Script/EmbarkUserSettings.EmbarkGameUserSettings']['DLSSFrameGenerationMode'] | Should -Be 'Off'
+        }
+
+        It "Reflex is Enabled+Boost (NVIDIA test)" {
+            $outSections = Parse-IniSections -Path $script:GUSFile
+            $outSections['/Script/EmbarkUserSettings.EmbarkGameUserSettings']['NvReflexMode'] | Should -Be 'Enabled+Boost'
+        }
+
+        It "FullscreenMode is 0 (exclusive fullscreen)" {
+            $outSections = Parse-IniSections -Path $script:GUSFile
+            $outSections['/Script/EmbarkUserSettings.EmbarkGameUserSettings']['FullscreenMode'] | Should -Be '0'
+        }
+
+        It "Mouse smoothing is disabled" {
+            $outSections = Parse-IniSections -Path $script:GUSFile
+            $outSections['/Script/Engine.InputSettings']['bEnableMouseSmoothing'] | Should -Be 'False'
+        }
+
+        It "Mouse acceleration is disabled" {
+            $outSections = Parse-IniSections -Path $script:GUSFile
+            $outSections['/Script/Engine.InputSettings']['bViewAccelerationEnabled'] | Should -Be 'False'
+        }
+
+        It "Depth of Field is off in SystemSettings" {
+            $outSections = Parse-IniSections -Path $script:GUSFile
+            $outSections['SystemSettings']['r.DepthOfFieldQuality'] | Should -Be '0'
+        }
+
+        It "Bloom is off in SystemSettings" {
+            $outSections = Parse-IniSections -Path $script:GUSFile
+            $outSections['SystemSettings']['r.BloomQuality'] | Should -Be '0'
+        }
+
+        It "Read-merge-write preserved non-performance keys from seed" {
+            $outSections = Parse-IniSections -Path $script:GUSFile
+            # AudioQualityLevel from the seed should be preserved (not in our override list)
+            $embark = $outSections['/Script/EmbarkUserSettings.EmbarkGameUserSettings']
+            $embark.Keys | Should -Contain 'AudioQualityLevel'
+        }
+
+        It "SQ_CHECK markers emitted for config write" {
+            $script:Output | Should -Match '\[SQ_CHECK_(OK|WARN|FAIL):ARC_CONFIG_FILES_WRITTEN'
+        }
+
+        It "SQ_CHECK markers emitted for settings applied" {
+            $script:Output | Should -Match '\[SQ_CHECK_(OK|WARN|FAIL):ARC_SETTINGS_APPLIED'
+        }
+
+        It "SQ_CHECK markers emitted for EXE flags" {
+            $script:Output | Should -Match '\[SQ_CHECK_(OK|WARN):ARC_EXE_FLAGS'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script source code correctness" {
+        BeforeAll {
+            $ScriptContent = Get-Content $ScriptFile -Raw
+        }
+
+        It "Script runs in headless mode" {
+            $ScriptContent | Should -Match 'SENSEQUALITY_HEADLESS'
+        }
+
+        It "Script uses PioneerGame config path (not ArcRaiders)" {
+            $ScriptContent | Should -Match 'PioneerGame\\Saved\\Config'
+            $ScriptContent | Should -Not -Match '\$env:LOCALAPPDATA\\ArcRaiders\\Saved'
+        }
+
+        It "Script uses read-merge-write pattern (not blind overwrite)" {
+            $ScriptContent | Should -Match 'Read-IniFile'
+            $ScriptContent | Should -Match 'Merge-IniSection'
+        }
+
+        It "Script writes UTF-8 without BOM" {
+            $ScriptContent | Should -Match 'UTF8Encoding.*\$false'
+        }
+
+        It "Script sets config read-only after write" {
+            $ScriptContent | Should -Match 'IsReadOnly.*\$true'
+        }
+
+        It "Script backs up existing config before writing" {
+            $ScriptContent | Should -Match 'Copy-Item.*bak_'
+        }
+
+        It "Script does not use Set-Content for config files" {
+            $ScriptContent | Should -Not -Match 'Set-Content.*GameUserSettings'
+        }
+
+        It "Script writes Embark section" {
+            $ScriptContent | Should -Match 'EmbarkUserSettings\.EmbarkGameUserSettings'
+        }
+
+        It "Script writes ScalabilityGroups section" {
+            $ScriptContent | Should -Match 'ScalabilityGroups'
+        }
+
+        It "Script sets DISABLEFULLSCREENOPTIMIZATIONS flag" {
+            $ScriptContent | Should -Match 'DISABLEFULLSCREENOPTIMIZATIONS'
+        }
+    }
+}

@@ -2,48 +2,56 @@
 <#
 .SYNOPSIS
     Fortnite - PC Optimization Script
-    Version: 1.0 | Updated: February 2026
+    Version: 2.0 | Updated: March 2026
     Game Version: Chapter 6 (current season)
-    Engine: Unreal Engine 5 (Performance Mode)
+    Engine: Unreal Engine 5 (Performance Mode / DX11)
 
 .DESCRIPTION
     Applies EXE compatibility flags and modifies the Fortnite GameUserSettings.ini
-    config file for maximum competitive performance. Fortnite's config files are
-    user-accessible and safe to modify.
+    config file for maximum competitive performance. Uses read-merge-write to
+    preserve user data (EULA, playlists, shop state, social settings) while
+    overriding only performance-critical keys.
+
+    Reference config verified against real installations:
+    - Jan 2025 (FortniteReleaseVersion=9, Chapter 6)
+    - Feb 2024 (wispurn/Fortnite-Optimized-Settings)
+    - N0madical/FortniteSettingsManager key list
 
     WHAT THIS SCRIPT DOES:
-    - Backs up existing GameUserSettings.ini
-    - Writes optimized competitive settings to GameUserSettings.ini
-    - Ensures config files remain writable so in-game settings can save
+    - Reads existing GameUserSettings.ini (preserves all user data)
+    - Merges optimized competitive settings into the config
+    - Writes [D3DRHIPreference] for Performance Mode (DX11)
+    - Writes [PerformanceMode] with MeshQuality=0
+    - Disables ray tracing via [RayTracing] section
     - Sets Windows EXE flags for the Fortnite executable
+    - Ensures config files remain writable so in-game settings can save
     - Prints the full in-game settings guide
 
 .NOTES
     Config file location:
     %LOCALAPPDATA%\FortniteGame\Saved\Config\WindowsClient\GameUserSettings.ini
 
-    IMPORTANT: Set your desired Resolution and RefreshRate in the variables
-    section below before running this script.
+    KEY NAMES verified against real config dumps -- do NOT rename without
+    checking scripts/reference-configs/fortnite-GameUserSettings.ini first.
 #>
 
 # --- HEADLESS MODE ------------------------------------------------------------
 $Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
 
-# --- USER CONFIGURATION - EDIT THESE VALUES ----------------------------------
-# When run from SENSEQUALITY app, these are overridden by environment variables.
-# When run standalone, edit the values below.
-
+# --- USER CONFIGURATION -------------------------------------------------------
 if ($Headless -and $env:MONITOR_WIDTH) {
     $MonitorWidth   = [int]$env:MONITOR_WIDTH
     $MonitorHeight  = [int]$env:MONITOR_HEIGHT
     $MonitorRefresh = [int]$env:MONITOR_REFRESH
+    $NvidiaGPU      = $env:NVIDIA_GPU -eq '1'
 } else {
-    $MonitorWidth     = 1920   # Your monitor width  (e.g., 1920, 2560, 1280)
-    $MonitorHeight    = 1080   # Your monitor height (e.g., 1080, 1440, 720)
-    $MonitorRefresh   = 240    # Your monitor refresh rate in Hz (e.g., 144, 165, 240, 360)
+    $MonitorWidth   = 1920
+    $MonitorHeight  = 1080
+    $MonitorRefresh = 240
+    $NvidiaGPU      = $true
 }
-$FrameRateLimit   = $MonitorRefresh - 3    # Cap FPS at RefreshRate - 3 for frame stability
-# -----------------------------------------------------------------------------
+$FrameRateLimit = $MonitorRefresh - 3    # Cap FPS at RefreshRate - 3 for stability
+# ------------------------------------------------------------------------------
 
 $script:ValidationFailed = $false
 
@@ -53,12 +61,9 @@ function Write-Check {
         [Parameter(Mandatory = $true)][string]$Key,
         [string]$Detail = ''
     )
-
     $suffix = if ([string]::IsNullOrWhiteSpace($Detail)) { '' } else { ":$Detail" }
     Write-Host "[SQ_CHECK_${Status}:$Key$suffix]"
-    if ($Status -eq 'FAIL') {
-        $script:ValidationFailed = $true
-    }
+    if ($Status -eq 'FAIL') { $script:ValidationFailed = $true }
 }
 
 function Add-UniquePath {
@@ -70,9 +75,78 @@ function Add-UniquePath {
     if (-not $List.Contains($Path)) { $List.Add($Path) }
 }
 
+# --- Simple INI parser and writer ---------------------------------------------
+# Fortnite uses UE4 INI format with [Section] headers and Key=Value pairs.
+# We parse into an ordered dictionary of sections, each containing an ordered
+# list of key=value lines. This preserves order, comments, and duplicate keys.
+
+function Read-FortniteIni {
+    param([string]$Path)
+    $sections = [ordered]@{}
+    $currentSection = ''
+    $sections[$currentSection] = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($line in (Get-Content $Path)) {
+        if ($line -match '^\[(.+)\]$') {
+            $currentSection = $Matches[1]
+            if (-not $sections.Contains($currentSection)) {
+                $sections[$currentSection] = [System.Collections.Generic.List[string]]::new()
+            }
+        } else {
+            $sections[$currentSection].Add($line)
+        }
+    }
+    return $sections
+}
+
+function Set-IniValue {
+    param(
+        [System.Collections.Specialized.OrderedDictionary]$Sections,
+        [string]$Section,
+        [string]$Key,
+        [string]$Value
+    )
+    if (-not $Sections.Contains($Section)) {
+        $Sections[$Section] = [System.Collections.Generic.List[string]]::new()
+    }
+    $lines = $Sections[$Section]
+    $found = $false
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match "^$([regex]::Escape($Key))=") {
+            $lines[$i] = "$Key=$Value"
+            $found = $true
+            break
+        }
+    }
+    if (-not $found) {
+        $lines.Add("$Key=$Value")
+    }
+}
+
+function Write-FortniteIni {
+    param(
+        [System.Collections.Specialized.OrderedDictionary]$Sections,
+        [string]$Path
+    )
+    $sb = [System.Text.StringBuilder]::new()
+    $first = $true
+    foreach ($sectionName in $Sections.Keys) {
+        if ($sectionName -ne '') {
+            if (-not $first) { [void]$sb.AppendLine() }
+            [void]$sb.AppendLine("[$sectionName]")
+        }
+        foreach ($line in $Sections[$sectionName]) {
+            [void]$sb.AppendLine($line)
+        }
+        $first = $false
+    }
+    # Write UTF-8 without BOM (safe for UE4 INI parser)
+    [System.IO.File]::WriteAllText($Path, $sb.ToString(), [System.Text.UTF8Encoding]::new($false))
+}
+
 Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "  Fortnite Chapter 6 - Optimization Script" -ForegroundColor Cyan
-Write-Host "  February 2026 | UE5 Performance Mode" -ForegroundColor Cyan
+Write-Host "  Fortnite Chapter 6 - Optimization Script v2.0" -ForegroundColor Cyan
+Write-Host "  March 2026 | UE5 Performance Mode (DX11)" -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  Target Resolution : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
@@ -104,85 +178,28 @@ if (Test-Path $LegacyCandidate) {
 }
 
 # -----------------------------------------------------------------------------
-# SECTION 2: WRITE OPTIMIZED GameUserSettings.ini
-# WHY FOR EACH SETTING:
-
-# - bUseVSync=False: V-Sync adds 16-50ms input latency - always off competitive
+# SECTION 2: WRITE OPTIMIZED GameUserSettings.ini (READ-MERGE-WRITE)
+#
+# Key names verified against: scripts/reference-configs/fortnite-GameUserSettings.ini
+# Sources: Real installations (Jan 2025, Feb 2024), N0madical/FortniteSettingsManager
+#
+# WHY each setting:
+# - bUseVSync=False: V-Sync adds 16-50ms input latency -- always off competitive
 # - bMotionBlur=False: Motion blur reduces clarity during movement and fights
 # - sg.ShadowQuality=0: Shadows hurt FPS significantly with minimal visual need
 # - sg.EffectsQuality=0: Storm/explosion effects reduced for cleaner sightlines
 # - FrameRateLimit: Capping 3fps below max provides stable frame pacing
-# - WindowMode=1: Fullscreen exclusive for lowest latency display path
-# - ResolutionQuality=100: Full native render (no upscaling at 1080p target)
+# - PreferredFullscreenMode=0: Fullscreen exclusive for lowest latency display path
+# - PreferredRHI=dx11: Performance Mode (DX11) gives 20-30% more FPS than DX12
+# - bShowGrass=True: Keep grass visible for casual users (pros toggle off in-game)
+# - bRayTracing=False: Ray tracing has zero competitive benefit
+# - bUseNanite=False: Nanite has zero competitive benefit
+# - FortAntiAliasingMethod=Disabled: Performance Mode handles AA internally
+# - LowInputLatencyModeIsEnabled=True: Reduces input delay
 # -----------------------------------------------------------------------------
 
 Write-Host ""
-Write-Host "[INFO] Writing optimized Fortnite config..." -ForegroundColor DarkCyan
-
-$FNConfig = @"
-[/Script/FortniteGame.FortGameUserSettings]
-bRunningOnHighEndMachine=True
-LastConfirmedScalability=(ResolutionQuality=100,ViewDistanceQuality=1,AntiAliasingQuality=0,ShadowQuality=0,GlobalIlluminationQuality=0,ReflectionQuality=0,PostProcessQuality=0,TextureQuality=2,EffectsQuality=0,FoliageQuality=0,ShadingQuality=0)
-bUseVSync=False
-bMotionBlur=False
-FrameRateLimit=$FrameRateLimit.000000
-ResolutionSizeX=$MonitorWidth
-ResolutionSizeY=$MonitorHeight
-LastUserConfirmedResolutionSizeX=$MonitorWidth
-LastUserConfirmedResolutionSizeY=$MonitorHeight
-WindowPosX=-1
-WindowPosY=-1
-bFullscreenMode=1
-LastConfirmedFullscreenMode=1
-PreferredFullscreenMode=1
-Version=5
-AudioQualityLevel=2
-LastConfirmedAudioQualityLevel=2
-MusicVolume=0.000000
-SoundFXVolume=0.850000
-DialogueVolume=0.500000
-VoiceChatVolume=0.700000
-bCinematicMode=False
-bEnableColorBlindMode=False
-ColorBlindMode=0
-ColorBlindModeStrength=10
-bForceClientExclusive=True
-bUseHighQualityConnectionForVoice=True
-GameUserSettingsVersion=5
-
-[ScalabilityGroups]
-sg.ResolutionQuality=100
-sg.ViewDistanceQuality=1
-sg.AntiAliasingQuality=0
-sg.ShadowQuality=0
-sg.GlobalIlluminationQuality=0
-sg.ReflectionQuality=0
-sg.PostProcessQuality=0
-sg.TextureQuality=2
-sg.EffectsQuality=0
-sg.FoliageQuality=0
-sg.ShadingQuality=0
-
-[/Script/Engine.GameUserSettings]
-bUseVSync=False
-ResolutionSizeX=$MonitorWidth
-ResolutionSizeY=$MonitorHeight
-LastUserConfirmedResolutionSizeX=$MonitorWidth
-LastUserConfirmedResolutionSizeY=$MonitorHeight
-WindowPosX=-1
-WindowPosY=-1
-bUseDesiredScreenHeight=False
-FullscreenMode=1
-LastConfirmedFullscreenMode=1
-PreferredFullscreenMode=1
-Version=5
-AudioQualityLevel=2
-FrameRateLimit=$FrameRateLimit.000000
-DesiredScreenWidth=$MonitorWidth
-DesiredScreenHeight=$MonitorHeight
-LastUserConfirmedDesiredScreenWidth=$MonitorWidth
-LastUserConfirmedDesiredScreenHeight=$MonitorHeight
-"@
+Write-Host "[INFO] Writing optimized Fortnite config (read-merge-write)..." -ForegroundColor DarkCyan
 
 $TotalTargets = $TargetConfigPaths.Count
 $WriteSuccessCount = 0
@@ -197,27 +214,113 @@ foreach ($ConfigPath in $TargetConfigPaths) {
         New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
     }
 
+    # --- Read existing or create fresh config ---
+    $ini = $null
     if (Test-Path $ConfigPath) {
         try {
             Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
             $BackupPath = "$ConfigPath.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
             Copy-Item $ConfigPath $BackupPath -Force -ErrorAction Stop
             Write-Host "[BACKUP] Existing config backed up to: $BackupPath" -ForegroundColor Yellow
+            $ini = Read-FortniteIni -Path $ConfigPath
         } catch {
-            Write-Host "[WARN] Backup failed for ${ConfigPath}: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "[WARN] Backup/read failed for ${ConfigPath}: $($_.Exception.Message)" -ForegroundColor Yellow
         }
-    } else {
+    }
+
+    # If no existing config or read failed, create empty structure
+    if ($null -eq $ini) {
         Write-Host "[INFO] Creating new config file: $ConfigPath" -ForegroundColor DarkCyan
+        $ini = [ordered]@{
+            '' = [System.Collections.Generic.List[string]]::new()
+        }
     }
 
     try {
-        Set-Content -Path $ConfigPath -Value $FNConfig -Encoding UTF8 -Force -ErrorAction Stop
+        # --- [/Script/FortniteGame.FortGameUserSettings] ---
+        # These are the REAL key names from verified config dumps
+        $fortSection = '/Script/FortniteGame.FortGameUserSettings'
+
+        # Display and resolution
+        Set-IniValue $ini $fortSection 'bUseVSync' 'False'
+        Set-IniValue $ini $fortSection 'bUseDynamicResolution' 'False'
+        Set-IniValue $ini $fortSection 'ResolutionSizeX' "$MonitorWidth"
+        Set-IniValue $ini $fortSection 'ResolutionSizeY' "$MonitorHeight"
+        Set-IniValue $ini $fortSection 'LastUserConfirmedResolutionSizeX' "$MonitorWidth"
+        Set-IniValue $ini $fortSection 'LastUserConfirmedResolutionSizeY' "$MonitorHeight"
+        Set-IniValue $ini $fortSection 'LastConfirmedFullscreenMode' '0'
+        Set-IniValue $ini $fortSection 'PreferredFullscreenMode' '0'
+        Set-IniValue $ini $fortSection 'FrameRateLimit' "$FrameRateLimit.000000"
+        Set-IniValue $ini $fortSection 'DesiredScreenWidth' "$MonitorWidth"
+        Set-IniValue $ini $fortSection 'DesiredScreenHeight' "$MonitorHeight"
+        Set-IniValue $ini $fortSection 'LastUserConfirmedDesiredScreenWidth' "$MonitorWidth"
+        Set-IniValue $ini $fortSection 'LastUserConfirmedDesiredScreenHeight' "$MonitorHeight"
+        Set-IniValue $ini $fortSection 'WindowPosX' '-1'
+        Set-IniValue $ini $fortSection 'WindowPosY' '-1'
+        Set-IniValue $ini $fortSection 'bUseHDRDisplayOutput' 'False'
+
+        # Visual quality
+        Set-IniValue $ini $fortSection 'bMotionBlur' 'False'
+        Set-IniValue $ini $fortSection 'bShowGrass' 'True'
+        Set-IniValue $ini $fortSection 'FortAntiAliasingMethod' 'Disabled'
+        Set-IniValue $ini $fortSection 'TemporalSuperResolutionQuality' 'Custom'
+        Set-IniValue $ini $fortSection 'DLSSQuality' '0'
+        Set-IniValue $ini $fortSection 'DesiredGlobalIlluminationQuality' '0'
+        Set-IniValue $ini $fortSection 'DesiredReflectionQuality' '0'
+        Set-IniValue $ini $fortSection 'PreNaniteGlobalIlluminationQuality' '0'
+        Set-IniValue $ini $fortSection 'PreNaniteReflectionQuality' '0'
+        Set-IniValue $ini $fortSection 'bRayTracing' 'False'
+        Set-IniValue $ini $fortSection 'bUseNanite' 'False'
+        Set-IniValue $ini $fortSection 'bEnableDLSSFrameGeneration' 'False'
+
+        # Performance and input
+        Set-IniValue $ini $fortSection 'LowInputLatencyModeIsEnabled' 'True'
+        Set-IniValue $ini $fortSection 'bAllowMultithreadedRendering' 'True'
+        Set-IniValue $ini $fortSection 'bDisableMouseAcceleration' 'True'
+        Set-IniValue $ini $fortSection 'bIsEnergySavingEnabledIdle' 'False'
+        Set-IniValue $ini $fortSection 'bIsEnergySavingEnabledFocusLoss' 'False'
+        Set-IniValue $ini $fortSection 'b120FpsMode' 'False'
+        Set-IniValue $ini $fortSection 'bShowFPS' 'True'
+
+        # Audio
+        Set-IniValue $ini $fortSection 'AudioQualityLevel' '2'
+        Set-IniValue $ini $fortSection 'LastConfirmedAudioQualityLevel' '2'
+
+        # --- [ScalabilityGroups] ---
+        # Values: 0=Off/Low, 1=Medium, 2=High, 3=Epic
+        Set-IniValue $ini 'ScalabilityGroups' 'sg.ResolutionQuality' '100'
+        Set-IniValue $ini 'ScalabilityGroups' 'sg.ViewDistanceQuality' '1'
+        Set-IniValue $ini 'ScalabilityGroups' 'sg.AntiAliasingQuality' '0'
+        Set-IniValue $ini 'ScalabilityGroups' 'sg.ShadowQuality' '0'
+        Set-IniValue $ini 'ScalabilityGroups' 'sg.GlobalIlluminationQuality' '0'
+        Set-IniValue $ini 'ScalabilityGroups' 'sg.ReflectionQuality' '0'
+        Set-IniValue $ini 'ScalabilityGroups' 'sg.PostProcessQuality' '0'
+        Set-IniValue $ini 'ScalabilityGroups' 'sg.TextureQuality' '2'
+        Set-IniValue $ini 'ScalabilityGroups' 'sg.EffectsQuality' '0'
+        Set-IniValue $ini 'ScalabilityGroups' 'sg.FoliageQuality' '0'
+        Set-IniValue $ini 'ScalabilityGroups' 'sg.ShadingQuality' '0'
+        Set-IniValue $ini 'ScalabilityGroups' 'sg.LandscapeQuality' '2'
+
+        # --- [D3DRHIPreference] --- Forces Performance Mode (DX11)
+        Set-IniValue $ini 'D3DRHIPreference' 'PreferredRHI' 'dx11'
+        Set-IniValue $ini 'D3DRHIPreference' 'PreferredFeatureLevel' 'es31'
+
+        # --- [PerformanceMode] --- Mesh quality for perf mode
+        Set-IniValue $ini 'PerformanceMode' 'MeshQuality' '0'
+
+        # --- [RayTracing] --- Disable ray tracing
+        Set-IniValue $ini 'RayTracing' 'r.RayTracing.EnableInGame' 'False'
+
+        # --- Write output ---
+        Write-FortniteIni -Sections $ini -Path $ConfigPath
+
+        # Verify key content was written
         $raw = Get-Content -Path $ConfigPath -Raw -ErrorAction SilentlyContinue
-        if ($raw -match 'sg\.ShadowQuality=0' -and $raw -match 'FrameRateLimit=') {
+        if ($raw -match 'sg\.ShadowQuality=0' -and $raw -match 'FrameRateLimit=' -and $raw -match 'PreferredRHI=dx11') {
             $WriteSuccessCount++
             Write-Host "  [OK] Config written to: $ConfigPath" -ForegroundColor Green
         } else {
-            $WriteFailures += "$ConfigPath (expected keys missing)"
+            $WriteFailures += "$ConfigPath (expected keys missing after write)"
             Write-Host "  [WARN] Config write verification failed: $ConfigPath" -ForegroundColor Yellow
         }
     } catch {
@@ -225,6 +328,7 @@ foreach ($ConfigPath in $TargetConfigPaths) {
         Write-Host "  [FAIL] Could not write config: $ConfigPath" -ForegroundColor Red
     }
 
+    # Ensure writable so Fortnite can save in-game changes
     try {
         Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $false -ErrorAction Stop
         $isReadOnly = (Get-Item -Path $ConfigPath -ErrorAction Stop).IsReadOnly
@@ -291,52 +395,60 @@ Write-Host "======================================================" -ForegroundC
 Write-Host ""
 Write-Host "  --- RENDERING MODE (MOST IMPORTANT SETTING) ---" -ForegroundColor Cyan
 Write-Host "  Rendering Mode         : Performance (DX11)" -ForegroundColor White
-Write-Host "                         Settings > Video > Rendering Mode" -ForegroundColor DarkGray
-Write-Host "                         Increases FPS by 20-30% vs DX12" -ForegroundColor DarkGray
-Write-Host "                         DX12 only for Ray Tracing (not competitive)" -ForegroundColor DarkGray
+Write-Host "                           Config: PreferredRHI=dx11, MeshQuality=0" -ForegroundColor DarkGray
+Write-Host "                           Increases FPS by 20-30% vs DX12" -ForegroundColor DarkGray
+Write-Host "                           Set in-game: Settings > Video > Rendering Mode" -ForegroundColor DarkGray
 
 Write-Host ""
-Write-Host "  --- VIDEO SETTINGS ---" -ForegroundColor Cyan
-Write-Host "  Window Mode            : Fullscreen" -ForegroundColor White
+Write-Host "  --- VIDEO SETTINGS (written to config) ---" -ForegroundColor Cyan
+Write-Host "  Window Mode            : Fullscreen Exclusive (PreferredFullscreenMode=0)" -ForegroundColor White
 Write-Host "  Resolution             : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
 Write-Host "  Frame Rate Limit       : $FrameRateLimit (refresh-3 for stability)" -ForegroundColor White
-Write-Host "  3D Resolution          : 100% (do not lower - hurts enemy clarity)" -ForegroundColor White
-Write-Host "  Rendering Mode         : Performance" -ForegroundColor White
-Write-Host "  Allow Multithreaded    : ON (requires 6+ CPU cores)" -ForegroundColor White
+Write-Host "  3D Resolution          : 100% (sg.ResolutionQuality=100)" -ForegroundColor White
+Write-Host "  V-Sync                 : OFF (bUseVSync=False)" -ForegroundColor White
+Write-Host "  Multithreaded Rendering: ON (bAllowMultithreadedRendering=True)" -ForegroundColor White
+Write-Host "  Low Input Latency      : ON (LowInputLatencyModeIsEnabled=True)" -ForegroundColor White
+Write-Host "  Show Grass             : ON (bShowGrass=True)" -ForegroundColor White
 
 Write-Host ""
-Write-Host "  --- GRAPHICS QUALITY ---" -ForegroundColor Cyan
-Write-Host "  View Distance          : Medium (far enough for competitive awareness)" -ForegroundColor White
-Write-Host "  Shadows                : OFF" -ForegroundColor White
-Write-Host "  Global Illumination    : OFF" -ForegroundColor White
-Write-Host "  Anti-Aliasing          : OFF (Performance Mode handles this)" -ForegroundColor White
-Write-Host "  Textures               : Low-Medium (VRAM permitting)" -ForegroundColor White
-Write-Host "  Effects                : Low" -ForegroundColor White
-Write-Host "  Post Processing        : Low" -ForegroundColor White
+Write-Host "  --- GRAPHICS QUALITY (written to config) ---" -ForegroundColor Cyan
+Write-Host "  View Distance          : Medium (sg.ViewDistanceQuality=1)" -ForegroundColor White
+Write-Host "  Shadows                : OFF (sg.ShadowQuality=0)" -ForegroundColor White
+Write-Host "  Global Illumination    : OFF (sg.GlobalIlluminationQuality=0)" -ForegroundColor White
+Write-Host "  Reflections            : OFF (sg.ReflectionQuality=0)" -ForegroundColor White
+Write-Host "  Anti-Aliasing          : OFF (sg.AntiAliasingQuality=0)" -ForegroundColor White
+Write-Host "  Textures               : High (sg.TextureQuality=2 -- no FPS cost on 6GB+)" -ForegroundColor White
+Write-Host "  Effects                : OFF (sg.EffectsQuality=0)" -ForegroundColor White
+Write-Host "  Post Processing        : OFF (sg.PostProcessQuality=0)" -ForegroundColor White
+Write-Host "  Foliage                : OFF (sg.FoliageQuality=0)" -ForegroundColor White
+Write-Host "  Shading                : OFF (sg.ShadingQuality=0)" -ForegroundColor White
+Write-Host "  Landscape              : High (sg.LandscapeQuality=2)" -ForegroundColor White
 
 Write-Host ""
-Write-Host "  --- NVIDIA/AMD SPECIFIC ---" -ForegroundColor Cyan
-Write-Host "  NVIDIA Reflex          : On + Boost (most impactful single setting)" -ForegroundColor White
-Write-Host "  DLSS                   : Quality (if GPU-limited at 1080p)" -ForegroundColor White
-Write-Host "  Hardware RT            : OFF (no competitive benefit)" -ForegroundColor White
-Write-Host "  Nanite                 : OFF (no competitive benefit)" -ForegroundColor White
+Write-Host "  --- NVIDIA/AMD SPECIFIC (written to config) ---" -ForegroundColor Cyan
+Write-Host "  NVIDIA Reflex          : Set in-game to On + Boost (most impactful)" -ForegroundColor White
+Write-Host "  Anti-Aliasing Method   : Disabled (FortAntiAliasingMethod=Disabled)" -ForegroundColor White
+Write-Host "  DLSS                   : OFF (DLSSQuality=0)" -ForegroundColor White
+Write-Host "  DLSS Frame Generation  : OFF (bEnableDLSSFrameGeneration=False)" -ForegroundColor White
+Write-Host "  Hardware RT            : OFF (bRayTracing=False)" -ForegroundColor White
+Write-Host "  Nanite                 : OFF (bUseNanite=False)" -ForegroundColor White
 
 Write-Host ""
-Write-Host "  --- AUDIO (COMPETITIVE) ---" -ForegroundColor Cyan
+Write-Host "  --- AUDIO (set in-game) ---" -ForegroundColor Cyan
 Write-Host "  Sound Effects          : 100" -ForegroundColor White
 Write-Host "  Music                  : 0 (eliminates audio masking of footsteps)" -ForegroundColor White
 Write-Host "  Voice Chat             : 70 (team comms)" -ForegroundColor White
 Write-Host "  Subtitles              : OFF" -ForegroundColor White
 Write-Host "  3D Headphones (HRTF)   : ON if using headphones (superior positional audio)" -ForegroundColor White
 Write-Host "  Visualize Sound FX     : ON (visual indicator for nearby audio events)" -ForegroundColor White
+Write-Host "  Mouse Acceleration     : OFF (bDisableMouseAcceleration=True in config)" -ForegroundColor DarkGray
 
 Write-Host ""
-Write-Host "  --- SENSITIVITY ---" -ForegroundColor Cyan
+Write-Host "  --- SENSITIVITY (set in-game) ---" -ForegroundColor Cyan
 Write-Host "  X/Y Axis Sensitivity   : 7-10 (most pros use 7-12)" -ForegroundColor White
 Write-Host "  ADS Sensitivity        : 65-75%" -ForegroundColor White
 Write-Host "  Scope Sensitivity      : 65%" -ForegroundColor White
 Write-Host "  Polling Rate           : 1000Hz+ recommended" -ForegroundColor White
-Write-Host "  Disable mouse smoothing in Windows (done by Windows script)" -ForegroundColor DarkGray
 
 Write-Host ""
 Write-Host "  --- PRO PLAYER REFERENCE (Feb 2026) ---" -ForegroundColor Cyan
