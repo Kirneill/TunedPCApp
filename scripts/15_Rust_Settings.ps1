@@ -46,6 +46,15 @@ Write-Host ""
 # -----------------------------------------------------------------------------
 
 $AnyFailure = $false
+$RustRootFromHost = $null
+
+# If provided by host process, trust this first.
+if (-not [string]::IsNullOrWhiteSpace($env:RUST_PATH)) {
+    if (Test-Path $env:RUST_PATH) {
+        $RustRootFromHost = $env:RUST_PATH
+        Write-Host "[INFO] Using host-detected Rust path: $RustRootFromHost" -ForegroundColor DarkCyan
+    }
+}
 
 # Steam App ID: 252490
 $SteamPaths = @(
@@ -85,6 +94,13 @@ try {
 
 $RustExePaths = @()
 $RustCfgPaths = @()
+
+# Add host-detected path first (highest priority)
+if ($RustRootFromHost) {
+    $RustExePaths += Join-Path $RustRootFromHost "RustClient.exe"
+    $hostCfgDir = Join-Path $RustRootFromHost "cfg"
+    if (Test-Path $hostCfgDir) { $RustCfgPaths += $hostCfgDir }
+}
 
 foreach ($sp in ($SteamPaths | Select-Object -Unique)) {
     # Direct path

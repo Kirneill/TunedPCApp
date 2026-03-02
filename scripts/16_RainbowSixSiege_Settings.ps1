@@ -48,6 +48,15 @@ Write-Host ""
 $AnyFailure = $false
 $R6ExePaths = @()
 
+# If provided by host process, trust this first.
+if (-not [string]::IsNullOrWhiteSpace($env:R6_PATH)) {
+    if (Test-Path $env:R6_PATH) {
+        $R6ExePaths += Join-Path $env:R6_PATH "RainbowSix.exe"
+        $R6ExePaths += Join-Path $env:R6_PATH "RainbowSix_BE.exe"
+        Write-Host "[INFO] Using host-detected R6 Siege path: $($env:R6_PATH)" -ForegroundColor DarkCyan
+    }
+}
+
 # Steam detection (App ID: 359550)
 $SteamPaths = @(
     "${env:PROGRAMFILES(x86)}\Steam",
@@ -125,6 +134,33 @@ try {
 foreach ($ubPath in ($UbisoftPaths | Select-Object -Unique)) {
     $R6ExePaths += Join-Path $ubPath "RainbowSix.exe"
     $R6ExePaths += Join-Path $ubPath "RainbowSix_BE.exe"
+}
+
+# Xbox Game Pass detection — scan all drives with .GamingRoot marker + common defaults
+$xboxDrives = @("C","D","E")
+foreach ($code in 65..90) {
+    $letter = [char]$code
+    if (Test-Path "${letter}:\.GamingRoot" -ErrorAction SilentlyContinue) {
+        $xboxDrives += $letter
+    }
+}
+foreach ($drive in ($xboxDrives | Select-Object -Unique)) {
+    $xboxRoot = "${drive}:\XboxGames"
+    if (Test-Path $xboxRoot) {
+        try {
+            Get-ChildItem -Path $xboxRoot -Directory -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -match 'Rainbow\s*Six' } |
+                ForEach-Object {
+                    $contentDir = Join-Path $_.FullName "Content"
+                    if (Test-Path $contentDir) {
+                        $R6ExePaths += Join-Path $contentDir "RainbowSix.exe"
+                        $R6ExePaths += Join-Path $contentDir "RainbowSix_BE.exe"
+                    }
+                }
+        } catch {
+            Write-Host "[WARN] Failed to scan Xbox games on ${drive}: drive: $_" -ForegroundColor DarkGray
+        }
+    }
 }
 
 $AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"

@@ -41,7 +41,7 @@ interface GameRegistryEntry {
 const GAME_REGISTRY: GameRegistryEntry[] = [
   {
     id: 'blackops7', name: 'Call of Duty: Black Ops 7',
-    steamFolders: [],
+    steamFolders: ['Call of Duty HQ'],
     detect: findBlackOps7,
   },
   {
@@ -102,6 +102,32 @@ function firstExistingPath(paths: string[]): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Discovers Xbox Game Pass install roots by scanning drive letters for the
+ * `.GamingRoot` marker file that the Xbox app creates when a drive is used
+ * for game installations. Falls back to common hardcoded paths.
+ */
+function getXboxGamePassRoots(): string[] {
+  const roots = new Set<string>();
+  // Always include the common defaults
+  for (const letter of ['C', 'D', 'E']) {
+    roots.add(`${letter}:\\XboxGames`);
+  }
+  // Scan all drive letters for .GamingRoot marker
+  for (let code = 65; code <= 90; code++) { // A-Z
+    const letter = String.fromCharCode(code);
+    try {
+      const markerPath = `${letter}:\\.GamingRoot`;
+      if (fs.existsSync(markerPath)) {
+        roots.add(`${letter}:\\XboxGames`);
+      }
+    } catch (err) {
+      console.warn(`[game-detection] Cannot check drive ${letter}: for .GamingRoot: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+  return Array.from(roots);
 }
 
 function readEpicLauncherInstallations(): EpicInstallation[] {
@@ -329,7 +355,7 @@ async function findBlackOps7(): Promise<string | null> {
   }
 
   // Dynamic Xbox Game Pass scan for "Call of Duty*" installs
-  const xboxRoots = ['C:\\XboxGames', 'D:\\XboxGames', 'E:\\XboxGames'];
+  const xboxRoots = getXboxGamePassRoots();
   for (const root of xboxRoots) {
     if (!fs.existsSync(root)) continue;
     try {
@@ -362,8 +388,7 @@ async function findBlackOps7(): Promise<string | null> {
     'E:\\Call of Duty',
     'C:\\Games\\Call of Duty',
   ];
-  const fallback = firstExistingPath(commonRoots);
-  return fallback || null;
+  return firstExistingPath(commonRoots);
 }
 
 async function findArcRaiders(): Promise<GameDetectionResult> {
@@ -393,6 +418,9 @@ async function findArcRaiders(): Promise<GameDetectionResult> {
       path.join(localAppData, 'ArcRaiders', 'Saved', 'Config', 'Windows'),
       path.join(localAppData, 'ArcRaiders', 'Saved', 'Config', 'WindowsClient'),
       path.join(localAppData, 'ArcRaiders', 'Saved', 'Config', 'WinGDK'),
+      // UE5 internal project name — Arc Raiders stores configs here on most installs
+      path.join(localAppData, 'PioneerGame', 'Saved', 'Config', 'WindowsClient'),
+      path.join(localAppData, 'PioneerGame', 'Saved', 'Config', 'Windows'),
     ];
     const configPath = firstExistingPath(configCandidates);
     if (configPath) {
@@ -493,26 +521,41 @@ async function findR6Siege(): Promise<GameDetectionResult> {
     if (fs.existsSync(ubisoftR6)) return { installed: true, gamePath: ubisoftR6 };
   }
 
-  // Config folder detection (proves game is installed but is NOT a valid game path)
-  // The PS1 script has its own config folder detection.
-  const userProfile = process.env.USERPROFILE || '';
-  if (!userProfile) {
-    console.warn('[game-detection] USERPROFILE env var is empty, skipping R6 Siege config detection');
-  }
-  const docsBase = userProfile ? path.join(userProfile, 'Documents', 'My Games', 'Rainbow Six - Siege') : '';
-  if (docsBase && fs.existsSync(docsBase)) {
+  // Xbox Game Pass detection
+  const xboxRoots = getXboxGamePassRoots();
+  for (const root of xboxRoots) {
+    if (!fs.existsSync(root)) continue;
     try {
-      const accountFolders = fs.readdirSync(docsBase, { withFileTypes: true })
-        .filter((d) => d.isDirectory());
-      for (const folder of accountFolders) {
-        const settingsFile = path.join(docsBase, folder.name, 'GameSettings.ini');
-        if (fs.existsSync(settingsFile)) {
-          console.log(`[game-detection] R6 Siege config found at ${docsBase} but no install directory located. PS1 script will use its own detection.`);
-          return { installed: true, gamePath: null };
-        }
+      const entries = fs.readdirSync(root, { withFileTypes: true })
+        .filter((d) => d.isDirectory() && /rainbow\s*six/i.test(d.name));
+      for (const entry of entries) {
+        const contentDir = path.join(root, entry.name, 'Content');
+        if (fs.existsSync(contentDir)) return { installed: true, gamePath: contentDir };
       }
     } catch (err) {
-      console.warn(`[game-detection] Failed to scan R6 Siege config: ${err instanceof Error ? err.message : err}`);
+      console.warn(`[game-detection] Failed to scan Xbox games directory for R6 Siege: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  // Config folder detection (proves game is installed but is NOT a valid game path).
+  // The PS1 script has its own config folder detection.
+  const userProfile = process.env.USERPROFILE;
+  if (userProfile) {
+    const docsBase = path.join(userProfile, 'Documents', 'My Games', 'Rainbow Six - Siege');
+    if (fs.existsSync(docsBase)) {
+      try {
+        const accountFolders = fs.readdirSync(docsBase, { withFileTypes: true })
+          .filter((d) => d.isDirectory());
+        for (const folder of accountFolders) {
+          const settingsFile = path.join(docsBase, folder.name, 'GameSettings.ini');
+          if (fs.existsSync(settingsFile)) {
+            console.log(`[game-detection] R6 Siege config found at ${docsBase} but no install directory located. PS1 script will use its own detection.`);
+            return { installed: true, gamePath: null };
+          }
+        }
+      } catch (err) {
+        console.warn(`[game-detection] Failed to scan R6 Siege config: ${err instanceof Error ? err.message : err}`);
+      }
     }
   }
 

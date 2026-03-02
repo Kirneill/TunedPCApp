@@ -47,6 +47,15 @@ Write-Host ""
 $AnyFailure = $false
 $TarkovExePaths = @()
 
+# If provided by host process, trust this first.
+if (-not [string]::IsNullOrWhiteSpace($env:TARKOV_PATH)) {
+    $detectedPath = $env:TARKOV_PATH
+    if (Test-Path $detectedPath) {
+        $TarkovExePaths += Join-Path $detectedPath "EscapeFromTarkov.exe"
+        Write-Host "[INFO] Using host-detected Tarkov path: $detectedPath" -ForegroundColor DarkCyan
+    }
+}
+
 # Registry detection — BSG launcher / uninstall key
 $regPaths = @(
     "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\EscapeFromTarkov",

@@ -20,6 +20,18 @@ interface UserConfig {
   restorePointEnabled: boolean;
 }
 
+/**
+ * Maps game optimization IDs to the env var name that passes the detected
+ * install path into the corresponding PowerShell script.
+ */
+const GAME_PATH_ENV_VARS: Record<string, string> = {
+  'game-arcraiders': 'ARC_RAIDERS_PATH',
+  'game-apexlegends': 'APEX_PATH',
+  'game-tarkov': 'TARKOV_PATH',
+  'game-rust': 'RUST_PATH',
+  'game-r6siege': 'R6_PATH',
+};
+
 // Maps optimization IDs to script files and env var configurations
 const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   // Windows optimizations — all handled by script 01, controlled by skip env vars
@@ -353,6 +365,35 @@ function escapePowerShellSingleQuoted(value: string): string {
   return value.replace(/'/g, "''");
 }
 
+/**
+ * Detects installed games and populates envVars with paths for any games
+ * in `requestedIds` that need path env vars (per GAME_PATH_ENV_VARS).
+ * Logs a warning on failure but never throws.
+ */
+async function populateGamePathEnvVars(
+  requestedIds: string[],
+  envVars: Record<string, string>,
+  log: RunLogFn,
+): Promise<void> {
+  const idsNeedingPaths = requestedIds.filter((id) => GAME_PATH_ENV_VARS[id]);
+  if (idsNeedingPaths.length === 0) return;
+
+  try {
+    const detectedGames = await detectInstalledGames();
+    for (const [gameOptId, envKey] of Object.entries(GAME_PATH_ENV_VARS)) {
+      const gameId = gameOptId.replace('game-', '');
+      const game = detectedGames.find((g) => g.id === gameId && !!g.path);
+      if (game?.path) envVars[envKey] = game.path;
+    }
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    log('warning', `Game path detection failed: ${errorText}`, {
+      component: 'Game',
+      action: 'game-path-detection-failed',
+    });
+  }
+}
+
 function exportDiagnosticsBundle(): { success: boolean; path: string; error?: string } {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const userDataDir = app.getPath('userData');
@@ -459,21 +500,7 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       GPU_BUNDLED_TOOLS_PATH: getBundledGpuToolsPath(),
     };
 
-    if (id === 'game-arcraiders' || id === 'game-apexlegends') {
-      try {
-        const detectedGames = await detectInstalledGames();
-        const arcGame = detectedGames.find((game) => game.id === 'arcraiders' && !!game.path);
-        const apexGame = detectedGames.find((game) => game.id === 'apexlegends' && !!game.path);
-        if (arcGame?.path) envVars.ARC_RAIDERS_PATH = arcGame.path;
-        if (apexGame?.path) envVars.APEX_PATH = apexGame.path;
-      } catch (err) {
-        const errorText = err instanceof Error ? err.message : String(err);
-        log('warning', `Game path detection failed for ${id}: ${errorText}`, {
-          component: 'Game',
-          action: 'game-path-detection-failed',
-        });
-      }
-    }
+    await populateGamePathEnvVars([id], envVars, log);
 
     log('start', `Run started for optimization: ${id}`, {
       component: 'Run',
@@ -589,21 +616,7 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       GPU_BUNDLED_TOOLS_PATH: getBundledGpuToolsPath(),
     };
 
-    if (ids.includes('game-arcraiders') || ids.includes('game-apexlegends')) {
-      try {
-        const detectedGames = await detectInstalledGames();
-        const arcGame = detectedGames.find((game) => game.id === 'arcraiders' && !!game.path);
-        const apexGame = detectedGames.find((game) => game.id === 'apexlegends' && !!game.path);
-        if (arcGame?.path) envVars.ARC_RAIDERS_PATH = arcGame.path;
-        if (apexGame?.path) envVars.APEX_PATH = apexGame.path;
-      } catch (err) {
-        const errorText = err instanceof Error ? err.message : String(err);
-        log('warning', `Game path detection failed: ${errorText}`, {
-          component: 'Game',
-          action: 'game-path-detection-failed',
-        });
-      }
-    }
+    await populateGamePathEnvVars(ids, envVars, log);
 
     log('start', `Run started for ${ids.length} optimization(s).`, {
       component: 'Run',
