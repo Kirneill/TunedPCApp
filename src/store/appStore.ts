@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { SystemInfo, DetectedGame, BackupInfo, LogEntry, UserConfig, AuthUser, UserMachine, UpdateInfo, UpdaterState } from '../types';
+import type { SystemInfo, DetectedGame, BackupInfo, LogEntry, UserConfig, AuthUser, UserMachine, UpdateInfo, UpdaterState, PasswordResetTokens } from '../types';
 import { GAMES } from '../data/game-registry';
 
 interface AppState {
@@ -47,6 +47,9 @@ interface AppState {
   updaterState: UpdaterState;
   closeToBackground: boolean;
 
+  // Password reset deep link
+  passwordResetTokens: PasswordResetTokens | null;
+
   // Auth actions
   setAuthUser: (user: AuthUser | null) => void;
   setAuthLoading: (loading: boolean) => void;
@@ -79,6 +82,7 @@ interface AppState {
   setUpdaterState: (state: UpdaterState) => void;
   dismissUpdate: () => void;
   setCloseToBackground: (enabled: boolean) => void;
+  setPasswordResetTokens: (tokens: PasswordResetTokens | null) => void;
 }
 
 // User-namespaced localStorage key
@@ -196,6 +200,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     message: '',
   },
   closeToBackground: true,
+  passwordResetTokens: null,
 
   // Auth actions
   setAuthUser: (user) => {
@@ -282,6 +287,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setUpdaterState: (state) => set({ updaterState: state }),
   dismissUpdate: () => set({ updateDismissed: true }),
   setCloseToBackground: (enabled) => set({ closeToBackground: enabled }),
+  setPasswordResetTokens: (tokens) => set({ passwordResetTokens: tokens }),
 }));
 
 function persistConfig(

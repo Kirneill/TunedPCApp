@@ -37,6 +37,10 @@ win:
   target: nsis
   icon: resources/icon.ico
   requestedExecutionLevel: requireAdministrator
+  protocols:
+    - name: "SENSEQUALITY"
+      schemes:
+        - sensequality
 
 nsis:
   oneClick: false

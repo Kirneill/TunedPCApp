@@ -119,6 +119,12 @@ export interface MachineRegistrationResult {
   machines?: UserMachine[];
 }
 
+/** Token pair received from a Supabase password-recovery deep link. */
+export interface PasswordResetTokens {
+  access_token: string;
+  refresh_token: string;
+}
+
 // Extend window for the preload API
 declare global {
   interface Window {
@@ -148,13 +154,18 @@ declare global {
       setTelemetryConsent: (granted: boolean) => Promise<void>;
       // Auth
       signUp: (email: string, password: string) => Promise<AuthResult>;
-      signIn: (email: string, password: string) => Promise<AuthResult>;
+      signIn: (email: string, password: string, rememberMe?: boolean) => Promise<AuthResult>;
       signOut: () => Promise<void>;
       resetPassword: (email: string) => Promise<AuthResult>;
       getSession: () => Promise<{ user: AuthUser } | null>;
       getAuthUser: () => Promise<AuthUser | null>;
       isOffline: () => Promise<boolean>;
       getMachineId: () => Promise<string>;
+      getRememberMe: () => Promise<boolean>;
+      setRememberMe: (value: boolean) => Promise<void>;
+      setSessionFromTokens: (tokens: PasswordResetTokens) => Promise<AuthResult>;
+      updatePassword: (newPassword: string) => Promise<AuthResult>;
+      onPasswordResetTokens: (callback: (tokens: PasswordResetTokens) => void) => () => void;
       // Machine management
       registerMachine: (info: { machine_name: string; gpu: string; cpu: string; ram_gb: number; os_build: string; gpu_driver?: string; gpu_vram_gb?: number }) => Promise<MachineRegistrationResult>;
       deactivateMachine: (machineId: string) => Promise<{ success: boolean; error?: string }>;

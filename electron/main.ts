@@ -5,7 +5,7 @@ import { execFileSync } from 'child_process';
 import { registerIpcHandlers } from './ipc/handlers';
 import { registerAuthHandlers } from './ipc/auth-handlers';
 import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackFailureStage, trackAppLaunch, trackInstalledGames, buildHardwareInfo } from './telemetry/telemetry';
-import { initAuth } from './auth/auth';
+import { initAuth, onAppClosing } from './auth/auth';
 import { getSystemInfo } from './ipc/system-info';
 import { detectInstalledGames } from './ipc/game-detection';
 import { checkForUpdate, initUpdater, getUpdaterState, downloadUpdate, installUpdate } from './updater';
@@ -54,6 +54,53 @@ let mainWindow: BrowserWindow | null = null;
 let appTray: Tray | null = null;
 let appSettings: AppSettings = { ...DEFAULT_APP_SETTINGS };
 let isQuitting = false;
+let pendingDeepLinkUrl: string | null = null;
+
+// ─── Deep Link (sensequality:// protocol) ────────────────
+
+function handleDeepLink(url: string) {
+  // Strip hash fragment to avoid logging tokens
+  log('INFO', `Deep link received: ${url.split('#')[0]}`);
+
+  // Parse hash fragment tokens from URL like:
+  // sensequality://reset-password#access_token=...&refresh_token=...&type=recovery
+  try {
+    const hashIndex = url.indexOf('#');
+    if (hashIndex === -1) {
+      log('WARN', 'Deep link has no hash fragment — ignoring');
+      return;
+    }
+
+    const fragment = url.slice(hashIndex + 1);
+    const params = new URLSearchParams(fragment);
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    const type = params.get('type');
+
+    if (!accessToken || !refreshToken) {
+      log('WARN', 'Deep link missing tokens — ignoring');
+      return;
+    }
+
+    if (type !== 'recovery') {
+      log('WARN', `Deep link type is "${type}", not "recovery" — ignoring`);
+      return;
+    }
+
+    log('INFO', 'Sending password reset tokens to renderer');
+    if (mainWindow?.webContents) {
+      mainWindow.webContents.send('auth:passwordResetTokens', {
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+    } else {
+      // Window not ready yet — store for later
+      pendingDeepLinkUrl = url;
+    }
+  } catch (err) {
+    log('ERROR', `Failed to parse deep link: ${err instanceof Error ? err.message : err}`);
+  }
+}
 
 function getAppSettingsPath() {
   return path.join(app.getPath('userData'), APP_SETTINGS_FILE);
@@ -295,6 +342,13 @@ function createWindow() {
     if (!startHidden) {
       mainWindow?.show();
     }
+
+    // Flush any pending deep link URL after a short delay to ensure renderer is listening
+    if (pendingDeepLinkUrl) {
+      const url = pendingDeepLinkUrl;
+      pendingDeepLinkUrl = null;
+      setTimeout(() => handleDeepLink(url), 500);
+    }
   });
 
   mainWindow.on('close', (event) => {
@@ -330,8 +384,14 @@ if (!gotLock) {
   log('WARN', 'Another instance is already running, quitting');
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
     showMainWindow();
+
+    // On Windows, protocol URLs are passed as the last argv entry
+    const deepLinkUrl = argv.find(arg => arg.startsWith('sensequality://'));
+    if (deepLinkUrl) {
+      handleDeepLink(deepLinkUrl);
+    }
   });
 
   app.whenReady().then(async () => {
@@ -353,6 +413,19 @@ if (!gotLock) {
       log('INFO', 'Auth initialized');
     } catch (err) {
       log('WARN', `Auth init failed: ${err instanceof Error ? err.message : err}`);
+    }
+
+    // Register custom protocol for deep links (dev mode only — packaged builds use electron-builder config)
+    if (!app.isPackaged) {
+      app.setAsDefaultProtocolClient('sensequality');
+      log('INFO', 'Registered sensequality:// protocol (dev mode)');
+    }
+
+    // Check if app was launched via a protocol URL (cold start)
+    const protocolArg = process.argv.find(arg => arg.startsWith('sensequality://'));
+    if (protocolArg) {
+      pendingDeepLinkUrl = protocolArg;
+      log('INFO', `Found protocol URL in launch args: ${protocolArg.split('#')[0]}`);
     }
 
     if (!ensureElevatedOrQuit()) {
@@ -444,6 +517,11 @@ if (!gotLock) {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  try {
+    onAppClosing();
+  } catch (err) {
+    log('WARN', `onAppClosing failed: ${err instanceof Error ? err.message : err}`);
+  }
   stopSystemMonitor();
   if (appTray) {
     appTray.destroy();
