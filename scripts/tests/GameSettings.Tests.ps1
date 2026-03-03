@@ -548,7 +548,7 @@ Describe "COD Black Ops 7 template configs" -Tag "cod" {
         }
 
         It "Script runs in headless mode" {
-            $ScriptContent | Should -Match 'SENSEQUALITY_HEADLESS'
+            $ScriptContent | Should -Match 'Initialize-SQEngine|SENSEQUALITY_HEADLESS'
         }
     }
 }
@@ -817,7 +817,7 @@ Describe "Valorant GameUserSettings.ini" -Tag "valorant" {
         }
 
         It "Script runs in headless mode" {
-            $ScriptContent | Should -Match 'SENSEQUALITY_HEADLESS'
+            $ScriptContent | Should -Match 'Initialize-SQEngine|SENSEQUALITY_HEADLESS'
         }
 
         It "Script uses Write-Check or SQ_CHECK markers" {
@@ -839,12 +839,11 @@ Describe "Valorant GameUserSettings.ini" -Tag "valorant" {
         }
 
         It "Script sets config read-only after write" {
-            $ScriptContent | Should -Match 'IsReadOnly.*\$true'
+            $ScriptContent | Should -Match 'Lock-ConfigFile|IsReadOnly.*\$true'
         }
 
         It "Script backs up existing config before writing" {
-            $ScriptContent | Should -Match 'bak_'
-            $ScriptContent | Should -Match 'Copy-Item.*BackupPath'
+            $ScriptContent | Should -Match 'Backup-ConfigFile|bak_'
         }
     }
 }
@@ -1165,7 +1164,7 @@ Describe "Fortnite GameUserSettings.ini" -Tag "fortnite" {
         }
 
         It "Script runs in headless mode" {
-            $ScriptContent | Should -Match 'SENSEQUALITY_HEADLESS'
+            $ScriptContent | Should -Match 'Initialize-SQEngine|SENSEQUALITY_HEADLESS'
         }
 
         It "Script uses read-merge-write pattern (not blind overwrite)" {
@@ -1175,8 +1174,7 @@ Describe "Fortnite GameUserSettings.ini" -Tag "fortnite" {
         }
 
         It "Script backs up existing config before writing" {
-            $ScriptContent | Should -Match '\.bak_'
-            $ScriptContent | Should -Match 'Copy-Item'
+            $ScriptContent | Should -Match 'Backup-ConfigFile|\.bak_'
         }
 
         It "Script writes UTF-8 without BOM" {
@@ -1184,8 +1182,7 @@ Describe "Fortnite GameUserSettings.ini" -Tag "fortnite" {
         }
 
         It "Script sets EXE compatibility flags" {
-            $ScriptContent | Should -Match 'HIGHDPIAWARE'
-            $ScriptContent | Should -Match 'AppCompatFlags'
+            $ScriptContent | Should -Match 'Set-ExeCompatFlags|HIGHDPIAWARE'
         }
 
         It "Script forces Performance Mode via D3DRHIPreference section" {
@@ -1549,7 +1546,7 @@ Describe "Arc Raiders GameUserSettings.ini" -Tag "arcraiders" {
         }
 
         It "Script runs in headless mode" {
-            $ScriptContent | Should -Match 'SENSEQUALITY_HEADLESS'
+            $ScriptContent | Should -Match 'Initialize-SQEngine|SENSEQUALITY_HEADLESS'
         }
 
         It "Script uses PioneerGame config path (not ArcRaiders)" {
@@ -1567,12 +1564,11 @@ Describe "Arc Raiders GameUserSettings.ini" -Tag "arcraiders" {
         }
 
         It "Script sets config read-only after write" {
-            $ScriptContent | Should -Match 'IsReadOnly.*\$true'
+            $ScriptContent | Should -Match 'Lock-ConfigFile|IsReadOnly.*\$true'
         }
 
         It "Script backs up existing config before writing" {
-            $ScriptContent | Should -Match '\.bak_'
-            $ScriptContent | Should -Match 'Copy-Item'
+            $ScriptContent | Should -Match 'Backup-ConfigFile|\.bak_'
         }
 
         It "Script does not use Set-Content for config files" {
@@ -1588,7 +1584,7 @@ Describe "Arc Raiders GameUserSettings.ini" -Tag "arcraiders" {
         }
 
         It "Script sets DISABLEFULLSCREENOPTIMIZATIONS flag" {
-            $ScriptContent | Should -Match 'DISABLEFULLSCREENOPTIMIZATIONS'
+            $ScriptContent | Should -Match 'Set-ExeCompatFlags|DISABLEFULLSCREENOPTIMIZATIONS'
         }
     }
 }
@@ -1941,7 +1937,7 @@ Describe "Arc Raiders GameUserSettings.ini" -Tag "arcraiders" {
         }
 
         It "Script runs in headless mode" {
-            $ScriptContent | Should -Match 'SENSEQUALITY_HEADLESS'
+            $ScriptContent | Should -Match 'Initialize-SQEngine|SENSEQUALITY_HEADLESS'
         }
 
         It "Script uses PioneerGame config path (not ArcRaiders)" {
@@ -1959,12 +1955,11 @@ Describe "Arc Raiders GameUserSettings.ini" -Tag "arcraiders" {
         }
 
         It "Script sets config read-only after write" {
-            $ScriptContent | Should -Match 'IsReadOnly.*\$true'
+            $ScriptContent | Should -Match 'Lock-ConfigFile|IsReadOnly.*\$true'
         }
 
         It "Script backs up existing config before writing" {
-            $ScriptContent | Should -Match '\.bak_'
-            $ScriptContent | Should -Match 'Copy-Item'
+            $ScriptContent | Should -Match 'Backup-ConfigFile|\.bak_'
         }
 
         It "Script does not use Set-Content for config files" {
@@ -1980,7 +1975,7 @@ Describe "Arc Raiders GameUserSettings.ini" -Tag "arcraiders" {
         }
 
         It "Script sets DISABLEFULLSCREENOPTIMIZATIONS flag" {
-            $ScriptContent | Should -Match 'DISABLEFULLSCREENOPTIMIZATIONS'
+            $ScriptContent | Should -Match 'Set-ExeCompatFlags|DISABLEFULLSCREENOPTIMIZATIONS'
         }
     }
 }
@@ -2131,7 +2126,7 @@ Describe "CS2 autoexec.cfg" -Tag "cs2" {
         }
 
         It "Script runs in headless mode" {
-            $ScriptContent | Should -Match 'SENSEQUALITY_HEADLESS'
+            $ScriptContent | Should -Match 'Initialize-SQEngine|SENSEQUALITY_HEADLESS'
         }
 
         It "Script writes autoexec.cfg via Set-Content" {
@@ -2139,8 +2134,7 @@ Describe "CS2 autoexec.cfg" -Tag "cs2" {
         }
 
         It "Script backs up existing autoexec.cfg before writing" {
-            $ScriptContent | Should -Match '\.bak_'
-            $ScriptContent | Should -Match 'Copy-Item'
+            $ScriptContent | Should -Match 'Backup-ConfigFile|\.bak_'
         }
 
         It "Script creates cfg directory if missing" {
@@ -2165,8 +2159,7 @@ Describe "CS2 autoexec.cfg" -Tag "cs2" {
         }
 
         It "Script sets EXE compatibility flags (HIGHDPIAWARE, DISABLEFULLSCREENOPTIMIZATIONS)" {
-            $ScriptContent | Should -Match 'HIGHDPIAWARE'
-            $ScriptContent | Should -Match 'DISABLEFULLSCREENOPTIMIZATIONS'
+            $ScriptContent | Should -Match 'Set-ExeCompatFlags'
         }
 
         It "Script searches multiple Steam library paths" {
