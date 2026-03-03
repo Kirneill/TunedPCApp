@@ -53,7 +53,11 @@ if ($Headless -and $env:MONITOR_WIDTH) {
     $MonitorHeight  = 1080
     $MonitorRefresh = 240
 }
-$FrameRateLimit = $MonitorRefresh - 3    # Refresh rate minus 3 for frame stability
+if ($MonitorRefresh -ge 144) {
+    $FrameRateLimit = $MonitorRefresh - 3    # High-refresh: cap at refresh-3 for stable pacing
+} else {
+    $FrameRateLimit = 0                      # Sub-144Hz: uncapped -- higher FPS = lower input lag
+}
 # -----------------------------------------------------------------------------
 
 $script:ValidationFailed = $false
@@ -79,7 +83,11 @@ Write-Host "======================================================" -ForegroundC
 Write-Host ""
 Write-Host "  Target Resolution : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
 Write-Host "  Refresh Rate      : ${MonitorRefresh}Hz" -ForegroundColor White
-Write-Host "  FPS Cap           : $FrameRateLimit" -ForegroundColor White
+if ($FrameRateLimit -eq 0) {
+    Write-Host "  FPS Cap           : Uncapped (monitor < 144Hz -- higher FPS = lower input lag)" -ForegroundColor White
+} else {
+    Write-Host "  FPS Cap           : $FrameRateLimit (refresh-3 for stable pacing)" -ForegroundColor White
+}
 Write-Host ""
 
 # =============================================================================
@@ -359,7 +367,11 @@ Write-Host "  Resolution             : ${MonitorWidth}x${MonitorHeight}" -Foregr
 Write-Host "  Display Mode           : Fullscreen" -ForegroundColor White
 Write-Host "                         (Exclusive fullscreen = lowest input latency)" -ForegroundColor DarkGray
 Write-Host "  V-Sync                 : OFF" -ForegroundColor White
-Write-Host "  Max Frame Rate         : $FrameRateLimit" -ForegroundColor White
+if ($FrameRateLimit -eq 0) {
+    Write-Host "  Max Frame Rate         : Uncapped" -ForegroundColor White
+} else {
+    Write-Host "  Max Frame Rate         : $FrameRateLimit" -ForegroundColor White
+}
 Write-Host "  NVIDIA Reflex          : Enabled + Boost (most important setting)" -ForegroundColor White
 Write-Host "                         Reduces system latency by 15-30ms" -ForegroundColor DarkGray
 Write-Host "  Multithreaded Rendering: ON (required for 6+ core CPUs)" -ForegroundColor White

@@ -50,7 +50,11 @@ if ($Headless -and $env:MONITOR_WIDTH) {
     $MonitorRefresh = 240
     $NvidiaGPU      = $true
 }
-$FrameRateLimit = $MonitorRefresh - 3    # Cap FPS at RefreshRate - 3 for stability
+if ($MonitorRefresh -ge 144) {
+    $FrameRateLimit = $MonitorRefresh - 3    # High-refresh: cap at refresh-3 for stable pacing
+} else {
+    $FrameRateLimit = 0                      # Sub-144Hz: uncapped -- higher FPS = lower input lag
+}
 # ------------------------------------------------------------------------------
 
 $script:ValidationFailed = $false
@@ -151,7 +155,11 @@ Write-Host "======================================================" -ForegroundC
 Write-Host ""
 Write-Host "  Target Resolution : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
 Write-Host "  Refresh Rate      : ${MonitorRefresh}Hz" -ForegroundColor White
-Write-Host "  FPS Cap           : $FrameRateLimit" -ForegroundColor White
+if ($FrameRateLimit -eq 0) {
+    Write-Host "  FPS Cap           : Uncapped (monitor < 144Hz -- higher FPS = lower input lag)" -ForegroundColor White
+} else {
+    Write-Host "  FPS Cap           : $FrameRateLimit (refresh-3 for stable pacing)" -ForegroundColor White
+}
 Write-Host ""
 
 # -----------------------------------------------------------------------------
@@ -419,7 +427,11 @@ Write-Host ""
 Write-Host "  --- VIDEO SETTINGS (written to config) ---" -ForegroundColor Cyan
 Write-Host "  Window Mode            : Fullscreen Exclusive (PreferredFullscreenMode=0)" -ForegroundColor White
 Write-Host "  Resolution             : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
-Write-Host "  Frame Rate Limit       : $FrameRateLimit (refresh-3 for stability)" -ForegroundColor White
+if ($FrameRateLimit -eq 0) {
+    Write-Host "  Frame Rate Limit       : Uncapped (FrameRateLimit=0)" -ForegroundColor White
+} else {
+    Write-Host "  Frame Rate Limit       : $FrameRateLimit (FrameRateLimit=${FrameRateLimit}.000000)" -ForegroundColor White
+}
 Write-Host "  3D Resolution          : 100% (sg.ResolutionQuality=100)" -ForegroundColor White
 Write-Host "  V-Sync                 : OFF (bUseVSync=False)" -ForegroundColor White
 Write-Host "  Multithreaded Rendering: ON (bAllowMultithreadedRendering=True)" -ForegroundColor White
