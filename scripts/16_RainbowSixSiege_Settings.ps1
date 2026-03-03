@@ -205,7 +205,7 @@ if ($AccountFolders.Count -eq 0) {
                 foreach ($line in (Get-Content $settingsFile)) {
                     if ($line -match '^\[(.+)\]$') {
                         $currentSection = $Matches[1]
-                        if (-not $existingSections.ContainsKey($currentSection)) {
+                        if (-not $existingSections.Contains($currentSection)) {
                             $existingSections[$currentSection] = [ordered]@{}
                         }
                     } elseif ($currentSection -and $line -match '^(.+?)=(.*)$') {
@@ -215,7 +215,7 @@ if ($AccountFolders.Count -eq 0) {
             }
 
             # Apply our DISPLAY settings
-            if (-not $existingSections.ContainsKey("DISPLAY")) { $existingSections["DISPLAY"] = [ordered]@{} }
+            if (-not $existingSections.Contains("DISPLAY")) { $existingSections["DISPLAY"] = [ordered]@{} }
             $existingSections["DISPLAY"]["Adapter"] = "0"
             $existingSections["DISPLAY"]["WindowMode"] = "0"
             $existingSections["DISPLAY"]["VSync"] = "0"
@@ -224,7 +224,7 @@ if ($AccountFolders.Count -eq 0) {
             $existingSections["DISPLAY"]["RefreshRate"] = "$MonitorRefresh"
 
             # Apply our GRAPHICS settings
-            if (-not $existingSections.ContainsKey("GRAPHICS")) { $existingSections["GRAPHICS"] = [ordered]@{} }
+            if (-not $existingSections.Contains("GRAPHICS")) { $existingSections["GRAPHICS"] = [ordered]@{} }
             $existingSections["GRAPHICS"]["TextureQuality"] = "2"
             $existingSections["GRAPHICS"]["TextureFiltering"] = "4"
             $existingSections["GRAPHICS"]["LODQuality"] = "2"
