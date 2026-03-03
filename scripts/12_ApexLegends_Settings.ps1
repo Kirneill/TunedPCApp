@@ -16,35 +16,10 @@
     It does not patch binaries or touch memory.
 #>
 
-# --- HEADLESS MODE ------------------------------------------------------------
-$Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
-
-# --- USER CONFIGURATION -------------------------------------------------------
-if ($Headless -and $env:MONITOR_WIDTH) {
-    $MonitorWidth   = [int]$env:MONITOR_WIDTH
-    $MonitorHeight  = [int]$env:MONITOR_HEIGHT
-    $MonitorRefresh = [int]$env:MONITOR_REFRESH
-} else {
-    $MonitorWidth   = 1920
-    $MonitorHeight  = 1080
-    $MonitorRefresh = 240
-}
-
-$script:ValidationFailed = $false
-
-function Write-Check {
-    param(
-        [Parameter(Mandatory = $true)][ValidateSet('OK', 'FAIL', 'WARN')][string]$Status,
-        [Parameter(Mandatory = $true)][string]$Key,
-        [string]$Detail = ''
-    )
-
-    $suffix = if ([string]::IsNullOrWhiteSpace($Detail)) { '' } else { ":$Detail" }
-    Write-Host "[SQ_CHECK_${Status}:$Key$suffix]"
-    if ($Status -eq 'FAIL') {
-        $script:ValidationFailed = $true
-    }
-}
+# --- SHARED ENGINE + HEADLESS MODE --------------------------------------------
+. "$PSScriptRoot\SQEngine.ps1"
+Initialize-SQEngine
+# -----------------------------------------------------------------------------
 
 function Find-ApexInstallPath {
     param([string]$HintPath)
@@ -124,11 +99,8 @@ function Find-ApexInstallPath {
     return $null
 }
 
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "  Apex Legends - Optimization Script" -ForegroundColor Cyan
-Write-Host "  February 2026 | Max FPS + Competitive Visibility" -ForegroundColor Cyan
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host ""
+Write-SQHeader -Title 'Apex Legends - Optimization Script' `
+               -Subtitle 'February 2026 | Max FPS + Competitive Visibility'
 Write-Host "  Target Resolution : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
 Write-Host "  Refresh Rate      : ${MonitorRefresh}Hz" -ForegroundColor White
 Write-Host ""
@@ -145,14 +117,7 @@ if (-not (Test-Path $ApexLocalDir)) {
 }
 
 if (Test-Path $VideoConfigPath) {
-    try {
-        Set-ItemProperty -Path $VideoConfigPath -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
-        $backupPath = "$VideoConfigPath.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
-        Copy-Item -Path $VideoConfigPath -Destination $backupPath -Force -ErrorAction Stop
-        Write-Host "[BACKUP] Existing videoconfig.txt backed up to: $backupPath" -ForegroundColor Yellow
-    } catch {
-        Write-Host "[WARN] Could not back up existing videoconfig.txt: $($_.Exception.Message)" -ForegroundColor Yellow
-    }
+    Backup-ConfigFile -Path $VideoConfigPath | Out-Null
 }
 
 $VideoConfigContent = @"
@@ -210,7 +175,7 @@ $VideoConfigContent = @"
 
 try {
     Set-Content -Path $VideoConfigPath -Value $VideoConfigContent -Encoding ASCII -Force -ErrorAction Stop
-    Set-ItemProperty -Path $VideoConfigPath -Name IsReadOnly -Value $true -ErrorAction Stop
+    Lock-ConfigFile -Path $VideoConfigPath
     Write-Host "[OK] Wrote videoconfig.txt and set read-only lock." -ForegroundColor Green
 } catch {
     Write-Host "[FAIL] Could not write videoconfig.txt: $($_.Exception.Message)" -ForegroundColor Red
@@ -259,13 +224,7 @@ if ([string]::IsNullOrWhiteSpace($ApexInstallPath)) {
     }
 
     if (Test-Path $AutoExecPath) {
-        try {
-            $autoBackup = "$AutoExecPath.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
-            Copy-Item -Path $AutoExecPath -Destination $autoBackup -Force -ErrorAction Stop
-            Write-Host "[BACKUP] Existing autoexec.cfg backed up to: $autoBackup" -ForegroundColor Yellow
-        } catch {
-            Write-Host "[WARN] Could not back up existing autoexec.cfg: $($_.Exception.Message)" -ForegroundColor Yellow
-        }
+        Backup-ConfigFile -Path $AutoExecPath | Out-Null
     }
 
     $AutoExecContent = @"
@@ -290,21 +249,7 @@ miles_occlusion 0
     }
 
     $ApexExe = Join-Path $ApexInstallPath 'r5apex.exe'
-    if (Test-Path $ApexExe) {
-        try {
-            $AppCompatLayers = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers'
-            if (-not (Test-Path $AppCompatLayers)) { New-Item -Path $AppCompatLayers -Force | Out-Null }
-            Set-ItemProperty -Path $AppCompatLayers -Name $ApexExe -Value '~ HIGHDPIAWARE DISABLEDXMAXIMIZEDWINDOWEDMODE' -Type String -Force
-            Write-Host "[OK] EXE compatibility flags set for r5apex.exe" -ForegroundColor Green
-            Write-Check -Status 'OK' -Key 'APEX_EXE_FLAGS' -Detail 'HIGHDPIAWARE + DISABLEDXMAXIMIZEDWINDOWEDMODE'
-        } catch {
-            Write-Host "[WARN] Failed to set EXE compatibility flags: $($_.Exception.Message)" -ForegroundColor Yellow
-            Write-Check -Status 'FAIL' -Key 'APEX_EXE_FLAGS' -Detail 'Registry write failed'
-        }
-    } else {
-        Write-Host "[WARN] r5apex.exe not found at expected path: $ApexExe" -ForegroundColor Yellow
-        Write-Check -Status 'WARN' -Key 'APEX_EXE_FLAGS' -Detail 'r5apex.exe not found'
-    }
+    Set-ExeCompatFlags -ExePaths @($ApexExe) -CheckKey 'APEX_EXE_FLAGS' -Flags @('HIGHDPIAWARE', 'DISABLEDXMAXIMIZEDWINDOWEDMODE')
 }
 
 # -----------------------------------------------------------------------------

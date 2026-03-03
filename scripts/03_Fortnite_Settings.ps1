@@ -35,40 +35,11 @@
     checking scripts/reference-configs/fortnite-GameUserSettings.ini first.
 #>
 
-# --- HEADLESS MODE ------------------------------------------------------------
-$Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
-
-# --- USER CONFIGURATION -------------------------------------------------------
-if ($Headless -and $env:MONITOR_WIDTH) {
-    $MonitorWidth   = [int]$env:MONITOR_WIDTH
-    $MonitorHeight  = [int]$env:MONITOR_HEIGHT
-    $MonitorRefresh = [int]$env:MONITOR_REFRESH
-    $NvidiaGPU      = $env:NVIDIA_GPU -eq '1'
-} else {
-    $MonitorWidth   = 1920
-    $MonitorHeight  = 1080
-    $MonitorRefresh = 240
-    $NvidiaGPU      = $true
-}
-if ($MonitorRefresh -ge 144) {
-    $FrameRateLimit = $MonitorRefresh - 3    # High-refresh: cap at refresh-3 for stable pacing
-} else {
-    $FrameRateLimit = 0                      # Sub-144Hz: uncapped -- higher FPS = lower input lag
-}
+# --- SHARED ENGINE + HEADLESS MODE --------------------------------------------
+. "$PSScriptRoot\SQEngine.ps1"
+Initialize-SQEngine
+$FrameRateLimit = Get-FrameRateLimit
 # ------------------------------------------------------------------------------
-
-$script:ValidationFailed = $false
-
-function Write-Check {
-    param(
-        [Parameter(Mandatory = $true)][ValidateSet('OK', 'FAIL', 'WARN')][string]$Status,
-        [Parameter(Mandatory = $true)][string]$Key,
-        [string]$Detail = ''
-    )
-    $suffix = if ([string]::IsNullOrWhiteSpace($Detail)) { '' } else { ":$Detail" }
-    Write-Host "[SQ_CHECK_${Status}:$Key$suffix]"
-    if ($Status -eq 'FAIL') { $script:ValidationFailed = $true }
-}
 
 function Add-UniquePath {
     param(
@@ -148,11 +119,8 @@ function Write-FortniteIni {
     [System.IO.File]::WriteAllText($Path, $sb.ToString(), [System.Text.UTF8Encoding]::new($false))
 }
 
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "  Fortnite Chapter 6 - Optimization Script v2.0" -ForegroundColor Cyan
-Write-Host "  March 2026 | UE5 Performance Mode (DX11)" -ForegroundColor Cyan
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host ""
+Write-SQHeader -Title 'Fortnite Chapter 6 - Optimization Script v2.0' `
+               -Subtitle 'March 2026 | UE5 Performance Mode (DX11)'
 Write-Host "  Target Resolution : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
 Write-Host "  Refresh Rate      : ${MonitorRefresh}Hz" -ForegroundColor White
 if ($FrameRateLimit -eq 0) {
@@ -226,10 +194,7 @@ foreach ($ConfigPath in $TargetConfigPaths) {
     $ini = $null
     if (Test-Path $ConfigPath) {
         try {
-            Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
-            $BackupPath = "$ConfigPath.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
-            Copy-Item $ConfigPath $BackupPath -Force -ErrorAction Stop
-            Write-Host "[BACKUP] Existing config backed up to: $BackupPath" -ForegroundColor Yellow
+            Backup-ConfigFile -Path $ConfigPath | Out-Null
             $ini = Read-FortniteIni -Path $ConfigPath
         } catch {
             Write-Host "[WARN] Backup/read failed for ${ConfigPath}: $($_.Exception.Message)" -ForegroundColor Yellow
@@ -386,26 +351,7 @@ $FNExePaths = @(
     "$env:ProgramFiles\Epic Games\Fortnite\FortniteGame\Binaries\Win64\FortniteClient-Win64-Shipping.exe"
 )
 
-$AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
-if (-not (Test-Path $AppCompatLayers)) { New-Item -Path $AppCompatLayers -Force | Out-Null }
-
-$ExeFlagCount = 0
-try {
-    foreach ($exePath in $FNExePaths) {
-        if (Test-Path $exePath) {
-            Set-ItemProperty -Path $AppCompatLayers -Name $exePath -Value "~ HIGHDPIAWARE" -Type String -Force
-            $ExeFlagCount++
-            Write-Host "  [OK] EXE flags set for: $exePath" -ForegroundColor Green
-        }
-    }
-    if ($ExeFlagCount -gt 0) {
-        Write-Check -Status 'OK' -Key 'FN_EXE_FLAGS' -Detail "$ExeFlagCount exe(s)"
-    } else {
-        Write-Check -Status 'WARN' -Key 'FN_EXE_FLAGS' -Detail 'EXE_NOT_FOUND'
-    }
-} catch {
-    Write-Check -Status 'FAIL' -Key 'FN_EXE_FLAGS' -Detail $_.Exception.Message
-}
+Set-ExeCompatFlags -ExePaths $FNExePaths -CheckKey 'FN_EXE_FLAGS' -Flags @('HIGHDPIAWARE')
 
 # -----------------------------------------------------------------------------
 # SECTION 5: PRINT REMAINING IN-GAME SETTINGS GUIDE

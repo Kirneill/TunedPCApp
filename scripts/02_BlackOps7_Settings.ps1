@@ -26,31 +26,13 @@
     - Anti-cheat safe: only OS-level registry flags and user config files modified
 #>
 
-# --- HEADLESS MODE ------------------------------------------------------------
-$Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
+# --- SHARED ENGINE + HEADLESS MODE --------------------------------------------
+. "$PSScriptRoot\SQEngine.ps1"
+Initialize-SQEngine
 
 if (-not $Headless) { Clear-Host }
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "  Call of Duty: Black Ops 7 - Optimization Script" -ForegroundColor Cyan
-Write-Host "  February 2026 | IW Engine | Ricochet Anti-Cheat" -ForegroundColor Cyan
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host ""
-
-$script:ValidationFailed = $false
-
-function Write-Check {
-    param(
-        [Parameter(Mandatory = $true)][ValidateSet('OK', 'FAIL', 'WARN')][string]$Status,
-        [Parameter(Mandatory = $true)][string]$Key,
-        [string]$Detail = ''
-    )
-
-    $suffix = if ([string]::IsNullOrWhiteSpace($Detail)) { '' } else { ":$Detail" }
-    Write-Host "[SQ_CHECK_${Status}:$Key$suffix]"
-    if ($Status -eq 'FAIL') {
-        $script:ValidationFailed = $true
-    }
-}
+Write-SQHeader -Title 'Call of Duty: Black Ops 7 - Optimization Script' `
+               -Subtitle 'February 2026 | IW Engine | Ricochet Anti-Cheat'
 
 # -----------------------------------------------------------------------------
 # SECTION 1: LOCATE BLACK OPS 7 EXECUTABLE
@@ -169,19 +151,9 @@ if (-not $GameExe) {
     #      Theme disabling avoids extra OS visual injection overhead.
     # -------------------------------------------------------------------------
 
-    try {
-        $AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
-        if (-not (Test-Path $AppCompatLayers)) { New-Item -Path $AppCompatLayers -Force | Out-Null }
-
-        # DISABLETHEMES: Prevents Windows from injecting visual theme DLL into the process
-        # HIGHDPIAWARE: Lets game handle DPI rather than Windows scaling it
-        Set-ItemProperty -Path $AppCompatLayers -Name $GameExe -Value "~ DISABLETHEMES HIGHDPIAWARE" -Type String -Force
-        Write-Host "  [OK] EXE compatibility flags set (DPI-aware, themes disabled)." -ForegroundColor Green
-        Write-Check -Status 'OK' -Key 'COD_EXE_FLAGS' -Detail 'DISABLETHEMES + HIGHDPIAWARE'
-    } catch {
-        Write-Host "  [WARN] Failed to set EXE compatibility flags: $_" -ForegroundColor Yellow
-        Write-Check -Status 'FAIL' -Key 'COD_EXE_FLAGS' -Detail 'Unable to write AppCompatFlags'
-    }
+    # DISABLETHEMES: Prevents Windows from injecting visual theme DLL into the process
+    # HIGHDPIAWARE: Lets game handle DPI rather than Windows scaling it
+    Set-ExeCompatFlags -ExePaths @($GameExe) -CheckKey 'COD_EXE_FLAGS' -Flags @('DISABLETHEMES', 'HIGHDPIAWARE')
 }
 
 # -----------------------------------------------------------------------------

@@ -26,30 +26,13 @@
     [/Script/Engine.Engine], [/Script/Engine.GameUserSettings]
 #>
 
-# --- HEADLESS MODE ------------------------------------------------------------
-$Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
-
-# --- USER CONFIGURATION - EDIT THESE VALUES ----------------------------------
-# When run from SENSEQUALITY app, these are overridden by environment variables.
-
-if ($Headless -and $env:MONITOR_WIDTH) {
-    $MonitorWidth   = [int]$env:MONITOR_WIDTH
-    $MonitorHeight  = [int]$env:MONITOR_HEIGHT
-    $MonitorRefresh = [int]$env:MONITOR_REFRESH
-    $NvidiaGPU      = $env:NVIDIA_GPU -eq '1'
-} else {
-    $MonitorWidth   = 1920
-    $MonitorHeight  = 1080
-    $MonitorRefresh = 240
-    $NvidiaGPU      = $true   # $true for NVIDIA DLSS, $false for AMD FSR
-}
+# --- SHARED ENGINE + HEADLESS MODE --------------------------------------------
+. "$PSScriptRoot\SQEngine.ps1"
+Initialize-SQEngine
 # -----------------------------------------------------------------------------
 
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "  Arc Raiders - Optimization Script" -ForegroundColor Cyan
-Write-Host "  March 2026 | Unreal Engine 5 | PioneerGame" -ForegroundColor Cyan
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host ""
+Write-SQHeader -Title 'Arc Raiders - Optimization Script' `
+               -Subtitle 'March 2026 | Unreal Engine 5 | PioneerGame'
 
 # -----------------------------------------------------------------------------
 # HELPER FUNCTIONS: Read-Merge-Write for UE5 INI files
@@ -160,25 +143,11 @@ foreach ($root in $CommonArcRoots) {
     Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $root "PioneerGame\Binaries\Win64\ArcRaiders-Win64-Shipping.exe")
 }
 
-$AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
-if (-not (Test-Path $AppCompatLayers)) { New-Item -Path $AppCompatLayers -Force | Out-Null }
+$foundCount = Set-ExeCompatFlags -ExePaths $ArcRaidersPaths -CheckKey 'ARC_EXE_FLAGS'
 
-$foundExe = $false
-foreach ($exePath in $ArcRaidersPaths) {
-    if (Test-Path $exePath) {
-        Set-ItemProperty -Path $AppCompatLayers -Name $exePath -Value "~ HIGHDPIAWARE DISABLEFULLSCREENOPTIMIZATIONS" -Type String -Force
-        Write-Host "  [OK] EXE flags set for: $exePath" -ForegroundColor Green
-        $foundExe = $true
-    }
-}
-
-if (-not $foundExe) {
-    Write-Host "[WARN] Arc Raiders executable not found in common Steam paths." -ForegroundColor Yellow
+if ($foundCount -eq 0) {
     Write-Host "       To set manually: Right-click ArcRaiders.exe > Properties >" -ForegroundColor Yellow
     Write-Host "       Compatibility > Check 'Disable fullscreen optimizations'" -ForegroundColor Yellow
-    Write-Host "[SQ_CHECK_WARN:ARC_EXE_FLAGS:EXE_NOT_FOUND]"
-} else {
-    Write-Host "[SQ_CHECK_OK:ARC_EXE_FLAGS]"
 }
 
 # -----------------------------------------------------------------------------
@@ -309,21 +278,8 @@ foreach ($ConfigDir in $TargetConfigDirs) {
 
     try {
         # --- Backup existing files ---
-        if (Test-Path $GameUserSettingsIni) {
-            # Clear read-only if set from previous run
-            $item = Get-Item $GameUserSettingsIni
-            if ($item.IsReadOnly) { $item.IsReadOnly = $false }
-            $gusBackup = "$GameUserSettingsIni.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
-            Copy-Item $GameUserSettingsIni $gusBackup -Force
-            Write-Host "[BACKUP] GameUserSettings.ini backed up to: $gusBackup" -ForegroundColor Yellow
-        }
-        if (Test-Path $EngineIni) {
-            $eItem = Get-Item $EngineIni
-            if ($eItem.IsReadOnly) { $eItem.IsReadOnly = $false }
-            $engBackup = "$EngineIni.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
-            Copy-Item $EngineIni $engBackup -Force
-            Write-Host "[BACKUP] Engine.ini backed up to: $engBackup" -ForegroundColor Yellow
-        }
+        Backup-ConfigFile -Path $GameUserSettingsIni | Out-Null
+        Backup-ConfigFile -Path $EngineIni | Out-Null
 
         # --- Read-Merge-Write GameUserSettings.ini ---
         $config = Read-IniFile -Path $GameUserSettingsIni
@@ -334,12 +290,12 @@ foreach ($ConfigDir in $TargetConfigDirs) {
         Merge-IniSection -Config $config -SectionName '/Script/Engine.Engine' -Overrides $EngineOverrides
         Merge-IniSection -Config $config -SectionName '/Script/Engine.GameUserSettings' -Overrides $GameUserOverrides
         Write-IniFile -Path $GameUserSettingsIni -Config $config
-        (Get-Item $GameUserSettingsIni).IsReadOnly = $true
+        Lock-ConfigFile -Path $GameUserSettingsIni
         Write-Host "  [OK] GameUserSettings.ini written to: $GameUserSettingsIni" -ForegroundColor Green
 
         # --- Write Engine.ini (user-level engine override, safe to overwrite) ---
         [System.IO.File]::WriteAllText($EngineIni, $EngineIniContent, [System.Text.UTF8Encoding]::new($false))
-        (Get-Item $EngineIni).IsReadOnly = $true
+        Lock-ConfigFile -Path $EngineIni
         Write-Host "  [OK] Engine.ini written to: $EngineIni" -ForegroundColor Green
 
         $AnyConfigWritten = $true
@@ -347,15 +303,15 @@ foreach ($ConfigDir in $TargetConfigDirs) {
     }
     catch {
         Write-Host "[FAIL] Error writing config to ${ConfigDir}: $_" -ForegroundColor Red
-        Write-Host "[SQ_CHECK_FAIL:ARC_CONFIG_FILES_WRITTEN:WRITE_ERROR]"
+        Write-Check -Status 'FAIL' -Key 'ARC_CONFIG_FILES_WRITTEN' -Detail 'WRITE_ERROR'
     }
 }
 
 if ($AnyConfigWritten) {
-    Write-Host "[SQ_CHECK_OK:ARC_CONFIG_FILES_WRITTEN:$WrittenCount]"
+    Write-Check -Status 'OK' -Key 'ARC_CONFIG_FILES_WRITTEN' -Detail "$WrittenCount"
 } else {
-    Write-Host "[SQ_CHECK_FAIL:ARC_CONFIG_FILES_WRITTEN:NO_WRITES]"
-    Write-Host "[SQ_CHECK_FAIL:ARC_SETTINGS_APPLIED:NO_CONFIG_WRITES]"
+    Write-Check -Status 'FAIL' -Key 'ARC_CONFIG_FILES_WRITTEN' -Detail 'NO_WRITES'
+    Write-Check -Status 'FAIL' -Key 'ARC_SETTINGS_APPLIED' -Detail 'NO_CONFIG_WRITES'
     Write-Host "[FAIL] Arc Raiders config files could not be written." -ForegroundColor Red
     exit 1
 }
@@ -427,5 +383,5 @@ Write-Host "  Smooth Frame Rate      : OFF" -ForegroundColor White
 
 Write-Host ""
 Write-Host "[DONE] Arc Raiders config files written. Apply remaining settings in-game." -ForegroundColor Green
-Write-Host "[SQ_CHECK_OK:ARC_SETTINGS_APPLIED]"
+Write-Check -Status 'OK' -Key 'ARC_SETTINGS_APPLIED'
 Write-Host ""

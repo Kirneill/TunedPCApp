@@ -27,21 +27,11 @@
     and should NOT be used. Source 2 handles these automatically.
 #>
 
-# --- HEADLESS MODE ------------------------------------------------------------
-$Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
-
-# --- USER CONFIGURATION - EDIT THESE VALUES ----------------------------------
-# When run from SENSEQUALITY app, these are overridden by environment variables.
-
-if ($Headless -and $env:MONITOR_REFRESH) {
-    $MonitorRefreshRate = [int]$env:MONITOR_REFRESH
-    $UseStretchedRes    = $env:CS2_STRETCHED -eq '1'
-    $NvidiaGPU          = $env:NVIDIA_GPU -eq '1'
-} else {
-    $MonitorRefreshRate = 240      # Your monitor's refresh rate in Hz
-    $UseStretchedRes    = $false   # Set to $true for 4:3 stretched (1280x960)
-    $NvidiaGPU          = $true    # Set to $true for NVIDIA, $false for AMD
-}
+# --- SHARED ENGINE + HEADLESS MODE --------------------------------------------
+. "$PSScriptRoot\SQEngine.ps1"
+Initialize-SQEngine
+$MonitorRefreshRate = $MonitorRefresh    # CS2 uses this alias
+$UseStretchedRes = $env:CS2_STRETCHED -eq '1'
 
 # Steam library paths to search (add your custom Steam library path if needed)
 $SteamLibraryPaths = @(
@@ -53,11 +43,8 @@ $SteamLibraryPaths = @(
 )
 # -----------------------------------------------------------------------------
 
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "  Counter-Strike 2 (CS2) - Optimization Script" -ForegroundColor Cyan
-Write-Host "  February 2026 | Source 2 Engine" -ForegroundColor Cyan
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host ""
+Write-SQHeader -Title 'Counter-Strike 2 (CS2) - Optimization Script' `
+               -Subtitle 'February 2026 | Source 2 Engine'
 Write-Host "  Stretched Resolution   : $UseStretchedRes" -ForegroundColor White
 Write-Host "  Monitor Refresh        : ${MonitorRefreshRate}Hz" -ForegroundColor White
 Write-Host ""
@@ -83,8 +70,7 @@ if ($CS2Path) {
     if (-not (Test-Path $CfgDir)) { New-Item -ItemType Directory -Path $CfgDir -Force | Out-Null }
 
     if (Test-Path $AutoExec) {
-        Copy-Item $AutoExec $BackupPath -Force
-        Write-Host "[BACKUP] autoexec.cfg backed up to: $BackupPath" -ForegroundColor Yellow
+        Backup-ConfigFile -Path $AutoExec | Out-Null
     }
 
     # -------------------------------------------------------------------------
@@ -245,15 +231,7 @@ $CS2ExePaths = @(
     "D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\cs2.exe"
 )
 
-$AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
-if (-not (Test-Path $AppCompatLayers)) { New-Item -Path $AppCompatLayers -Force | Out-Null }
-
-foreach ($exePath in $CS2ExePaths) {
-    if (Test-Path $exePath) {
-        Set-ItemProperty -Path $AppCompatLayers -Name $exePath -Value "~ HIGHDPIAWARE DISABLEFULLSCREENOPTIMIZATIONS" -Type String -Force
-        Write-Host "  [OK] EXE flags set for: $exePath" -ForegroundColor Green
-    }
-}
+Set-ExeCompatFlags -ExePaths $CS2ExePaths -CheckKey 'CS2_EXE_FLAGS'
 
 # -----------------------------------------------------------------------------
 # SECTION 5: PRINT IN-GAME SETTINGS GUIDE

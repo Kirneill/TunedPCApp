@@ -20,33 +20,18 @@
     github.com/antheboets/tarkov-settings. PostFX must be set in-game.
 #>
 
-# --- HEADLESS MODE ------------------------------------------------------------
-$Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
-
-if ($Headless -and $env:MONITOR_WIDTH) {
-    $MonitorWidth   = [int]$env:MONITOR_WIDTH
-    $MonitorHeight  = [int]$env:MONITOR_HEIGHT
-    $MonitorRefresh = [int]$env:MONITOR_REFRESH
-    $NvidiaGPU      = $env:NVIDIA_GPU -eq '1'
-} else {
-    $MonitorWidth   = 1920
-    $MonitorHeight  = 1080
-    $MonitorRefresh = 240
-    $NvidiaGPU      = $true
-}
+# --- SHARED ENGINE + HEADLESS MODE --------------------------------------------
+. "$PSScriptRoot\SQEngine.ps1"
+Initialize-SQEngine
 # -----------------------------------------------------------------------------
 
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "  Escape from Tarkov - Optimization Script" -ForegroundColor Cyan
-Write-Host "  March 2026 | Unity Engine" -ForegroundColor Cyan
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host ""
+Write-SQHeader -Title 'Escape from Tarkov - Optimization Script' `
+               -Subtitle 'March 2026 | Unity Engine'
 
 # -----------------------------------------------------------------------------
 # SECTION 1: LOCATE TARKOV AND SET EXE FLAGS
 # -----------------------------------------------------------------------------
 
-$AnyFailure = $false
 $TarkovExePaths = @()
 
 # If provided by host process, trust this first.
@@ -87,26 +72,11 @@ foreach ($root in $CommonRoots) {
     $TarkovExePaths += Join-Path $root "EscapeFromTarkov.exe"
 }
 
-$AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
-if (-not (Test-Path $AppCompatLayers)) { New-Item -Path $AppCompatLayers -Force | Out-Null }
+$foundCount = Set-ExeCompatFlags -ExePaths $TarkovExePaths -CheckKey 'TARKOV_EXE_FLAGS'
 
-$foundExe = $false
-foreach ($exePath in ($TarkovExePaths | Select-Object -Unique)) {
-    if (Test-Path $exePath) {
-        Set-ItemProperty -Path $AppCompatLayers -Name $exePath -Value "~ HIGHDPIAWARE DISABLEFULLSCREENOPTIMIZATIONS" -Type String -Force
-        Write-Host "  [OK] EXE flags set for: $exePath" -ForegroundColor Green
-        $foundExe = $true
-    }
-}
-
-if (-not $foundExe) {
-    Write-Host "[WARN] Tarkov executable not found in common paths." -ForegroundColor Yellow
+if ($foundCount -eq 0) {
     Write-Host "       Right-click EscapeFromTarkov.exe > Properties >" -ForegroundColor Yellow
     Write-Host "       Compatibility > Check 'Disable fullscreen optimizations'" -ForegroundColor Yellow
-    Write-Host "[SQ_CHECK_WARN:TARKOV_EXE_FLAGS:EXE_NOT_FOUND]"
-    $AnyFailure = $true
-} else {
-    Write-Host "[SQ_CHECK_OK:TARKOV_EXE_FLAGS]"
 }
 
 # -----------------------------------------------------------------------------
@@ -133,20 +103,7 @@ $config = $null
 
 # --- Read existing config to preserve resolution / display settings ----------
 if (Test-Path $GraphicsIni) {
-    try {
-        $file = Get-Item $GraphicsIni
-        if ($file.IsReadOnly) { $file.IsReadOnly = $false }
-    } catch {
-        Write-Host "[WARN] Could not remove read-only flag from Graphics.ini: $_" -ForegroundColor Yellow
-    }
-
-    $backupPath = "$GraphicsIni.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
-    try {
-        Copy-Item $GraphicsIni $backupPath -Force -ErrorAction Stop
-        Write-Host "[BACKUP] Graphics.ini backed up to: $backupPath" -ForegroundColor Yellow
-    } catch {
-        Write-Host "[WARN] Could not back up Graphics.ini: $_" -ForegroundColor Yellow
-    }
+    Backup-ConfigFile -Path $GraphicsIni | Out-Null
 
     try {
         $raw = [System.IO.File]::ReadAllText($GraphicsIni, [System.Text.UTF8Encoding]::new($false))
@@ -159,14 +116,14 @@ if (Test-Path $GraphicsIni) {
         if (-not $hasEnvelope) {
             Write-Host "[WARN] Graphics.ini missing required fields (Version/Stored/DisplaySettings) -- rebuilding" -ForegroundColor Yellow
             $config = $null
-            $AnyFailure = $true
+            $script:ValidationFailed = $true
         } else {
             Write-Host "[INFO] Parsed existing Graphics.ini -- preserving resolution settings" -ForegroundColor DarkCyan
         }
     } catch {
         Write-Host "[WARN] Existing Graphics.ini could not be parsed -- writing fresh config" -ForegroundColor Yellow
         $config = $null
-        $AnyFailure = $true
+        $script:ValidationFailed = $true
     }
 }
 
@@ -262,20 +219,14 @@ $json = $config | ConvertTo-Json -Depth 10
 try {
     [System.IO.File]::WriteAllText($GraphicsIni, $json, [System.Text.UTF8Encoding]::new($false))
     Write-Host "  [OK] Graphics.ini written: $GraphicsIni" -ForegroundColor Green
-    Write-Host "[SQ_CHECK_OK:TARKOV_CONFIG_WRITTEN]"
+    Write-Check -Status 'OK' -Key 'TARKOV_CONFIG_WRITTEN'
 } catch {
     Write-Host "[FAIL] Failed to write Graphics.ini: $_" -ForegroundColor Red
-    Write-Host "[SQ_CHECK_FAIL:TARKOV_CONFIG_WRITTEN:WRITE_ERROR]"
-    $AnyFailure = $true
+    Write-Check -Status 'FAIL' -Key 'TARKOV_CONFIG_WRITTEN' -Detail 'WRITE_ERROR'
 }
 
 # Read-only lock (separate -- a failure here should not mask a successful write)
-try {
-    Set-ItemProperty -Path $GraphicsIni -Name IsReadOnly -Value $true -ErrorAction Stop
-    Write-Host "  [OK] Graphics.ini locked (read-only)" -ForegroundColor Green
-} catch {
-    Write-Host "[WARN] Could not set read-only flag -- Tarkov may overwrite settings on exit" -ForegroundColor Yellow
-}
+Lock-ConfigFile -Path $GraphicsIni
 
 # -----------------------------------------------------------------------------
 # SECTION 3: PRINT FULL IN-GAME SETTINGS GUIDE
@@ -342,9 +293,9 @@ Write-Host "  Intensity              : 30-50" -ForegroundColor White
 Write-Host ""
 Write-Host "[DONE] Tarkov config written + EXE flags applied." -ForegroundColor Green
 Write-Host "       Apply PostFX and remaining settings in-game." -ForegroundColor Green
-if (-not $AnyFailure) {
-    Write-Host "[SQ_CHECK_OK:TARKOV_SETTINGS_APPLIED]"
+if (-not $script:ValidationFailed) {
+    Write-Check -Status 'OK' -Key 'TARKOV_SETTINGS_APPLIED'
 } else {
-    Write-Host "[SQ_CHECK_WARN:TARKOV_SETTINGS_APPLIED:PARTIAL]"
+    Write-Check -Status 'WARN' -Key 'TARKOV_SETTINGS_APPLIED' -Detail 'PARTIAL'
 }
 Write-Host ""

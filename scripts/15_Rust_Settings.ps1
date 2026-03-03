@@ -19,33 +19,19 @@
     manual edits but prevents in-game settings from saving.
 #>
 
-# --- HEADLESS MODE ------------------------------------------------------------
-$Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
-
-if ($Headless -and $env:MONITOR_WIDTH) {
-    $MonitorWidth   = [int]$env:MONITOR_WIDTH
-    $MonitorHeight  = [int]$env:MONITOR_HEIGHT
-    $MonitorRefresh = [int]$env:MONITOR_REFRESH
-    $NvidiaGPU      = $env:NVIDIA_GPU -eq '1'
-} else {
-    $MonitorWidth   = 1920
-    $MonitorHeight  = 1080
-    $MonitorRefresh = 240
-    $NvidiaGPU      = $true
-}
+# --- SHARED ENGINE + HEADLESS MODE --------------------------------------------
+. "$PSScriptRoot\SQEngine.ps1"
+Initialize-SQEngine
 # -----------------------------------------------------------------------------
 
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "  Rust - Optimization Script" -ForegroundColor Cyan
-Write-Host "  March 2026 | Unity HDRP" -ForegroundColor Cyan
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host ""
+Write-SQHeader -Title 'Rust - Optimization Script' `
+               -Subtitle 'March 2026 | Unity HDRP'
 
 # -----------------------------------------------------------------------------
 # SECTION 1: LOCATE RUST AND SET EXE FLAGS
 # -----------------------------------------------------------------------------
 
-$AnyFailure = $false
+
 $RustRootFromHost = $null
 
 # If provided by host process, trust this first.
@@ -132,26 +118,11 @@ foreach ($sp in ($SteamPaths | Select-Object -Unique)) {
     }
 }
 
-$AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
-if (-not (Test-Path $AppCompatLayers)) { New-Item -Path $AppCompatLayers -Force | Out-Null }
+$foundCount = Set-ExeCompatFlags -ExePaths $RustExePaths -CheckKey 'RUST_EXE_FLAGS'
 
-$foundExe = $false
-foreach ($exePath in ($RustExePaths | Select-Object -Unique)) {
-    if (Test-Path $exePath) {
-        Set-ItemProperty -Path $AppCompatLayers -Name $exePath -Value "~ HIGHDPIAWARE DISABLEFULLSCREENOPTIMIZATIONS" -Type String -Force
-        Write-Host "  [OK] EXE flags set for: $exePath" -ForegroundColor Green
-        $foundExe = $true
-    }
-}
-
-if (-not $foundExe) {
-    Write-Host "[WARN] Rust executable (RustClient.exe) not found in common Steam paths." -ForegroundColor Yellow
+if ($foundCount -eq 0) {
     Write-Host "       Right-click RustClient.exe > Properties >" -ForegroundColor Yellow
     Write-Host "       Compatibility > Check 'Disable fullscreen optimizations'" -ForegroundColor Yellow
-    Write-Host "[SQ_CHECK_WARN:RUST_EXE_FLAGS:EXE_NOT_FOUND]"
-    $AnyFailure = $true
-} else {
-    Write-Host "[SQ_CHECK_OK:RUST_EXE_FLAGS]"
 }
 
 # -----------------------------------------------------------------------------
@@ -198,19 +169,13 @@ $AnyConfigWritten = $false
 
 if ($RustCfgPaths.Count -eq 0) {
     Write-Host "[WARN] Rust cfg directory not found. Game may not be installed." -ForegroundColor Yellow
-    Write-Host "[SQ_CHECK_WARN:RUST_CONFIG_WRITTEN:CFG_DIR_NOT_FOUND]"
+    Write-Check -Status 'WARN' -Key 'RUST_CONFIG_WRITTEN' -Detail 'CFG_DIR_NOT_FOUND'
 } else {
     foreach ($cfgDir in ($RustCfgPaths | Select-Object -Unique)) {
         $clientCfg = Join-Path $cfgDir "client.cfg"
 
-        # Remove read-only if set from previous run
         if (Test-Path $clientCfg) {
-            $file = Get-Item $clientCfg
-            if ($file.IsReadOnly) { $file.IsReadOnly = $false }
-
-            $backupPath = "$clientCfg.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
-            Copy-Item $clientCfg $backupPath -Force
-            Write-Host "[BACKUP] client.cfg backed up to: $backupPath" -ForegroundColor Yellow
+            Backup-ConfigFile -Path $clientCfg | Out-Null
         }
 
         try {
@@ -237,7 +202,7 @@ if ($RustCfgPaths.Count -eq 0) {
             $output | Set-Content $clientCfg -Encoding UTF8 -Force
 
             # Lock read-only to prevent in-game overwriting
-            Set-ItemProperty -Path $clientCfg -Name IsReadOnly -Value $true
+            Lock-ConfigFile -Path $clientCfg
 
             Write-Host "  [OK] client.cfg written and locked (read-only): $clientCfg" -ForegroundColor Green
             $AnyConfigWritten = $true
@@ -248,11 +213,10 @@ if ($RustCfgPaths.Count -eq 0) {
 }
 
 if ($AnyConfigWritten) {
-    Write-Host "[SQ_CHECK_OK:RUST_CONFIG_WRITTEN]"
+    Write-Check -Status 'OK' -Key 'RUST_CONFIG_WRITTEN'
 } else {
     if ($RustCfgPaths.Count -gt 0) {
-        Write-Host "[SQ_CHECK_FAIL:RUST_CONFIG_WRITTEN:WRITE_ERROR]"
-        $AnyFailure = $true
+        Write-Check -Status 'FAIL' -Key 'RUST_CONFIG_WRITTEN' -Detail 'WRITE_ERROR'
     }
 }
 
@@ -305,9 +269,9 @@ Write-Host "  - Monthly wipe updates may change rendering behavior" -ForegroundC
 
 Write-Host ""
 Write-Host "[DONE] Rust config written + EXE flags applied." -ForegroundColor Green
-if (-not $AnyFailure) {
-    Write-Host "[SQ_CHECK_OK:RUST_SETTINGS_APPLIED]"
+if (-not $script:ValidationFailed) {
+    Write-Check -Status 'OK' -Key 'RUST_SETTINGS_APPLIED'
 } else {
-    Write-Host "[SQ_CHECK_WARN:RUST_SETTINGS_APPLIED:PARTIAL]"
+    Write-Check -Status 'WARN' -Key 'RUST_SETTINGS_APPLIED' -Detail 'PARTIAL'
 }
 Write-Host ""

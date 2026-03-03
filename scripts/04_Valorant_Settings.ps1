@@ -38,49 +38,14 @@
     Editing GameUserSettings.ini while the game is closed is confirmed safe.
 #>
 
-# --- HEADLESS MODE ------------------------------------------------------------
-$Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
-
-# --- USER CONFIGURATION - EDIT THESE VALUES ----------------------------------
-# When run from SENSEQUALITY app, these are overridden by environment variables.
-
-if ($Headless -and $env:MONITOR_WIDTH) {
-    $MonitorWidth   = [int]$env:MONITOR_WIDTH
-    $MonitorHeight  = [int]$env:MONITOR_HEIGHT
-    $MonitorRefresh = [int]$env:MONITOR_REFRESH
-} else {
-    $MonitorWidth   = 1920
-    $MonitorHeight  = 1080
-    $MonitorRefresh = 240
-}
-if ($MonitorRefresh -ge 144) {
-    $FrameRateLimit = $MonitorRefresh - 3    # High-refresh: cap at refresh-3 for stable pacing
-} else {
-    $FrameRateLimit = 0                      # Sub-144Hz: uncapped -- higher FPS = lower input lag
-}
+# --- SHARED ENGINE + HEADLESS MODE --------------------------------------------
+. "$PSScriptRoot\SQEngine.ps1"
+Initialize-SQEngine
+$FrameRateLimit = Get-FrameRateLimit
 # -----------------------------------------------------------------------------
 
-$script:ValidationFailed = $false
-
-function Write-Check {
-    param(
-        [Parameter(Mandatory = $true)][ValidateSet('OK', 'FAIL', 'WARN')][string]$Status,
-        [Parameter(Mandatory = $true)][string]$Key,
-        [string]$Detail = ''
-    )
-
-    $suffix = if ([string]::IsNullOrWhiteSpace($Detail)) { '' } else { ":$Detail" }
-    Write-Host "[SQ_CHECK_${Status}:$Key$suffix]"
-    if ($Status -eq 'FAIL') {
-        $script:ValidationFailed = $true
-    }
-}
-
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "  VALORANT - Optimization Script" -ForegroundColor Cyan
-Write-Host "  March 2026 | UE4 Engine | Vanguard Anti-Cheat" -ForegroundColor Cyan
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host ""
+Write-SQHeader -Title 'VALORANT - Optimization Script' `
+               -Subtitle 'March 2026 | UE4 Engine | Vanguard Anti-Cheat'
 Write-Host "  Target Resolution : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
 Write-Host "  Refresh Rate      : ${MonitorRefresh}Hz" -ForegroundColor White
 if ($FrameRateLimit -eq 0) {
@@ -255,13 +220,7 @@ foreach ($ConfigPath in $TargetConfigPaths) {
     try {
         # READ existing config if present
         if (Test-Path $ConfigPath) {
-            # Clear read-only if set (we may have locked it on a previous run)
-            Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
-
-            # Backup with timestamp
-            $BackupPath = "$ConfigPath.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
-            Copy-Item $ConfigPath $BackupPath -Force -ErrorAction Stop
-            Write-Host "[BACKUP] Config backed up to: $BackupPath" -ForegroundColor Yellow
+            Backup-ConfigFile -Path $ConfigPath | Out-Null
 
             # Parse existing INI
             $iniData = Read-IniFile -Path $ConfigPath
@@ -280,7 +239,7 @@ foreach ($ConfigPath in $TargetConfigPaths) {
         Write-IniFile -Path $ConfigPath -Sections $iniData
 
         # LOCK read-only to prevent Valorant from overwriting on exit
-        Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $true -ErrorAction SilentlyContinue
+        Lock-ConfigFile -Path $ConfigPath
 
         # Verify the write
         $verifyContent = Get-Content -Path $ConfigPath -Raw -ErrorAction SilentlyContinue
@@ -327,30 +286,8 @@ if ($env:VALORANT_PATH -and (Test-Path $env:VALORANT_PATH)) {
     $ValorantExePaths = @($env:VALORANT_PATH) + $ValorantExePaths
 }
 
-$AppCompatLayers = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
-if (-not (Test-Path $AppCompatLayers)) { New-Item -Path $AppCompatLayers -Force | Out-Null }
-
-$ExeFlagSet = $false
-foreach ($exePath in $ValorantExePaths) {
-    if (Test-Path $exePath) {
-        try {
-            # HIGHDPIAWARE: Ensures Valorant controls its own DPI scaling
-            # Note: Valorant works well with fullscreen optimizations ON (unlike most games)
-            # So we do NOT add DISABLEFULLSCREENOPTIMIZATIONS here
-            Set-ItemProperty -Path $AppCompatLayers -Name $exePath -Value "~ HIGHDPIAWARE" -Type String -Force
-            Write-Host "  [OK] EXE flags set for: $exePath" -ForegroundColor Green
-            $ExeFlagSet = $true
-        } catch {
-            Write-Host "  [WARN] Could not set EXE flags for: $exePath" -ForegroundColor Yellow
-        }
-    }
-}
-
-if ($ExeFlagSet) {
-    Write-Check -Status 'OK' -Key 'VALORANT_EXE_FLAGS'
-} else {
-    Write-Check -Status 'WARN' -Key 'VALORANT_EXE_FLAGS' -Detail 'EXE_NOT_FOUND'
-}
+# HIGHDPIAWARE only: Valorant works well with fullscreen optimizations ON (unlike most games)
+Set-ExeCompatFlags -ExePaths $ValorantExePaths -CheckKey 'VALORANT_EXE_FLAGS' -Flags @('HIGHDPIAWARE')
 
 # =============================================================================
 # SECTION 3: PRINT FULL IN-GAME SETTINGS GUIDE

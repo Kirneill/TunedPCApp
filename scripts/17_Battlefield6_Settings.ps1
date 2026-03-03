@@ -28,43 +28,14 @@
     Do NOT rename without checking scripts/reference-configs/bf6-PROFSAVE_profile first.
 #>
 
-# --- HEADLESS MODE ------------------------------------------------------------
-$Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
-
-# --- USER CONFIGURATION -------------------------------------------------------
-if ($Headless -and $env:MONITOR_WIDTH) {
-    $MonitorWidth   = [int]$env:MONITOR_WIDTH
-    $MonitorHeight  = [int]$env:MONITOR_HEIGHT
-    $MonitorRefresh = [int]$env:MONITOR_REFRESH
-    $NvidiaGPU      = $env:NVIDIA_GPU -eq '1'
-} else {
-    $MonitorWidth   = 1920
-    $MonitorHeight  = 1080
-    $MonitorRefresh = 240
-    $NvidiaGPU      = $true
-}
-if ($MonitorRefresh -ge 144) {
-    $FrameRateLimit = $MonitorRefresh - 3    # High-refresh: cap at refresh-3 for stable pacing
-} else {
-    $FrameRateLimit = 0                      # Sub-144Hz: uncapped
-}
+# --- SHARED ENGINE + HEADLESS MODE --------------------------------------------
+. "$PSScriptRoot\SQEngine.ps1"
+Initialize-SQEngine
+$FrameRateLimit = Get-FrameRateLimit
 # ------------------------------------------------------------------------------
 
-function Write-Check {
-    param(
-        [Parameter(Mandatory = $true)][ValidateSet('OK', 'FAIL', 'WARN')][string]$Status,
-        [Parameter(Mandatory = $true)][string]$Key,
-        [string]$Detail = ''
-    )
-    $suffix = if ([string]::IsNullOrWhiteSpace($Detail)) { '' } else { ":$Detail" }
-    Write-Host "[SQ_CHECK_${Status}:$Key$suffix]"
-}
-
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "  Battlefield 6 - Optimization Script v1.0" -ForegroundColor Cyan
-Write-Host "  March 2026 | Frostbite Engine" -ForegroundColor Cyan
-Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host ""
+Write-SQHeader -Title 'Battlefield 6 - Optimization Script v1.0' `
+               -Subtitle 'March 2026 | Frostbite Engine'
 Write-Host "  Target Resolution : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
 Write-Host "  Refresh Rate      : ${MonitorRefresh}Hz" -ForegroundColor White
 if ($FrameRateLimit -eq 0) {
@@ -138,21 +109,7 @@ if (-not $GameExePath) {
 
 if ($GameExePath) {
     Write-Host "  [FOUND] bf6.exe: $GameExePath" -ForegroundColor Green
-
-    # Set AppCompat flags
-    try {
-        $regPath = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
-        $flags = "~ HIGHDPIAWARE DISABLEFULLSCREENOPTIMIZATIONS"
-        if (-not (Test-Path $regPath)) {
-            New-Item -Path $regPath -Force | Out-Null
-        }
-        Set-ItemProperty -Path $regPath -Name $GameExePath -Value $flags -Force
-        Write-Host "  [OK] EXE flags set: HIGHDPIAWARE DISABLEFULLSCREENOPTIMIZATIONS" -ForegroundColor Green
-        Write-Check -Status OK -Key BF6_EXE_FLAGS
-    } catch {
-        Write-Host "  [WARN] Failed to set EXE flags: $($_.Exception.Message)" -ForegroundColor Yellow
-        Write-Check -Status WARN -Key BF6_EXE_FLAGS -Detail $_.Exception.Message
-    }
+    Set-ExeCompatFlags -ExePaths @($GameExePath) -CheckKey 'BF6_EXE_FLAGS'
 } else {
     Write-Host "  [WARN] bf6.exe not found -- skipping EXE flags (config optimization will still apply)" -ForegroundColor Yellow
     Write-Check -Status WARN -Key BF6_EXE_FLAGS -Detail "EXE_NOT_FOUND"
@@ -278,13 +235,7 @@ foreach ($ConfigPath in $TargetPaths) {
         $existingSettings = [ordered]@{}
 
         if (Test-Path $ConfigPath) {
-            # Remove read-only before reading
-            Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
-
-            # Backup existing config
-            $BackupPath = "$ConfigPath.bak_$(Get-Date -Format 'yyyy-MM-dd_HH-mm')"
-            Copy-Item $ConfigPath $BackupPath -Force -ErrorAction Stop
-            Write-Host "  [BACKUP] Config backed up to: $BackupPath" -ForegroundColor Yellow
+            Backup-ConfigFile -Path $ConfigPath | Out-Null
 
             # Parse existing key-value pairs
             foreach ($line in (Get-Content $ConfigPath)) {
@@ -311,11 +262,7 @@ foreach ($ConfigPath in $TargetPaths) {
         [System.IO.File]::WriteAllText($ConfigPath, $sb.ToString(), [System.Text.UTF8Encoding]::new($false))
 
         # Set read-only to prevent BF6 from overwriting
-        try {
-            Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $true -ErrorAction Stop
-        } catch {
-            Write-Host "  [WARN] Could not set read-only flag -- BF6 may overwrite on exit: $($_.Exception.Message)" -ForegroundColor Yellow
-        }
+        Lock-ConfigFile -Path $ConfigPath
 
         # Verify key content was written
         $verifyContent = Get-Content -Path $ConfigPath -Raw -ErrorAction SilentlyContinue
