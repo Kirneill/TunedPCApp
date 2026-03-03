@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'refactor/**', 'feature/**', 'fix/**']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Type check, test, build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Run Vitest tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+        env:
+          ELECTRON_RUN_AS_NODE: ''
+
+      - name: Run Pester tests (PowerShell)
+        shell: pwsh
+        run: |
+          Import-Module Pester -MinimumVersion 5.0.0
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'scripts/tests'
+          $config.Output.Verbosity = 'Detailed'
+          $config.Run.Exit = $true
+          Invoke-Pester -Configuration $config
