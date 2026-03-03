@@ -227,4 +227,23 @@ export const GAMES: GameDefinition[] = [
     },
     defaultEnabled: true,
   },
+  {
+    id: 'marvelrivals',
+    name: 'Marvel Rivals',
+    subtitle: 'All Low · DLSS/FSR Quality · Clutter Off',
+    description: 'Optimizes GameUserSettings.ini and Engine.ini -- All Low quality, DLSS/FSR Quality, visual clutter off, NVIDIA Reflex On.',
+    gradient: 'from-purple-900 via-fuchsia-950 to-black',
+    letter: 'MR',
+    risk: 'safe',
+    requiresReboot: false,
+    script: '18_MarvelRivals_Settings.ps1',
+    pathEnvVar: 'MARVEL_RIVALS_PATH',
+    steamFolders: ['MarvelRivals'],
+    checkLabels: {
+      MR_EXE_FLAGS: 'Marvel Rivals EXE compatibility flags',
+      MR_CONFIG_WRITTEN: 'Marvel Rivals config files written',
+      MR_SETTINGS_APPLIED: 'Marvel Rivals settings applied',
+    },
+    defaultEnabled: true,
+  },
 ];

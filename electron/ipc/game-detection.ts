@@ -53,6 +53,7 @@ const DETECTION_FUNCTIONS: Record<string, DetectFn> = {
   rust: findRust,
   r6siege: findR6Siege,
   bf6: findBF6,
+  marvelrivals: findMarvelRivals,
 };
 
 // Derived from the unified game registry -- no manual sync needed
@@ -585,6 +586,37 @@ async function findBF6(): Promise<GameDetectionResult> {
     ];
     if (settingsPaths.some(p => fs.existsSync(p))) {
       console.log(`[game-detection] BF6 config found but no install directory located. PS1 script will use its own detection.`);
+      return { installed: true, gamePath: null };
+    }
+  }
+
+  return { installed: false, gamePath: null };
+}
+
+async function findMarvelRivals(): Promise<GameDetectionResult> {
+  // Steam uninstall registry (App ID 2767030)
+  const steamResult = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 2767030' -ErrorAction SilentlyContinue).InstallLocation`
+  );
+  if (!steamResult.success) {
+    console.warn(`[game-detection] Marvel Rivals registry check failed: ${steamResult.errors.join(', ')}`);
+  } else if (steamResult.output.length > 0 && steamResult.output[0] && fs.existsSync(steamResult.output[0])) {
+    return { installed: true, gamePath: steamResult.output[0] };
+  }
+
+  // Config folder detection (proves game is installed)
+  // Marvel Rivals UE5 project name is "Marvel" -- config folder may also be
+  // "MarvelRivals" or "Marvel Rivals" depending on install variant
+  const localAppData = process.env.LOCALAPPDATA || '';
+  if (localAppData) {
+    const configCandidates = [
+      path.join(localAppData, 'Marvel', 'Saved', 'Config', 'Windows'),
+      path.join(localAppData, 'MarvelRivals', 'Saved', 'Config', 'Windows'),
+      path.join(localAppData, 'Marvel Rivals', 'Saved', 'Config', 'Windows'),
+    ];
+    const configPath = firstExistingPath(configCandidates);
+    if (configPath) {
+      console.log(`[game-detection] Marvel Rivals config found at ${configPath} but no install directory located. PS1 script will use its own detection.`);
       return { installed: true, gamePath: null };
     }
   }

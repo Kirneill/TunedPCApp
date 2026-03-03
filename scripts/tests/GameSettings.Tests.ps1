@@ -2340,3 +2340,409 @@ Describe "Battlefield 6 PROFSAVE_profile" -Tag "bf6" {
         }
     }
 }
+
+# ===========================================================================
+# Marvel Rivals (marvelrivals) -- UE5 INI config
+# ===========================================================================
+
+Describe "Marvel Rivals GameUserSettings.ini" -Tag "marvelrivals" {
+
+    BeforeAll {
+        $ProjectRoot = (Get-Location).Path
+        $ScriptsDir = Join-Path $ProjectRoot "scripts"
+        $ReferenceDir = Join-Path $ScriptsDir "reference-configs"
+        $RefGUS = Join-Path $ReferenceDir "marvelrivals-GameUserSettings.ini"
+        $RefEngine = Join-Path $ReferenceDir "marvelrivals-Engine.ini"
+        $ScriptFile = Join-Path $ScriptsDir "18_MarvelRivals_Settings.ps1"
+
+        # Helper: Check if a file starts with UTF-8 BOM (EF BB BF)
+        function Test-HasBOM {
+            param([string]$Path)
+            $bytes = [System.IO.File]::ReadAllBytes($Path)
+            return ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+        }
+
+        # Helper: Parse UE5 INI into ordered dict of section -> keys
+        function Parse-IniSections {
+            param([string]$Path)
+            $sections = [ordered]@{}
+            $currentSection = ""
+            foreach ($line in (Get-Content $Path)) {
+                if ($line -match '^\[(.+)\]$') {
+                    $currentSection = $Matches[1]
+                    if (-not $sections.Contains($currentSection)) {
+                        $sections[$currentSection] = [ordered]@{}
+                    }
+                } elseif ($currentSection -and $line -match '^(.+?)=(.*)$') {
+                    $sections[$currentSection][$Matches[1]] = $Matches[2]
+                }
+            }
+            return $sections
+        }
+
+        # Helper: Run the Marvel Rivals script in a temp sandbox
+        function Invoke-MarvelRivalsScript {
+            param(
+                [string]$TempRoot,
+                [string]$NvidiaGpu = "1",
+                [bool]$SeedConfig = $true
+            )
+            $configDir = Join-Path $TempRoot "Marvel\Saved\Config\Windows"
+            New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+
+            if ($SeedConfig) {
+                Copy-Item $RefGUS (Join-Path $configDir "GameUserSettings.ini") -Force
+                Copy-Item $RefEngine (Join-Path $configDir "Engine.ini") -Force
+            }
+
+            $origLocal = $env:LOCALAPPDATA
+            $env:LOCALAPPDATA = $TempRoot
+            $env:SENSEQUALITY_HEADLESS = "1"
+            $env:MONITOR_WIDTH = "1920"
+            $env:MONITOR_HEIGHT = "1080"
+            $env:MONITOR_REFRESH = "240"
+            $env:NVIDIA_GPU = $NvidiaGpu
+
+            $output = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $ScriptFile 2>&1
+
+            $env:LOCALAPPDATA = $origLocal
+            $env:SENSEQUALITY_HEADLESS = $null
+            $env:MONITOR_WIDTH = $null
+            $env:MONITOR_HEIGHT = $null
+            $env:MONITOR_REFRESH = $null
+            $env:NVIDIA_GPU = $null
+
+            return @{
+                OutputGUS    = Join-Path $configDir "GameUserSettings.ini"
+                OutputEngine = Join-Path $configDir "Engine.ini"
+                ScriptOutput = $output
+            }
+        }
+
+        # Helper: Clean up temp dir (clears read-only flags first)
+        function Remove-TempSandbox {
+            param([string]$Path)
+            if ($Path -and (Test-Path $Path)) {
+                Get-ChildItem $Path -Recurse -File -ErrorAction SilentlyContinue |
+                    ForEach-Object { if ($_.IsReadOnly) { $_.IsReadOnly = $false } }
+                Remove-Item -Recurse -Force $Path -ErrorAction SilentlyContinue
+            }
+        }
+
+        # Parse reference configs
+        $RefSections = Parse-IniSections -Path $RefGUS
+        $RefEngineSections = Parse-IniSections -Path $RefEngine
+    }
+
+    # -----------------------------------------------------------------
+    Context "Reference configs are valid" {
+        It "GameUserSettings.ini reference file exists" {
+            $RefGUS | Should -Exist
+        }
+
+        It "Engine.ini reference file exists" {
+            $RefEngine | Should -Exist
+        }
+
+        It "Reference GameUserSettings.ini has ScalabilityGroups section" {
+            $RefSections.Keys | Should -Contain 'ScalabilityGroups'
+        }
+
+        It "Reference GameUserSettings.ini has GameUserSettings section" {
+            $RefSections.Keys | Should -Contain '/Script/Engine.GameUserSettings'
+        }
+
+        It "Reference GameUserSettings.ini has Marvel section" {
+            $RefSections.Keys | Should -Contain '/Script/Marvel.MarvelGameUserSettings'
+        }
+
+        It "ScalabilityGroups has all 11 sg. keys" {
+            $scal = $RefSections['ScalabilityGroups']
+            $scal.Keys | Should -Contain 'sg.ViewDistanceQuality'
+            $scal.Keys | Should -Contain 'sg.ShadowQuality'
+            $scal.Keys | Should -Contain 'sg.TextureQuality'
+            $scal.Keys | Should -Contain 'sg.EffectsQuality'
+            $scal.Keys | Should -Contain 'sg.FoliageQuality'
+            $scal.Keys | Should -Contain 'sg.PostProcessQuality'
+            $scal.Keys | Should -Contain 'sg.ReflectionQuality'
+            $scal.Keys | Should -Contain 'sg.ShadingQuality'
+            $scal.Keys | Should -Contain 'sg.GlobalIlluminationQuality'
+            $scal.Keys | Should -Contain 'sg.AntiAliasingQuality'
+            $scal.Keys | Should -Contain 'sg.ResolutionQuality'
+        }
+
+        It "Marvel section has display and upscaling keys" {
+            $marvel = $RefSections['/Script/Marvel.MarvelGameUserSettings']
+            $marvel.Keys | Should -Contain 'bUseVSync'
+            $marvel.Keys | Should -Contain 'FullscreenMode'
+            $marvel.Keys | Should -Contain 'FrameRateLimit'
+            $marvel.Keys | Should -Contain 'ResolutionSizeX'
+            $marvel.Keys | Should -Contain 'ResolutionSizeY'
+            $marvel.Keys | Should -Contain 'AntiAliasingSuperSamplingMode'
+            $marvel.Keys | Should -Contain 'SuperSamplingQuality'
+            $marvel.Keys | Should -Contain 'bNvidiaReflex'
+            $marvel.Keys | Should -Contain 'bDlssFrameGeneration'
+        }
+
+        It "Engine.ini reference has SystemSettings section" {
+            $RefEngineSections.Keys | Should -Contain 'SystemSettings'
+        }
+
+        It "Engine.ini reference has RendererSettings section" {
+            $RefEngineSections.Keys | Should -Contain '/Script/Engine.RendererSettings'
+        }
+
+        It "Engine.ini reference has InputSettings section" {
+            $RefEngineSections.Keys | Should -Contain '/Script/Engine.InputSettings'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script competitive settings use valid key names" {
+        BeforeAll {
+            $ScriptContent = Get-Content $ScriptFile -Raw
+
+            # Extract ScalabilityGroups keys
+            $ScriptSgKeys = [regex]::Matches($ScriptContent, "'(sg\.\w+)'") |
+                ForEach-Object { $_.Groups[1].Value } |
+                Select-Object -Unique
+
+            # Extract Marvel override keys from the ordered hashtable
+            $ScriptMarvelKeys = [regex]::Matches($ScriptContent, "\`$MarvelOverrides\s*=\s*\[ordered\]@\{([\s\S]*?)\}") |
+                ForEach-Object { $_.Groups[1].Value } |
+                ForEach-Object {
+                    [regex]::Matches($_, "'(\w+)'\s*=") |
+                        ForEach-Object { $_.Groups[1].Value }
+                } |
+                Select-Object -Unique
+
+            # All reference keys by section
+            $RefScalKeys = $RefSections['ScalabilityGroups'].Keys
+            $RefMarvelKeys = $RefSections['/Script/Marvel.MarvelGameUserSettings'].Keys
+        }
+
+        It "Extracted ScalabilityGroups keys are non-empty" {
+            $ScriptSgKeys.Count | Should -BeGreaterThan 0 -Because "Regex must extract sg. keys from script"
+        }
+
+        It "Extracted Marvel override keys are non-empty" {
+            $ScriptMarvelKeys.Count | Should -BeGreaterThan 0 -Because "Regex must extract Marvel keys from script"
+        }
+
+        It "All ScalabilityGroups keys in script exist in reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptSgKeys) {
+                if ($key -notin $RefScalKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These sg. keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+
+        It "All Marvel override keys in script exist in reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptMarvelKeys) {
+                if ($key -notin $RefMarvelKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These Marvel keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script output -- NVIDIA GPU (seeded config)" {
+        BeforeAll {
+            $script:TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "sq-test-mr-nvidia-$(Get-Random)"
+            $script:Result = Invoke-MarvelRivalsScript -TempRoot $script:TempDir -NvidiaGpu "1" -SeedConfig $true
+        }
+
+        AfterAll { Remove-TempSandbox -Path $script:TempDir }
+
+        It "GameUserSettings.ini output file exists" {
+            $script:Result.OutputGUS | Should -Exist
+        }
+
+        It "Engine.ini output file exists" {
+            $script:Result.OutputEngine | Should -Exist
+        }
+
+        It "GameUserSettings.ini has no UTF-8 BOM" {
+            Test-HasBOM -Path $script:Result.OutputGUS | Should -BeFalse -Because "UE5 INI should be UTF-8 without BOM"
+        }
+
+        It "Engine.ini has no UTF-8 BOM" {
+            Test-HasBOM -Path $script:Result.OutputEngine | Should -BeFalse -Because "UE5 INI should be UTF-8 without BOM"
+        }
+
+        It "Output GameUserSettings.ini is parseable" {
+            { Parse-IniSections -Path $script:Result.OutputGUS } | Should -Not -Throw
+        }
+
+        It "Output has ScalabilityGroups section" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output.Keys | Should -Contain 'ScalabilityGroups'
+        }
+
+        It "Output has Marvel section" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output.Keys | Should -Contain '/Script/Marvel.MarvelGameUserSettings'
+        }
+
+        It "Output has Engine GameUserSettings section" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output.Keys | Should -Contain '/Script/Engine.GameUserSettings'
+        }
+
+        It "Shadow quality is Low (0)" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output['ScalabilityGroups']['sg.ShadowQuality'] | Should -Be '0'
+        }
+
+        It "Post processing is Low (0)" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output['ScalabilityGroups']['sg.PostProcessQuality'] | Should -Be '0'
+        }
+
+        It "V-Sync is off" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output['/Script/Marvel.MarvelGameUserSettings']['bUseVSync'] | Should -Be 'False'
+        }
+
+        It "Fullscreen mode is exclusive (0)" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output['/Script/Marvel.MarvelGameUserSettings']['FullscreenMode'] | Should -Be '0'
+        }
+
+        It "Frame rate limit is uncapped" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output['/Script/Marvel.MarvelGameUserSettings']['FrameRateLimit'] | Should -Be '0.000000'
+        }
+
+        It "DLSS mode is set to 2 (NVIDIA)" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output['/Script/Marvel.MarvelGameUserSettings']['AntiAliasingSuperSamplingMode'] | Should -Be '2'
+        }
+
+        It "Upscaling quality is Quality (3)" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output['/Script/Marvel.MarvelGameUserSettings']['SuperSamplingQuality'] | Should -Be '3'
+        }
+
+        It "NVIDIA Reflex is enabled" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output['/Script/Marvel.MarvelGameUserSettings']['bNvidiaReflex'] | Should -Be 'True'
+        }
+
+        It "XeLowLatency is disabled" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output['/Script/Marvel.MarvelGameUserSettings']['bXeLowLatency'] | Should -Be 'False'
+        }
+
+        It "Frame generation is off" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output['/Script/Marvel.MarvelGameUserSettings']['bDlssFrameGeneration'] | Should -Be 'False'
+        }
+
+        It "GameUserSettings.ini is read-only" {
+            (Get-Item $script:Result.OutputGUS).IsReadOnly | Should -BeTrue -Because "Config should be locked after write"
+        }
+
+        It "Engine.ini is NOT read-only (game does not rewrite it)" {
+            (Get-Item $script:Result.OutputEngine).IsReadOnly | Should -BeFalse -Because "Engine.ini does not need read-only lock"
+        }
+
+        It "Engine.ini has motion blur disabled" {
+            $eng = Parse-IniSections -Path $script:Result.OutputEngine
+            $eng['/Script/Engine.RendererSettings']['r.MotionBlurQuality'] | Should -Be '0'
+        }
+
+        It "Engine.ini has volumetric fog disabled" {
+            $eng = Parse-IniSections -Path $script:Result.OutputEngine
+            $eng['SystemSettings']['r.VolumetricFog'] | Should -Be '0'
+        }
+
+        It "Engine.ini has mouse smoothing disabled" {
+            $eng = Parse-IniSections -Path $script:Result.OutputEngine
+            $eng['/Script/Engine.InputSettings']['bEnableMouseSmoothing'] | Should -Be 'False'
+        }
+
+        It "Read-merge-write preserves seeded Internationalization section" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output.Keys | Should -Contain 'Internationalization'
+            $output['Internationalization']['Culture'] | Should -Be 'en'
+        }
+
+        It "Script emitted MR_EXE_FLAGS marker" {
+            $script:Result.ScriptOutput -join "`n" | Should -Match '\[SQ_CHECK_(OK|WARN):MR_EXE_FLAGS'
+        }
+
+        It "Script emitted MR_CONFIG_WRITTEN OK marker" {
+            $script:Result.ScriptOutput -join "`n" | Should -Match '\[SQ_CHECK_OK:MR_CONFIG_WRITTEN\]'
+        }
+
+        It "Script emitted MR_SETTINGS_APPLIED OK marker" {
+            $script:Result.ScriptOutput -join "`n" | Should -Match '\[SQ_CHECK_OK:MR_SETTINGS_APPLIED\]'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script output -- AMD GPU path" {
+        BeforeAll {
+            $script:TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "sq-test-mr-amd-$(Get-Random)"
+            $script:Result = Invoke-MarvelRivalsScript -TempRoot $script:TempDir -NvidiaGpu "0" -SeedConfig $true
+        }
+
+        AfterAll { Remove-TempSandbox -Path $script:TempDir }
+
+        It "FSR mode is set to 3 (AMD)" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output['/Script/Marvel.MarvelGameUserSettings']['AntiAliasingSuperSamplingMode'] | Should -Be '3'
+        }
+
+        It "NVIDIA Reflex is disabled for AMD" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output['/Script/Marvel.MarvelGameUserSettings']['bNvidiaReflex'] | Should -Be 'False'
+        }
+
+        It "Script emitted MR_CONFIG_WRITTEN OK marker" {
+            $script:Result.ScriptOutput -join "`n" | Should -Match '\[SQ_CHECK_OK:MR_CONFIG_WRITTEN\]'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script output -- fresh config (no seeded files)" {
+        BeforeAll {
+            $script:TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "sq-test-mr-fresh-$(Get-Random)"
+            $script:Result = Invoke-MarvelRivalsScript -TempRoot $script:TempDir -NvidiaGpu "1" -SeedConfig $false
+        }
+
+        AfterAll { Remove-TempSandbox -Path $script:TempDir }
+
+        It "GameUserSettings.ini is created from scratch" {
+            $script:Result.OutputGUS | Should -Exist
+        }
+
+        It "Engine.ini is created from scratch" {
+            $script:Result.OutputEngine | Should -Exist
+        }
+
+        It "Fresh config has ScalabilityGroups section" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output.Keys | Should -Contain 'ScalabilityGroups'
+        }
+
+        It "Fresh config has Marvel section" {
+            $output = Parse-IniSections -Path $script:Result.OutputGUS
+            $output.Keys | Should -Contain '/Script/Marvel.MarvelGameUserSettings'
+        }
+
+        It "Script emitted MR_CONFIG_WRITTEN OK marker" {
+            $script:Result.ScriptOutput -join "`n" | Should -Match '\[SQ_CHECK_OK:MR_CONFIG_WRITTEN\]'
+        }
+
+        It "Script emitted MR_SETTINGS_APPLIED OK marker" {
+            $script:Result.ScriptOutput -join "`n" | Should -Match '\[SQ_CHECK_OK:MR_SETTINGS_APPLIED\]'
+        }
+    }
+}
