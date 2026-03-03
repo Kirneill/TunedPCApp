@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { SystemInfo, DetectedGame, BackupInfo, LogEntry, UserConfig, AuthUser, UserMachine, UpdateInfo, UpdaterState } from '../types';
+import { GAMES } from '../data/game-registry';
 
 interface AppState {
   // Auth
@@ -101,6 +102,11 @@ function loadPersistedConfig(userId?: string): Partial<{
   return {};
 }
 
+// Game toggle defaults derived from the unified game registry -- no manual sync needed
+const gameToggles = Object.fromEntries(
+  GAMES.map(g => [`game-${g.id}`, g.defaultEnabled])
+);
+
 const DEFAULT_TOGGLES: Record<string, boolean> = {
   'win-all': true,
   'win-power-plan': true,
@@ -118,16 +124,7 @@ const DEFAULT_TOGGLES: Record<string, boolean> = {
   'win-copilot': true,
   'win-standard': true,
   'win-gpu-profile': true,
-  'game-blackops7': true,
-  'game-fortnite': true,
-  'game-valorant': true,
-  'game-cs2': true,
-  'game-apexlegends': true,
-  'game-arcraiders': true,
-  'game-tarkov': true,
-  'game-rust': true,
-  'game-r6siege': true,
-  'game-bf6': true,
+  ...gameToggles,
 };
 
 const DEFAULT_USER_CONFIG: UserConfig = {

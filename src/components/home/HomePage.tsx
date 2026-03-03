@@ -1,93 +1,21 @@
 import { useState } from 'react';
 import { useAppStore } from '../../store/appStore';
+import { GAMES } from '../../data/game-registry';
 import SystemMetricCard from './SystemMetricCard';
 import LogViewer from '../ui/LogViewer';
 import WindowsUpdateModeCard from '../windows/WindowsUpdateModeCard';
 import RestorePointControls from '../windows/RestorePointControls';
 import CodFpsGuideModal from '../ui/CodFpsGuideModal';
 
-const games = [
-  {
-    id: 'blackops7',
-    toggleId: 'game-blackops7',
-    name: 'Call of Duty',
-    subtitle: 'Black Ops 7 · Competitive Settings',
-    gradient: 'from-orange-900 via-red-950 to-black',
-    letter: 'COD',
-  },
-  {
-    id: 'fortnite',
-    toggleId: 'game-fortnite',
-    name: 'Fortnite',
-    subtitle: 'Performance Mode · Competitive',
-    gradient: 'from-blue-900 via-violet-950 to-black',
-    letter: 'FN',
-  },
-  {
-    id: 'valorant',
-    toggleId: 'game-valorant',
-    name: 'Valorant',
-    subtitle: 'Low Settings · Reflex On+Boost',
-    gradient: 'from-red-900 via-rose-950 to-black',
-    letter: 'VAL',
-  },
-  {
-    id: 'cs2',
-    toggleId: 'game-cs2',
-    name: 'Counter-Strike 2',
-    subtitle: 'Autoexec + Launch Options',
-    gradient: 'from-amber-900 via-yellow-950 to-black',
-    letter: 'CS2',
-  },
-  {
-    id: 'apexlegends',
-    toggleId: 'game-apexlegends',
-    name: 'Apex Legends',
-    subtitle: 'Max FPS Config + Read-Only Lock',
-    gradient: 'from-red-900 via-orange-950 to-black',
-    letter: 'APX',
-  },
-  {
-    id: 'arcraiders',
-    toggleId: 'game-arcraiders',
-    name: 'Arc Raiders',
-    subtitle: 'DLSS Quality · Shadows Medium',
-    gradient: 'from-cyan-900 via-teal-950 to-black',
-    letter: 'ARC',
-  },
-  {
-    id: 'tarkov',
-    toggleId: 'game-tarkov',
-    name: 'Escape from Tarkov',
-    subtitle: 'Graphics.ini + PostFX Guide',
-    gradient: 'from-stone-800 via-zinc-900 to-black',
-    letter: 'EFT',
-  },
-  {
-    id: 'rust',
-    toggleId: 'game-rust',
-    name: 'Rust',
-    subtitle: 'Max FPS Config + GC Tuning',
-    gradient: 'from-orange-800 via-amber-950 to-black',
-    letter: 'RST',
-  },
-  {
-    id: 'r6siege',
-    toggleId: 'game-r6siege',
-    name: 'Rainbow Six Siege',
-    subtitle: 'Vulkan · Low Shadows · Reflex',
-    gradient: 'from-indigo-900 via-blue-950 to-black',
-    letter: 'R6',
-  },
-  {
-    id: 'bf6',
-    toggleId: 'game-bf6',
-    name: 'Battlefield 6',
-    subtitle: 'PROFSAVE · FFR On · Reflex On+Boost',
-    gradient: 'from-emerald-900 via-green-950 to-black',
-    letter: 'BF6',
-  },
-];
+// Derived from the unified game registry -- no manual sync needed
+const games = GAMES.map(g => ({
+  id: g.id,
+  toggleId: `game-${g.id}`,
+  name: g.name,
+  subtitle: g.subtitle,
+  gradient: g.gradient,
+  letter: g.letter,
+}));
 
 type InstallFilter = 'all' | 'installed' | 'not-installed';
 

@@ -1,4 +1,5 @@
 import type { OptimizationItem } from '../types';
+import { GAMES } from './game-registry';
 
 export const windowsOptimizations: OptimizationItem[] = [
   {
@@ -123,97 +124,15 @@ export const windowsOptimizations: OptimizationItem[] = [
   },
 ];
 
-export const gameOptimizations: OptimizationItem[] = [
-  {
-    id: 'game-blackops7',
-    label: 'Call of Duty: Black Ops 7',
-    description: 'Applies Windows EXE compatibility flags. In-game settings shown as reference guide (Ricochet protects config files).',
-    category: 'game',
-    risk: 'safe',
-    requiresReboot: false,
-    gameId: 'blackops7',
-  },
-  {
-    id: 'game-fortnite',
-    label: 'Fortnite',
-    description: 'Optimizes GameUserSettings.ini — Performance Mode (DX11), all competitive settings, NVIDIA Reflex On+Boost.',
-    category: 'game',
-    risk: 'safe',
-    requiresReboot: false,
-    gameId: 'fortnite',
-  },
-  {
-    id: 'game-valorant',
-    label: 'Valorant',
-    description: 'Optimizes GameUserSettings.ini and EXE flags. Low materials, no shadows, NVIDIA Reflex On+Boost.',
-    category: 'game',
-    risk: 'safe',
-    requiresReboot: false,
-    gameId: 'valorant',
-  },
-  {
-    id: 'game-cs2',
-    label: 'Counter-Strike 2',
-    description: 'Creates autoexec.cfg with pro network settings, sets launch options via registry, applies EXE flags.',
-    category: 'game',
-    risk: 'safe',
-    requiresReboot: false,
-    gameId: 'cs2',
-  },
-  {
-    id: 'game-apexlegends',
-    label: 'Apex Legends',
-    description: 'Writes max-FPS videoconfig.txt, locks it read-only, creates autoexec.cfg, and applies r5apex.exe EXE flags.',
-    category: 'game',
-    risk: 'safe',
-    requiresReboot: false,
-    gameId: 'apexlegends',
-  },
-  {
-    id: 'game-arcraiders',
-    label: 'Arc Raiders',
-    description: 'Optimizes Engine.ini — Shadows MEDIUM minimum (player shadows), DLSS/FSR Quality, Frame Gen OFF.',
-    category: 'game',
-    risk: 'safe',
-    requiresReboot: false,
-    gameId: 'arcraiders',
-  },
-  {
-    id: 'game-tarkov',
-    label: 'Escape from Tarkov',
-    description: 'Writes optimized Graphics.ini (read-only lock), applies EXE flags. PostFX must be set in-game.',
-    category: 'game',
-    risk: 'safe',
-    requiresReboot: false,
-    gameId: 'tarkov',
-  },
-  {
-    id: 'game-rust',
-    label: 'Rust',
-    description: 'Writes competitive client.cfg with max FPS settings, GC tuning, and read-only lock.',
-    category: 'game',
-    risk: 'safe',
-    requiresReboot: false,
-    gameId: 'rust',
-  },
-  {
-    id: 'game-r6siege',
-    label: 'Rainbow Six Siege',
-    description: 'Optimizes GameSettings.ini — Low shadows, TAA, Reflex On+Boost. Vulkan renderer recommended.',
-    category: 'game',
-    risk: 'safe',
-    requiresReboot: false,
-    gameId: 'r6siege',
-  },
-  {
-    id: 'game-bf6',
-    label: 'Battlefield 6',
-    description: 'Optimizes PROFSAVE_profile — Low shadows/effects, FFR On, Reflex On+Boost, all visual clutter off.',
-    category: 'game',
-    risk: 'safe',
-    requiresReboot: false,
-    gameId: 'bf6',
-  },
-];
+// Derived from the unified game registry -- no manual sync needed
+export const gameOptimizations: OptimizationItem[] = GAMES.map(g => ({
+  id: `game-${g.id}`,
+  label: g.name,
+  description: g.description,
+  category: 'game' as const,
+  risk: g.risk,
+  requiresReboot: g.requiresReboot,
+  gameId: g.id,
+}));
 
 export const allOptimizations = [...windowsOptimizations, ...gameOptimizations];

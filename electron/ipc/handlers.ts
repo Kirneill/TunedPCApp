@@ -4,6 +4,7 @@ import { detectInstalledGames } from './game-detection';
 import { listBackups, createBackup, restoreBackup, deleteBackup } from './backup-manager';
 import { runPowerShellScript, runPowerShellCommand, getScriptPath } from './powershell';
 import { trackOptimizationResult, trackFailureStage, sendRunDetail, buildHardwareInfo } from '../telemetry/telemetry';
+import { GAMES } from '../../src/data/game-registry';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
@@ -20,22 +21,15 @@ interface UserConfig {
   restorePointEnabled: boolean;
 }
 
-/**
- * Maps game optimization IDs to the env var name that passes the detected
- * install path into the corresponding PowerShell script.
- */
-const GAME_PATH_ENV_VARS: Record<string, string> = {
-  'game-arcraiders': 'ARC_RAIDERS_PATH',
-  'game-apexlegends': 'APEX_PATH',
-  'game-tarkov': 'TARKOV_PATH',
-  'game-rust': 'RUST_PATH',
-  'game-r6siege': 'R6_PATH',
-  'game-bf6': 'BF6_PATH',
-};
+// Derived from the unified game registry -- no manual sync needed
+const GAME_PATH_ENV_VARS: Record<string, string> = Object.fromEntries(
+  GAMES.filter(g => g.pathEnvVar).map(g => [`game-${g.id}`, g.pathEnvVar!])
+);
 
 // Maps optimization IDs to script files and env var configurations
+// Game entries are derived from the unified game registry
 const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
-  // Windows optimizations — all handled by script 01, controlled by skip env vars
+  // Windows optimizations -- all handled by script 01, controlled by skip env vars
   'win-power-plan': { script: '01_Windows_Optimization.ps1', envPrefix: 'POWER_PLAN' },
   'win-hags': { script: '01_Windows_Optimization.ps1', envPrefix: 'HAGS' },
   'win-game-mode': { script: '01_Windows_Optimization.ps1', envPrefix: 'GAME_MODE' },
@@ -54,17 +48,8 @@ const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   // Windows Update mode actions
   'updates-off': { script: '09_Windows_Update_Off.ps1' },
   'updates-on': { script: '10_Windows_Update_On.ps1' },
-  // Game optimizations
-  'game-blackops7': { script: '02_BlackOps7_Settings.ps1' },
-  'game-fortnite': { script: '03_Fortnite_Settings.ps1' },
-  'game-valorant': { script: '04_Valorant_Settings.ps1' },
-  'game-cs2': { script: '05_CS2_Settings.ps1' },
-  'game-apexlegends': { script: '12_ApexLegends_Settings.ps1' },
-  'game-arcraiders': { script: '06_ArcRaiders_Settings.ps1' },
-  'game-tarkov': { script: '14_Tarkov_Settings.ps1' },
-  'game-rust': { script: '15_Rust_Settings.ps1' },
-  'game-r6siege': { script: '16_RainbowSixSiege_Settings.ps1' },
-  'game-bf6': { script: '17_Battlefield6_Settings.ps1' },
+  // Game optimizations -- derived from game registry
+  ...Object.fromEntries(GAMES.map(g => [`game-${g.id}`, { script: g.script }])),
 };
 
 // Maps env prefix (e.g. 'POWER_PLAN') back to optimization ID (e.g. 'win-power-plan')
@@ -107,23 +92,9 @@ interface ScriptCheck {
   detail: string;
 }
 
+// Check labels: game-specific labels derived from registry, non-game labels kept here
 const CHECK_LABELS: Record<string, string> = {
-  COD_EXE_FLAGS: 'COD EXE compatibility flags',
-  COD_GAME_MODE_ON: 'Windows Game Mode is ON',
-  COD_GAME_DVR_OFF: 'Game DVR is OFF',
-  COD_CONFIG_FILES_COPIED: 'COD config template copy step',
-  COD_RENDERER_WORKER_COUNT: 'COD RendererWorkerCount patch step',
-  COD_RENDER_SCALE_PRESERVED: 'COD render scale unchanged',
-  COD_RENDER_SCALE_DETECTED: 'COD render scale detected',
-  ARC_EXE_FLAGS: 'Arc Raiders EXE compatibility flags',
-  ARC_CONFIG_FILES_WRITTEN: 'Arc Raiders config files written',
-  ARC_SETTINGS_APPLIED: 'Arc Raiders settings applied',
-  FN_CONFIG_FILES_WRITTEN: 'Fortnite config files written',
-  FN_CONFIG_WRITABLE: 'Fortnite config writable state',
-  APEX_VIDEOCONFIG_WRITTEN: 'Apex videoconfig.txt written',
-  APEX_VIDEOCONFIG_READONLY: 'Apex videoconfig.txt read-only lock',
-  APEX_AUTOEXEC_WRITTEN: 'Apex autoexec.cfg written',
-  APEX_EXE_FLAGS: 'Apex r5apex.exe compatibility flags',
+  // GPU profile labels (not game-specific, stay hardcoded)
   GPU_PROFILE_APPLIED: 'GPU driver profile import completed',
   GPU_PROFILE_POWER_MODE: 'GPU Power Management Mode set to Prefer Maximum Performance',
   GPU_PROFILE_TEXTURE_FILTER_QUALITY: 'GPU Texture Filtering Quality set to High Performance',
@@ -136,17 +107,8 @@ const CHECK_LABELS: Record<string, string> = {
   GPU_PROFILE_TOOL_READY: 'GPU profile tool ready',
   GPU_PROFILE_TOOL_DOWNLOADED: 'GPU profile tool downloaded automatically',
   GPU_PROFILE_TOOL_DOWNLOAD_FAILED: 'GPU profile tool download failed',
-  TARKOV_EXE_FLAGS: 'Tarkov EXE compatibility flags',
-  TARKOV_CONFIG_WRITTEN: 'Tarkov Graphics.ini written',
-  TARKOV_SETTINGS_APPLIED: 'Tarkov settings applied',
-  RUST_EXE_FLAGS: 'Rust EXE compatibility flags',
-  RUST_CONFIG_WRITTEN: 'Rust client.cfg written',
-  RUST_SETTINGS_APPLIED: 'Rust settings applied',
-  R6_EXE_FLAGS: 'R6 Siege EXE compatibility flags',
-  R6_CONFIG_WRITTEN: 'R6 Siege GameSettings.ini written',
-  R6_SETTINGS_APPLIED: 'R6 Siege settings applied',
-  BF6_EXE_FLAGS: 'Battlefield 6 EXE compatibility flags',
-  BF6_CONFIG_WRITTEN: 'Battlefield 6 PROFSAVE_profile written',
+  // Game check labels -- derived from game registry
+  ...Object.fromEntries(GAMES.flatMap(g => Object.entries(g.checkLabels))),
 };
 
 function parseScriptCheck(line: string): ScriptCheck | null {

@@ -3,17 +3,18 @@ import * as path from 'path';
 import { runPowerShellCommand } from './powershell';
 export type { DetectedGame } from '../../src/types/index';
 import type { DetectedGame } from '../../src/types/index';
+import { GAMES } from '../../src/data/game-registry';
 
 // ---------------------------------------------------------------------------
-// Unified game registry — the SINGLE source of truth for game detection.
+// Game detection -- derives id/name/steamFolders from the unified game
+// registry (src/data/game-registry.ts). Detection functions are local to
+// this module because they use Node.js APIs unavailable in the renderer.
 //
 // To add a new game:
-//   1. Add an entry to GAME_REGISTRY below.
-//      - If on Steam, populate steamFolders with the folder name(s) under
-//        steamapps/common/. VDF detection handles the rest automatically.
-//      - If non-Steam detection is needed (Epic, registry, etc.), write a
-//        findX() function and assign it to the detect property.
-//   2. No other wiring needed — the pipeline handles VDF lookup, custom
+//   1. Add an entry in game-registry.ts (the single source of truth).
+//   2. If non-Steam detection is needed (Epic, registry, etc.), write a
+//      findX() function below and add it to DETECTION_FUNCTIONS.
+//   3. No other wiring needed -- the pipeline handles VDF lookup, custom
 //      detection, and result mapping automatically.
 // ---------------------------------------------------------------------------
 
@@ -21,6 +22,8 @@ interface GameDetectionResult {
   installed: boolean;
   gamePath: string | null;
 }
+
+type DetectFn = () => Promise<string | null | GameDetectionResult>;
 
 interface GameRegistryEntry {
   id: string;
@@ -35,60 +38,30 @@ interface GameRegistryEntry {
    *   - GameDetectionResult for cases where installation is confirmed
    *     but no game root path is available (e.g., only config files found)
    */
-  detect?: () => Promise<string | null | GameDetectionResult>;
+  detect?: DetectFn;
 }
 
-const GAME_REGISTRY: GameRegistryEntry[] = [
-  {
-    id: 'blackops7', name: 'Call of Duty: Black Ops 7',
-    steamFolders: ['Call of Duty HQ'],
-    detect: findBlackOps7,
-  },
-  {
-    id: 'fortnite', name: 'Fortnite',
-    steamFolders: [],
-    detect: findFortnite,
-  },
-  {
-    id: 'valorant', name: 'Valorant',
-    steamFolders: [],
-    detect: findValorant,
-  },
-  {
-    id: 'cs2', name: 'Counter-Strike 2',
-    steamFolders: ['Counter-Strike Global Offensive'],
-  },
-  {
-    id: 'apexlegends', name: 'Apex Legends',
-    steamFolders: ['Apex Legends'],
-    detect: findApexLegends,
-  },
-  {
-    id: 'arcraiders', name: 'Arc Raiders',
-    steamFolders: ['ArcRaiders', 'Arc Raiders'],
-    detect: findArcRaiders,
-  },
-  {
-    id: 'tarkov', name: 'Escape from Tarkov',
-    steamFolders: [],
-    detect: findTarkov,
-  },
-  {
-    id: 'rust', name: 'Rust',
-    steamFolders: ['Rust'],
-    detect: findRust,
-  },
-  {
-    id: 'r6siege', name: 'Rainbow Six Siege',
-    steamFolders: ["Tom Clancy's Rainbow Six Siege"],
-    detect: findR6Siege,
-  },
-  {
-    id: 'bf6', name: 'Battlefield 6',
-    steamFolders: ['Battlefield 6'],
-    detect: findBF6,
-  },
-];
+// Maps game IDs to custom detection functions (function declarations are
+// hoisted, so referencing findX here is safe even though they're defined below).
+const DETECTION_FUNCTIONS: Record<string, DetectFn> = {
+  blackops7: findBlackOps7,
+  fortnite: findFortnite,
+  valorant: findValorant,
+  apexlegends: findApexLegends,
+  arcraiders: findArcRaiders,
+  tarkov: findTarkov,
+  rust: findRust,
+  r6siege: findR6Siege,
+  bf6: findBF6,
+};
+
+// Derived from the unified game registry -- no manual sync needed
+const GAME_REGISTRY: GameRegistryEntry[] = GAMES.map(g => ({
+  id: g.id,
+  name: g.name,
+  steamFolders: g.steamFolders,
+  detect: DETECTION_FUNCTIONS[g.id],
+}));
 
 // ---------------------------------------------------------------------------
 // Helper utilities
@@ -203,7 +176,8 @@ function findEpicManifestInstallPath(matchers: RegExp[]): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Steam VDF detection — folder list is derived from GAME_REGISTRY
+// Steam VDF detection -- folder list is derived from GAME_REGISTRY
+// (which itself is derived from the unified game registry)
 // ---------------------------------------------------------------------------
 
 async function findSteamGames(): Promise<Map<string, string>> {
