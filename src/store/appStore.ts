@@ -127,6 +127,7 @@ const DEFAULT_TOGGLES: Record<string, boolean> = {
   'game-tarkov': true,
   'game-rust': true,
   'game-r6siege': true,
+  'game-bf6': true,
 };
 
 const DEFAULT_USER_CONFIG: UserConfig = {

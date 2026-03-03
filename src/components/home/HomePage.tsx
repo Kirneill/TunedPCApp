@@ -79,6 +79,14 @@ const games = [
     gradient: 'from-indigo-900 via-blue-950 to-black',
     letter: 'R6',
   },
+  {
+    id: 'bf6',
+    toggleId: 'game-bf6',
+    name: 'Battlefield 6',
+    subtitle: 'PROFSAVE · FFR On · Reflex On+Boost',
+    gradient: 'from-emerald-900 via-green-950 to-black',
+    letter: 'BF6',
+  },
 ];
 
 type InstallFilter = 'all' | 'installed' | 'not-installed';
