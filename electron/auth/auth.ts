@@ -276,6 +276,7 @@ export async function signUp(email: string, password: string): Promise<AuthResul
       saveSession({
         access_token: data.session.access_token,
         refresh_token: data.session.refresh_token,
+        rememberMe: true, // New accounts always stay signed in
       });
     }
 
@@ -528,11 +529,15 @@ export function setRememberMe(value: boolean): void {
   }
 }
 
-/** Call from before-quit to clear session when rememberMe is false. */
+/** Call from before-quit. Clears the persisted session if rememberMe is false; no-op otherwise. */
 export function onAppClosing(): void {
-  if (!getRememberMe()) {
-    console.log('[auth] rememberMe is false — clearing session on quit');
-    clearSession();
+  try {
+    if (!getRememberMe()) {
+      console.log('[auth] rememberMe is false — clearing session on quit');
+      clearSession();
+    }
+  } catch (err) {
+    console.warn('[auth] onAppClosing failed:', err instanceof Error ? err.message : err);
   }
 }
 
@@ -575,13 +580,18 @@ export async function updatePassword(newPassword: string): Promise<AuthResult> {
     if (error) return { success: false, error: mapAuthError(error) };
     if (!data.user) return { success: false, error: 'Password update failed.' };
 
-    // Now that password is changed, persist the session so user can sign in next launch
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (sessionData.session) {
+    // Now that password is changed, persist the session so user can sign in next launch.
+    // Preserve the user's existing rememberMe preference if one was saved; default to true
+    // for password reset flows (user is presumably on their own machine).
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      console.warn('[auth] updatePassword: failed to fetch session for persistence:', sessionError.message);
+    } else if (sessionData.session) {
+      const existingRememberMe = getRememberMe();
       saveSession({
         access_token: sessionData.session.access_token,
         refresh_token: sessionData.session.refresh_token,
-        rememberMe: true,
+        rememberMe: existingRememberMe,
       });
     }
 

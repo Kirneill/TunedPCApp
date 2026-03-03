@@ -4,9 +4,11 @@ import appLogo from '../../assets/app-logo.ico';
 
 type Mode = 'signin' | 'signup' | 'reset' | 'newpassword';
 
+import type { PasswordResetTokens } from '../../types';
+
 interface AuthGateProps {
   onAuthenticated: () => Promise<void>;
-  passwordResetTokens?: { access_token: string; refresh_token: string } | null;
+  passwordResetTokens?: PasswordResetTokens | null;
 }
 
 export default function AuthGate({ onAuthenticated, passwordResetTokens }: AuthGateProps) {
@@ -33,19 +35,25 @@ export default function AuthGate({ onAuthenticated, passwordResetTokens }: AuthG
     (async () => {
       setError(null);
       setIsSubmitting(true);
-      const result = await window.sensequality.setSessionFromTokens(tokens);
-      setIsSubmitting(false);
-
-      if (result.success) {
-        setMode('newpassword');
-      } else {
-        setError(result.error || 'Failed to restore session from reset link. Please try again.');
+      try {
+        const result = await window.sensequality.setSessionFromTokens(tokens);
+        if (result.success) {
+          setMode('newpassword');
+        } else {
+          setError(result.error || 'Failed to restore session from reset link. Please try again.');
+        }
+      } catch (err) {
+        console.error('[AuthGate] setSessionFromTokens failed:', err);
+        setError('An unexpected error occurred while processing your reset link. Please try again.');
+      } finally {
+        setIsSubmitting(false);
       }
     })();
   }, [passwordResetTokens]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setError(null);
 
     // New password mode (from deep link)
@@ -128,6 +136,10 @@ export default function AuthGate({ onAuthenticated, passwordResetTokens }: AuthG
   };
 
   const switchMode = (newMode: Mode) => {
+    // If abandoning the password reset flow, invalidate the ephemeral recovery session
+    if (mode === 'newpassword' && newMode !== 'newpassword') {
+      window.sensequality.signOut().catch(() => {});
+    }
     setMode(newMode);
     setError(null);
     setResetSent(false);

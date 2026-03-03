@@ -61,7 +61,7 @@ const api = {
     ipcRenderer.invoke('auth:setSessionFromTokens', tokens),
   updatePassword: (newPassword: string) => ipcRenderer.invoke('auth:updatePassword', newPassword),
   onPasswordResetTokens: (callback: (tokens: { access_token: string; refresh_token: string }) => void): (() => void) => {
-    const handler = (_: Electron.IpcRendererEvent, tokens: { access_token: string; refresh_token: string }) => callback(tokens);
+    const handler = (_: Electron.IpcRendererEvent, tokens: { access_token: string; refresh_token: string; }) => callback(tokens);
     ipcRenderer.on('auth:passwordResetTokens', handler);
     return () => { ipcRenderer.removeListener('auth:passwordResetTokens', handler); };
   },

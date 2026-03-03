@@ -425,7 +425,7 @@ if (!gotLock) {
     const protocolArg = process.argv.find(arg => arg.startsWith('sensequality://'));
     if (protocolArg) {
       pendingDeepLinkUrl = protocolArg;
-      log('INFO', `Found protocol URL in launch args: ${protocolArg}`);
+      log('INFO', `Found protocol URL in launch args: ${protocolArg.split('#')[0]}`);
     }
 
     if (!ensureElevatedOrQuit()) {
@@ -517,7 +517,11 @@ if (!gotLock) {
 
 app.on('before-quit', () => {
   isQuitting = true;
-  onAppClosing();
+  try {
+    onAppClosing();
+  } catch (err) {
+    log('WARN', `onAppClosing failed: ${err instanceof Error ? err.message : err}`);
+  }
   stopSystemMonitor();
   if (appTray) {
     appTray.destroy();
