@@ -30,6 +30,7 @@ const GAME_PATH_ENV_VARS: Record<string, string> = {
   'game-tarkov': 'TARKOV_PATH',
   'game-rust': 'RUST_PATH',
   'game-r6siege': 'R6_PATH',
+  'game-bf6': 'BF6_PATH',
 };
 
 // Maps optimization IDs to script files and env var configurations
@@ -63,6 +64,7 @@ const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   'game-tarkov': { script: '14_Tarkov_Settings.ps1' },
   'game-rust': { script: '15_Rust_Settings.ps1' },
   'game-r6siege': { script: '16_RainbowSixSiege_Settings.ps1' },
+  'game-bf6': { script: '17_Battlefield6_Settings.ps1' },
 };
 
 // Maps env prefix (e.g. 'POWER_PLAN') back to optimization ID (e.g. 'win-power-plan')
@@ -143,6 +145,8 @@ const CHECK_LABELS: Record<string, string> = {
   R6_EXE_FLAGS: 'R6 Siege EXE compatibility flags',
   R6_CONFIG_WRITTEN: 'R6 Siege GameSettings.ini written',
   R6_SETTINGS_APPLIED: 'R6 Siege settings applied',
+  BF6_EXE_FLAGS: 'Battlefield 6 EXE compatibility flags',
+  BF6_CONFIG_WRITTEN: 'Battlefield 6 PROFSAVE_profile written',
 };
 
 function parseScriptCheck(line: string): ScriptCheck | null {

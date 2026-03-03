@@ -205,6 +205,15 @@ export const gameOptimizations: OptimizationItem[] = [
     requiresReboot: false,
     gameId: 'r6siege',
   },
+  {
+    id: 'game-bf6',
+    label: 'Battlefield 6',
+    description: 'Optimizes PROFSAVE_profile — Low shadows/effects, FFR On, Reflex On+Boost, all visual clutter off.',
+    category: 'game',
+    risk: 'safe',
+    requiresReboot: false,
+    gameId: 'bf6',
+  },
 ];
 
 export const allOptimizations = [...windowsOptimizations, ...gameOptimizations];

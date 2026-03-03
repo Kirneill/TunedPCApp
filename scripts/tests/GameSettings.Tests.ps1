@@ -2176,3 +2176,174 @@ Describe "CS2 autoexec.cfg" -Tag "cs2" {
         }
     }
 }
+
+# ===========================================================================
+# BATTLEFIELD 6 TESTS
+# ===========================================================================
+Describe "Battlefield 6 PROFSAVE_profile" -Tag "bf6" {
+
+    BeforeAll {
+        $ProjectRoot = (Get-Location).Path
+        $ScriptsDir = Join-Path $ProjectRoot "scripts"
+        $ReferenceDir = Join-Path $ScriptsDir "reference-configs"
+        $RefFile = Join-Path $ReferenceDir "bf6-PROFSAVE_profile"
+        $ScriptFile = Join-Path $ScriptsDir "17_Battlefield6_Settings.ps1"
+
+        # Helper: Parse PROFSAVE key-value lines into hashtable
+        function Parse-Profsave {
+            param([string]$Path)
+            $result = @{}
+            foreach ($line in (Get-Content $Path)) {
+                if ($line -match '^(\S+)\s+(.+)$') {
+                    $result[$Matches[1]] = $Matches[2]
+                }
+            }
+            return $result
+        }
+
+        # Load reference keys
+        $RefSettings = Parse-Profsave -Path $RefFile
+        $RefKeys = @($RefSettings.Keys)
+    }
+
+    # -----------------------------------------------------------------
+    Context "Reference config is valid" {
+        It "Reference file exists" {
+            $RefFile | Should -Exist
+        }
+
+        It "Reference file uses Frostbite key-value format" {
+            $lines = Get-Content $RefFile | Where-Object { $_ -match '\S' }
+            $lines.Count | Should -BeGreaterThan 0 -Because "Should have settings lines"
+            foreach ($line in $lines) {
+                $line | Should -Match '^\S+\s+.+$' -Because "Each line should be: GstRender.Key Value"
+            }
+        }
+
+        It "Reference has core competitive keys" {
+            $RefKeys | Should -Contain "GstRender.TextureQuality"
+            $RefKeys | Should -Contain "GstRender.ShadowQuality"
+            $RefKeys | Should -Contain "GstRender.VSyncMode"
+            $RefKeys | Should -Contain "GstRender.FutureFrameRendering"
+            $RefKeys | Should -Contain "GstRender.NvidiaLowLatency"
+            $RefKeys | Should -Contain "GstRender.MotionBlurWorld"
+            $RefKeys | Should -Contain "GstRender.ChromaticAberration"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script competitive settings use valid key names" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptFile -Raw
+            # Extract keys from the CompetitiveSettings ordered hashtable
+            $ScriptKeys = [regex]::Matches($scriptContent, "'(GstRender\.\w+)'") |
+                ForEach-Object { $_.Groups[1].Value } |
+                Select-Object -Unique
+        }
+
+        It "All script GstRender keys exist in reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptKeys) {
+                if ($key -notin $RefKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script output file format" {
+        BeforeAll {
+            # Create temp sandbox simulating Documents\Battlefield 6\settings\
+            $script:TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "sq-test-bf6-$(Get-Random)"
+            $settingsDir = Join-Path $script:TempDir "Documents\Battlefield 6\settings"
+            New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
+
+            # Seed with reference config to test read-merge-write
+            Copy-Item $RefFile (Join-Path $settingsDir "PROFSAVE_profile") -Force
+
+            # Save original USERPROFILE
+            $script:OrigUserProfile = $env:USERPROFILE
+
+            # Run the script in headless mode with overridden USERPROFILE
+            $env:SENSEQUALITY_HEADLESS = "1"
+            $env:MONITOR_WIDTH = "1920"
+            $env:MONITOR_HEIGHT = "1080"
+            $env:MONITOR_REFRESH = "240"
+            $env:NVIDIA_GPU = "1"
+            $env:USERPROFILE = $script:TempDir
+
+            $scriptPath = Join-Path $ScriptsDir "17_Battlefield6_Settings.ps1"
+            $script:Output = & $scriptPath *>&1 | Out-String
+            $script:OutputFile = Join-Path $settingsDir "PROFSAVE_profile"
+        }
+
+        AfterAll {
+            # Restore USERPROFILE and clean up
+            $env:USERPROFILE = $script:OrigUserProfile
+            $env:SENSEQUALITY_HEADLESS = ""
+            if ($script:TempDir -and (Test-Path $script:TempDir)) {
+                Get-ChildItem $script:TempDir -Recurse -File -ErrorAction SilentlyContinue |
+                    ForEach-Object { if ($_.IsReadOnly) { $_.IsReadOnly = $false } }
+                Remove-Item $script:TempDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Output file exists" {
+            $script:OutputFile | Should -Exist
+        }
+
+        It "Output file uses key-value format" {
+            $lines = Get-Content $script:OutputFile | Where-Object { $_ -match '\S' }
+            foreach ($line in $lines) {
+                $line | Should -Match '^\S+\s+.+$' -Because "Each line should be: Key Value"
+            }
+        }
+
+        It "Output has all competitive keys from reference" {
+            $outputSettings = Parse-Profsave -Path $script:OutputFile
+            $outputKeys = @($outputSettings.Keys)
+            foreach ($key in $RefKeys) {
+                $outputKeys | Should -Contain $key -Because "$key should be in output config"
+            }
+        }
+
+        It "SQ_CHECK markers are emitted for config write" {
+            $script:Output | Should -Match '\[SQ_CHECK_(OK|WARN|FAIL):BF6_CONFIG_WRITTEN'
+        }
+
+        It "SQ_CHECK markers are emitted for EXE flags" {
+            $script:Output | Should -Match '\[SQ_CHECK_(OK|WARN|FAIL):BF6_EXE_FLAGS'
+        }
+
+        It "VSync is off in output" {
+            $outputSettings = Parse-Profsave -Path $script:OutputFile
+            $outputSettings['GstRender.VSyncMode'] | Should -Be '0'
+        }
+
+        It "Shadow quality is low in output" {
+            $outputSettings = Parse-Profsave -Path $script:OutputFile
+            $outputSettings['GstRender.ShadowQuality'] | Should -Be '0'
+        }
+
+        It "Future frame rendering is on in output" {
+            $outputSettings = Parse-Profsave -Path $script:OutputFile
+            $outputSettings['GstRender.FutureFrameRendering'] | Should -Be '1'
+        }
+
+        It "Motion blur world is off in output" {
+            $outputSettings = Parse-Profsave -Path $script:OutputFile
+            $outputSettings['GstRender.MotionBlurWorld'] | Should -Be '0.000000'
+        }
+
+        It "Frame generation is off in output" {
+            $outputSettings = Parse-Profsave -Path $script:OutputFile
+            $outputSettings['GstRender.FrameGeneration'] | Should -Be '0'
+        }
+
+        It "Output file is read-only" {
+            (Get-Item $script:OutputFile).IsReadOnly | Should -BeTrue -Because "Config should be locked after write"
+        }
+    }
+}

@@ -83,6 +83,11 @@ const GAME_REGISTRY: GameRegistryEntry[] = [
     steamFolders: ["Tom Clancy's Rainbow Six Siege"],
     detect: findR6Siege,
   },
+  {
+    id: 'bf6', name: 'Battlefield 6',
+    steamFolders: ['Battlefield 6'],
+    detect: findBF6,
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -567,6 +572,48 @@ async function findR6Siege(): Promise<GameDetectionResult> {
   ];
   const commonInstall = firstExistingPath(commonPaths);
   if (commonInstall) return { installed: true, gamePath: commonInstall };
+
+  return { installed: false, gamePath: null };
+}
+
+async function findBF6(): Promise<GameDetectionResult> {
+  // EA App registry
+  const eaResult = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\EA Games\\Battlefield 6' -ErrorAction SilentlyContinue).'Install Dir'`
+  );
+  if (eaResult.success && eaResult.output.length > 0 && eaResult.output[0] && fs.existsSync(eaResult.output[0])) {
+    return { installed: true, gamePath: eaResult.output[0] };
+  }
+
+  // Steam uninstall registry (App ID 2807960)
+  const steamResult = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 2807960' -ErrorAction SilentlyContinue).InstallLocation`
+  );
+  if (steamResult.success && steamResult.output.length > 0 && steamResult.output[0] && fs.existsSync(steamResult.output[0])) {
+    return { installed: true, gamePath: steamResult.output[0] };
+  }
+
+  // Common install paths
+  const commonPaths = [
+    'C:\\Program Files\\EA Games\\Battlefield 6',
+    'D:\\EA Games\\Battlefield 6',
+    'E:\\EA Games\\Battlefield 6',
+  ];
+  const commonInstall = firstExistingPath(commonPaths);
+  if (commonInstall) return { installed: true, gamePath: commonInstall };
+
+  // Config folder detection (proves game is installed)
+  const userProfile = process.env.USERPROFILE;
+  if (userProfile) {
+    const settingsPaths = [
+      path.join(userProfile, 'Documents', 'Battlefield 6', 'settings', 'PROFSAVE_profile'),
+      path.join(userProfile, 'Documents', 'Battlefield 6', 'settings', 'steam', 'PROFSAVE_profile'),
+    ];
+    if (settingsPaths.some(p => fs.existsSync(p))) {
+      console.log(`[game-detection] BF6 config found but no install directory located. PS1 script will use its own detection.`);
+      return { installed: true, gamePath: null };
+    }
+  }
 
   return { installed: false, gamePath: null };
 }
