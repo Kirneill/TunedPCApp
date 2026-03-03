@@ -1,12 +1,12 @@
 import { IpcMain, BrowserWindow, app } from 'electron';
 import { getSystemInfo } from './system-info';
 import { detectInstalledGames } from './game-detection';
-import { listBackups, createBackup, restoreBackup, deleteBackup } from './backup-manager';
 import { runPowerShellScript, runPowerShellCommand, getScriptPath } from './powershell';
 import { trackOptimizationResult, trackFailureStage, sendRunDetail, buildHardwareInfo } from '../telemetry/telemetry';
 import { GAMES } from '../../src/data/game-registry';
 import { parseScriptCheck, mergeScriptCheck } from '../utils/sq-check';
 import type { CheckStatus, ScriptCheck } from '../utils/sq-check';
+import type { RestorePointInfo } from '../../src/types/index';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
@@ -416,6 +416,112 @@ function exportDiagnosticsBundle(): { success: boolean; path: string; error?: st
     const errorText = err instanceof Error ? err.message : String(err);
     console.warn(`[diagnostics] Export failed: ${errorText}`);
     return { success: false, path: '', error: errorText };
+  }
+}
+
+const LIST_RESTORE_POINTS_SCRIPT = `
+$ErrorActionPreference = 'Stop'
+
+# Try PowerShell cmdlet first (Pro/Enterprise), fall back to WMI (Home)
+try {
+    $points = Get-ComputerRestorePoint -ErrorAction Stop
+} catch {
+    $points = Get-WmiObject -Namespace "root\\default" -Class SystemRestorePoint -ErrorAction Stop
+}
+
+$result = @()
+foreach ($p in $points) {
+    # WMI returns CreationTime as a DMTF string; cmdlet returns a DateTime
+    if ($p.CreationTime -is [string]) {
+        $dt = [System.Management.ManagementDateTimeConverter]::ToDateTime($p.CreationTime)
+    } else {
+        $dt = $p.CreationTime
+    }
+    $result += [pscustomobject]@{
+        SequenceNumber = $p.SequenceNumber
+        Description    = $p.Description
+        CreatedAt      = $dt.ToString('o')
+        RestorePointType = switch ($p.RestorePointType) {
+            0  { 'APPLICATION_INSTALL' }
+            1  { 'APPLICATION_UNINSTALL' }
+            10 { 'DEVICE_DRIVER_INSTALL' }
+            12 { 'MODIFY_SETTINGS' }
+            13 { 'CANCELLED_OPERATION' }
+            default { "TYPE_$($p.RestorePointType)" }
+        }
+    }
+}
+
+$result | ConvertTo-Json -Compress
+`;
+
+async function listSystemRestorePoints(): Promise<{ points: RestorePointInfo[]; error?: string }> {
+  // NOTE: runPowerShellCommand() always resolves (never rejects).
+  // The catch block is defensive only. Primary error handling is via result.success.
+  try {
+    const lines: string[] = [];
+    const result = await runPowerShellCommand(LIST_RESTORE_POINTS_SCRIPT, (line) => {
+      lines.push(line);
+    });
+
+    if (!result.success) {
+      const errorText = result.errors.join(' | ') || 'PowerShell exited with a non-zero code';
+      console.warn('[restore-point] Failed to list restore points:', errorText);
+      return { points: [], error: `Could not retrieve restore points: ${errorText}` };
+    }
+
+    const raw = lines.join('');
+    if (!raw.trim()) return { points: [] };
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (parseErr) {
+      const parseMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+      console.warn(`[restore-point] Failed to parse JSON: ${parseMsg}. Raw: ${raw.slice(0, 200)}`);
+      return { points: [], error: 'Restore point data was unreadable.' };
+    }
+
+    // PowerShell ConvertTo-Json returns a single object if there's only one item
+    const arr = Array.isArray(parsed) ? parsed : [parsed];
+
+    const points = arr
+      .filter((p: Record<string, unknown>) =>
+        typeof p.SequenceNumber === 'number' &&
+        typeof p.Description === 'string' &&
+        typeof p.CreatedAt === 'string' &&
+        typeof p.RestorePointType === 'string'
+      )
+      .map((p: { SequenceNumber: number; Description: string; CreatedAt: string; RestorePointType: string }) => ({
+        sequenceNumber: p.SequenceNumber,
+        description: p.Description,
+        createdAt: p.CreatedAt,
+        type: p.RestorePointType,
+      }));
+
+    return { points };
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    console.warn(`[restore-point] Failed to list restore points: ${errorText}`);
+    return { points: [], error: `Unexpected error: ${errorText}` };
+  }
+}
+
+async function launchSystemRestoreUI(): Promise<{ success: boolean; error?: string }> {
+  // NOTE: runPowerShellCommand() always resolves (never rejects).
+  // The catch block is defensive only. Primary error handling is via result.success.
+  try {
+    const result = await runPowerShellCommand('Start-Process rstrui.exe', () => {});
+    if (!result.success) {
+      const errorText = result.errors.join(' | ') || 'System Restore UI failed to launch';
+      console.warn(`[restore-point] Failed to launch System Restore UI: ${errorText}`);
+      return { success: false, error: errorText };
+    }
+    return { success: true };
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    console.warn(`[restore-point] Failed to launch System Restore UI: ${errorText}`);
+    return { success: false, error: errorText };
   }
 }
 
@@ -906,11 +1012,13 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
     return { success: allSuccess, results };
   });
 
-  // Backups
-  ipcMain.handle('backup:list', () => listBackups());
-  ipcMain.handle('backup:create', () => createBackup());
-  ipcMain.handle('backup:restore', (_, backupPath: string) => restoreBackup(backupPath));
-  ipcMain.handle('backup:delete', (_, backupPath: string) => deleteBackup(backupPath));
+  // System Restore Points
+  ipcMain.handle('restore-point:list', async () => {
+    return listSystemRestorePoints();
+  });
+  ipcMain.handle('restore-point:launch', async () => {
+    return launchSystemRestoreUI();
+  });
   ipcMain.handle('safety:createRestorePoint', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const runId = `run-${Date.now()}-${randomUUID().slice(0, 8)}`;
@@ -919,5 +1027,7 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
     const result = await createSystemRestorePoint(log, { mode: 'manual' });
     return { success: result.success, errors: result.errors };
   });
+
+  // Diagnostics
   ipcMain.handle('diagnostics:export', () => exportDiagnosticsBundle());
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { SystemInfo, DetectedGame, BackupInfo, LogEntry, UserConfig, AuthUser, UserMachine, UpdateInfo, UpdaterState, PasswordResetTokens } from '../types';
+import type { SystemInfo, DetectedGame, LogEntry, UserConfig, AuthUser, UserMachine, UpdateInfo, UpdaterState, PasswordResetTokens } from '../types';
 import { GAMES } from '../data/game-registry';
 
 interface AppState {
@@ -33,9 +33,6 @@ interface AppState {
   isRunning: boolean;
   progressLog: LogEntry[];
   progress: { completed: number; total: number };
-
-  // Backups
-  backups: BackupInfo[];
 
   // Telemetry
   showConsentModal: boolean;
@@ -75,7 +72,6 @@ interface AppState {
   addLogEntry: (entry: LogEntry) => void;
   clearLog: () => void;
   setProgress: (completed: number, total: number) => void;
-  setBackups: (backups: BackupInfo[]) => void;
   setShowConsentModal: (show: boolean) => void;
   setTelemetryEnabled: (enabled: boolean) => void;
   setUpdateInfo: (info: UpdateInfo | null) => void;
@@ -189,7 +185,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   isRunning: false,
   progressLog: [],
   progress: { completed: 0, total: 0 },
-  backups: [],
   showConsentModal: false,
   telemetryEnabled: false,
   updateInfo: null,
@@ -276,7 +271,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   addLogEntry: (entry) => set((s) => ({ progressLog: [...s.progressLog, entry] })),
   clearLog: () => set({ progressLog: [] }),
   setProgress: (completed, total) => set({ progress: { completed, total } }),
-  setBackups: (backups) => set({ backups }),
   setShowConsentModal: (show) => set({ showConsentModal: show }),
   setTelemetryEnabled: (enabled) => set({ telemetryEnabled: enabled }),
   setUpdateInfo: (info) => set({

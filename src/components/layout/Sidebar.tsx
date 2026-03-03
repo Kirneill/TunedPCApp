@@ -51,7 +51,7 @@ const sections = [
     items: [
       { id: 'bios-guide' as Page, label: 'BIOS Guide', hint: 'Firmware setup', icon: <ChipIcon /> },
       { id: 'gpu-guide' as Page, label: 'GPU Driver', hint: 'One-click GPU profile', icon: <GpuIcon /> },
-      { id: 'backups' as Page, label: 'Backups', hint: 'Restore & rollback', icon: <ShieldIcon /> },
+      { id: 'backups' as Page, label: 'Restore', hint: 'System restore points', icon: <ShieldIcon /> },
     ],
   },
 ];

@@ -36,7 +36,7 @@ const pageNames: Record<Page, string> = {
   advanced: 'Advanced',
   'bios-guide': 'BIOS',
   'gpu-guide': 'GPU Driver',
-  backups: 'Backups',
+  backups: 'Restore',
 };
 
 export default function TitleBar() {

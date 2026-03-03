@@ -39,11 +39,18 @@ export interface DetectedGame {
   path?: string;
 }
 
-export interface BackupInfo {
-  name: string;
-  path: string;
-  date: string;
-  files: string[];
+export type RestorePointType =
+  | 'APPLICATION_INSTALL'
+  | 'APPLICATION_UNINSTALL'
+  | 'DEVICE_DRIVER_INSTALL'
+  | 'MODIFY_SETTINGS'
+  | 'CANCELLED_OPERATION';
+
+export interface RestorePointInfo {
+  sequenceNumber: number;
+  description: string;
+  createdAt: string;
+  type: RestorePointType | `TYPE_${number}`;
 }
 
 export interface UserConfig {
@@ -136,10 +143,8 @@ declare global {
       runSelected: (ids: string[], config: UserConfig) => Promise<{ success: boolean; results: Record<string, boolean> }>;
       createRestorePoint: () => Promise<{ success: boolean; errors: string[] }>;
       onProgressLog: (callback: (entry: LogEntry) => void) => () => void;
-      listBackups: () => Promise<BackupInfo[]>;
-      createBackup: () => Promise<{ success: boolean; path: string }>;
-      restoreBackup: (backupPath: string) => Promise<{ success: boolean }>;
-      deleteBackup: (backupPath: string) => Promise<{ success: boolean }>;
+      listRestorePoints: () => Promise<{ points: RestorePointInfo[]; error?: string }>;
+      launchSystemRestore: () => Promise<{ success: boolean; error?: string }>;
       exportDiagnostics: () => Promise<{ success: boolean; path: string; error?: string }>;
       minimizeWindow: () => void;
       maximizeWindow: () => void;

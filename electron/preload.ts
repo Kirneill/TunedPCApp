@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { LogEntry, GpuAdapter, SystemInfo, DetectedGame, BackupInfo, UserConfig, UpdaterState, UpdaterActionResult } from '../src/types/index';
+import type { LogEntry, GpuAdapter, SystemInfo, DetectedGame, RestorePointInfo, UserConfig, UpdaterState, UpdaterActionResult } from '../src/types/index';
 
 const api = {
   // System
@@ -22,11 +22,11 @@ const api = {
     return () => { ipcRenderer.removeListener('optimize:log', handler); };
   },
 
-  // Backups
-  listBackups: (): Promise<BackupInfo[]> => ipcRenderer.invoke('backup:list'),
-  createBackup: (): Promise<{ success: boolean; path: string }> => ipcRenderer.invoke('backup:create'),
-  restoreBackup: (backupPath: string): Promise<{ success: boolean }> => ipcRenderer.invoke('backup:restore', backupPath),
-  deleteBackup: (backupPath: string): Promise<{ success: boolean }> => ipcRenderer.invoke('backup:delete', backupPath),
+  // Restore Points
+  listRestorePoints: (): Promise<{ points: RestorePointInfo[]; error?: string }> => ipcRenderer.invoke('restore-point:list'),
+  launchSystemRestore: (): Promise<{ success: boolean; error?: string }> => ipcRenderer.invoke('restore-point:launch'),
+
+  // Diagnostics
   exportDiagnostics: (): Promise<{ success: boolean; path: string; error?: string }> => ipcRenderer.invoke('diagnostics:export'),
 
   // Window controls

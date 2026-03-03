@@ -22,12 +22,26 @@ export default function QuickActions() {
     }
   };
 
-  const handleCreateBackup = async () => {
-    const result = await window.sensequality.createBackup();
-    if (result.success) {
+  const handleCreateRestorePoint = async () => {
+    try {
+      const result = await window.sensequality.createRestorePoint();
+      if (result.success) {
+        useAppStore.getState().addLogEntry({
+          type: 'success',
+          message: 'System restore point created successfully.',
+          timestamp: Date.now(),
+        });
+      } else {
+        useAppStore.getState().addLogEntry({
+          type: 'error',
+          message: `Restore point creation failed: ${result.errors?.join(', ') || 'Unknown error'}`,
+          timestamp: Date.now(),
+        });
+      }
+    } catch (err) {
       useAppStore.getState().addLogEntry({
-        type: 'success',
-        message: `Backup created: ${result.path}`,
+        type: 'error',
+        message: `Restore point creation failed: ${String(err)}`,
         timestamp: Date.now(),
       });
     }
@@ -78,11 +92,11 @@ export default function QuickActions() {
       </button>
 
       <button
-        onClick={handleCreateBackup}
+        onClick={handleCreateRestorePoint}
         disabled={isRunning}
         className="px-4 py-3 rounded-xl text-xs font-medium text-sq-text-muted border border-sq-border hover:bg-sq-surface-hover transition-colors disabled:opacity-50"
       >
-        Create Backup
+        Restore Point
       </button>
     </div>
   );
