@@ -152,6 +152,12 @@ try {
         "E:\Steam\steamapps\common\MarvelRivals",
         "E:\SteamLibrary\steamapps\common\MarvelRivals"
     )
+
+    # Filter out paths on drives that do not exist (Join-Path throws in PS 5.1)
+    $CommonRoots = @($CommonRoots | Where-Object {
+        if ($_ -match '^([A-Za-z]):') { Test-Path "$($Matches[1]):\" } else { $true }
+    })
+
     foreach ($root in $CommonRoots) {
         Add-UniquePath -List $ExePaths -Path (Join-Path $root "MarvelRivals_Launcher.exe")
         Add-UniquePath -List $ExePaths -Path (Join-Path $root "MarvelRivals.exe")

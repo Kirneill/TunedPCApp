@@ -54,6 +54,11 @@ $SteamPaths = @(
     "E:\SteamLibrary"
 )
 
+# Filter out paths on drives that do not exist (Join-Path throws in PS 5.1)
+$SteamPaths = @($SteamPaths | Where-Object {
+    if ($_ -match '^([A-Za-z]):') { Test-Path "$($Matches[1]):\" } else { $true }
+})
+
 # Registry-based Steam path
 try {
     $steamReg = Get-ItemProperty "HKLM:\SOFTWARE\WOW6432Node\Valve\Steam" -ErrorAction SilentlyContinue
@@ -87,6 +92,8 @@ foreach ($sp in ($SteamPaths | Select-Object -Unique)) {
             $libMatches = [regex]::Matches($vdfContent, '"path"\s+"([^"]+)"')
             foreach ($match in $libMatches) {
                 $libPath = $match.Groups[1].Value.Replace('\\\\', '\')
+                # Skip if drive does not exist (Join-Path throws in PS 5.1)
+                if ($libPath -match '^([A-Za-z]):' -and -not (Test-Path "$($Matches[1]):\")) { continue }
                 $altR6Dir = Join-Path $libPath "steamapps\common\Tom Clancy's Rainbow Six Siege"
                 $R6ExePaths += Join-Path $altR6Dir "RainbowSix.exe"
                 $R6ExePaths += Join-Path $altR6Dir "RainbowSix_BE.exe"
@@ -105,6 +112,11 @@ $UbisoftPaths = @(
     "D:\Ubisoft\games\Tom Clancy's Rainbow Six Siege",
     "E:\Ubisoft\games\Tom Clancy's Rainbow Six Siege"
 )
+
+# Filter out paths on drives that do not exist (Join-Path throws in PS 5.1)
+$UbisoftPaths = @($UbisoftPaths | Where-Object {
+    if ($_ -match '^([A-Za-z]):') { Test-Path "$($Matches[1]):\" } else { $true }
+})
 
 # Ubisoft Connect registry
 try {

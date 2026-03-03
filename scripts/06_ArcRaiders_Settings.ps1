@@ -137,6 +137,11 @@ $CommonArcRoots = @(
     "E:\SteamLibrary\steamapps\common\Arc Raiders"
 )
 
+# Filter out paths on drives that do not exist (Join-Path throws in PS 5.1)
+$CommonArcRoots = @($CommonArcRoots | Where-Object {
+    if ($_ -match '^([A-Za-z]):') { Test-Path "$($Matches[1]):\" } else { $true }
+})
+
 foreach ($root in $CommonArcRoots) {
     Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $root "ArcRaiders.exe")
     Add-UniquePath -List $ArcRaidersPaths -Path (Join-Path $root "PioneerGame\Binaries\Win64\PioneerGame-Win64-Shipping.exe")

@@ -68,6 +68,11 @@ $CommonRoots = @(
     "D:\Games\Battlestate Games\EFT"
 )
 
+# Filter out paths on drives that do not exist (Join-Path throws in PS 5.1)
+$CommonRoots = @($CommonRoots | Where-Object {
+    if ($_ -match '^([A-Za-z]):') { Test-Path "$($Matches[1]):\" } else { $true }
+})
+
 foreach ($root in $CommonRoots) {
     $TarkovExePaths += Join-Path $root "EscapeFromTarkov.exe"
 }

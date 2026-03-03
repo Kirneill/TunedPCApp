@@ -54,6 +54,11 @@ $SteamPaths = @(
     "E:\SteamLibrary"
 )
 
+# Filter out paths on drives that do not exist (Join-Path throws in PS 5.1)
+$SteamPaths = @($SteamPaths | Where-Object {
+    if ($_ -match '^([A-Za-z]):') { Test-Path "$($Matches[1]):\" } else { $true }
+})
+
 # Also try registry
 try {
     $steamReg = Get-ItemProperty "HKLM:\SOFTWARE\WOW6432Node\Valve\Steam" -ErrorAction SilentlyContinue
@@ -105,6 +110,8 @@ foreach ($sp in ($SteamPaths | Select-Object -Unique)) {
             $libMatches = [regex]::Matches($vdfContent, '"path"\s+"([^"]+)"')
             foreach ($match in $libMatches) {
                 $libPath = $match.Groups[1].Value.Replace('\\\\', '\')
+                # Skip if drive does not exist (Join-Path throws in PS 5.1)
+                if ($libPath -match '^([A-Za-z]):' -and -not (Test-Path "$($Matches[1]):\")) { continue }
                 $altRustDir = Join-Path $libPath "steamapps\common\Rust"
                 if (Test-Path $altRustDir) {
                     $RustExePaths += Join-Path $altRustDir "RustClient.exe"
