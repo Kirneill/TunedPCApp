@@ -5,6 +5,8 @@ import { listBackups, createBackup, restoreBackup, deleteBackup } from './backup
 import { runPowerShellScript, runPowerShellCommand, getScriptPath } from './powershell';
 import { trackOptimizationResult, trackFailureStage, sendRunDetail, buildHardwareInfo } from '../telemetry/telemetry';
 import { GAMES } from '../../src/data/game-registry';
+import { parseScriptCheck, mergeScriptCheck } from '../utils/sq-check';
+import type { CheckStatus, ScriptCheck } from '../utils/sq-check';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
@@ -84,14 +86,6 @@ interface RunLogOptions {
 
 type RunLogFn = (type: LogType, message: string, options?: RunLogOptions) => void;
 
-type CheckStatus = 'ok' | 'fail' | 'warn';
-
-interface ScriptCheck {
-  key: string;
-  status: CheckStatus;
-  detail: string;
-}
-
 // Check labels: game-specific labels derived from registry, non-game labels kept here
 const CHECK_LABELS: Record<string, string> = {
   // GPU profile labels (not game-specific, stay hardcoded)
@@ -110,29 +104,6 @@ const CHECK_LABELS: Record<string, string> = {
   // Game check labels -- derived from game registry
   ...Object.fromEntries(GAMES.flatMap(g => Object.entries(g.checkLabels))),
 };
-
-function parseScriptCheck(line: string): ScriptCheck | null {
-  const match = line.match(/^\[SQ_CHECK_(OK|FAIL|WARN):([A-Z0-9_]+)(?::(.*))?\]$/);
-  if (!match) return null;
-  return {
-    key: match[2],
-    status: match[1] === 'OK' ? 'ok' : (match[1] === 'FAIL' ? 'fail' : 'warn'),
-    detail: (match[3] || '').trim(),
-  };
-}
-
-function mergeScriptCheck(checks: Record<string, ScriptCheck>, next: ScriptCheck) {
-  const current = checks[next.key];
-  if (!current) {
-    checks[next.key] = next;
-    return;
-  }
-
-  const priority: Record<CheckStatus, number> = { fail: 3, warn: 2, ok: 1 };
-  if (priority[next.status] >= priority[current.status]) {
-    checks[next.key] = next;
-  }
-}
 
 function summarizeScriptChecks(log: RunLogFn, checks: Record<string, ScriptCheck>, script: string): { hasFailures: boolean; failedKeys: string[] } {
   const values = Object.values(checks);

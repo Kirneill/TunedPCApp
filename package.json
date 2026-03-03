@@ -7,6 +7,9 @@
     "dev": "cross-env ELECTRON_RUN_AS_NODE= vite",
     "build": "cross-env ELECTRON_RUN_AS_NODE= vite build",
     "package": "cross-env ELECTRON_RUN_AS_NODE= vite build && electron-builder",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "type-check": "tsc --noEmit",
     "launch": "node -e \"delete process.env.ELECTRON_RUN_AS_NODE; require('child_process').spawn(require('electron'), ['.'], {stdio:'inherit',env:process.env}).on('exit',c=>process.exit(c||0))\""
   },
   "author": "SENSEQUALITY",
@@ -34,6 +37,7 @@
     "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
-    "vite-plugin-electron": "^0.29.0"
+    "vite-plugin-electron": "^0.29.0",
+    "vitest": "^4.0.18"
   }
 }
