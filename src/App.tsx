@@ -16,12 +16,13 @@ import appLogo from './assets/app-logo.ico';
 export default function App() {
   const {
     currentPage, authLoading, showAuthGate, showMaxDevices, isOffline,
+    passwordResetTokens,
     setAuthUser, setAuthLoading, setShowAuthGate, setShowMaxDevices,
     setIsOffline, setMachines, clearAuthState,
     setSystemInfo, setDetectedGames, setIsAdmin, setIsLoading,
     addLogEntry, setShowConsentModal, setTelemetryEnabled, setToggle,
     setUpdateInfo, setUpdaterState, setCloseToBackground, setUserConfig,
-    setSystemUsage,
+    setSystemUsage, setPasswordResetTokens,
   } = useAppStore();
 
   // StrictMode guard — prevent double-init in dev
@@ -182,10 +183,15 @@ export default function App() {
     const unsubscribeUsage = window.sensequality.onSystemUsage((usage) => {
       setSystemUsage(usage);
     });
+    const unsubscribeReset = window.sensequality.onPasswordResetTokens((tokens) => {
+      setPasswordResetTokens(tokens);
+      setShowAuthGate(true);
+    });
     return () => {
       unsubscribeLogs();
       unsubscribeUpdater();
       unsubscribeUsage();
+      unsubscribeReset();
     };
   }, []);
 
@@ -283,6 +289,7 @@ export default function App() {
         onAuthenticated={async () => {
           await initializeAuthenticatedApp();
         }}
+        passwordResetTokens={passwordResetTokens}
       />
     );
   }

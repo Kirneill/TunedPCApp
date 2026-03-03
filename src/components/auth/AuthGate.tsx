@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/appStore';
 import appLogo from '../../assets/app-logo.ico';
 
-type Mode = 'signin' | 'signup' | 'reset';
+type Mode = 'signin' | 'signup' | 'reset' | 'newpassword';
 
 interface AuthGateProps {
   onAuthenticated: () => Promise<void>;
+  passwordResetTokens?: { access_token: string; refresh_token: string } | null;
 }
 
-export default function AuthGate({ onAuthenticated }: AuthGateProps) {
-  const { setAuthUser, setShowAuthGate, setAuthLoading } = useAppStore();
+export default function AuthGate({ onAuthenticated, passwordResetTokens }: AuthGateProps) {
+  const { setAuthUser, setShowAuthGate, setAuthLoading, setPasswordResetTokens } = useAppStore();
 
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
@@ -18,10 +19,59 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [passwordResetSuccess, setPasswordResetSuccess] = useState(false);
+
+  // Handle incoming password reset tokens from deep link
+  useEffect(() => {
+    if (!passwordResetTokens) return;
+
+    // Clear tokens immediately so subsequent renders don't re-trigger
+    const tokens = passwordResetTokens;
+    setPasswordResetTokens(null);
+
+    (async () => {
+      setError(null);
+      setIsSubmitting(true);
+      const result = await window.sensequality.setSessionFromTokens(tokens);
+      setIsSubmitting(false);
+
+      if (result.success) {
+        setMode('newpassword');
+      } else {
+        setError(result.error || 'Failed to restore session from reset link. Please try again.');
+      }
+    })();
+  }, [passwordResetTokens]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // New password mode (from deep link)
+    if (mode === 'newpassword') {
+      if (!password || password.length < 6) {
+        setError('Password must be at least 6 characters.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('Passwords do not match.');
+        return;
+      }
+
+      setIsSubmitting(true);
+      const result = await window.sensequality.updatePassword(password);
+      setIsSubmitting(false);
+
+      if (result.success) {
+        setPasswordResetSuccess(true);
+        setPassword('');
+        setConfirmPassword('');
+      } else {
+        setError(result.error || 'Failed to update password.');
+      }
+      return;
+    }
 
     if (mode === 'reset') {
       if (!email.trim()) { setError('Please enter your email address.'); return; }
@@ -55,7 +105,7 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
 
     const result = mode === 'signup'
       ? await window.sensequality.signUp(email.trim(), password)
-      : await window.sensequality.signIn(email.trim(), password);
+      : await window.sensequality.signIn(email.trim(), password, rememberMe);
 
     setIsSubmitting(false);
 
@@ -81,6 +131,7 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
     setMode(newMode);
     setError(null);
     setResetSent(false);
+    setPasswordResetSuccess(false);
   };
 
   return (
@@ -124,22 +175,42 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
 
           <div className="sq-glass rounded-2xl p-6 shadow-2xl">
             <h2 className="text-base font-bold text-sq-text mb-1">
-              {mode === 'signin' ? 'Sign In' : mode === 'signup' ? 'Create Account' : 'Reset Password'}
+              {mode === 'signin' ? 'Sign In' : mode === 'signup' ? 'Create Account' : mode === 'newpassword' ? 'Set New Password' : 'Reset Password'}
             </h2>
             <p className="text-xs text-sq-text-muted mb-5">
               {mode === 'signin' && 'Sign in to access your optimizations.'}
               {mode === 'signup' && 'Create an account to get started.'}
               {mode === 'reset' && (resetSent ? 'Check your email for a reset link.' : 'Enter your email to receive a reset link.')}
+              {mode === 'newpassword' && !passwordResetSuccess && 'Choose a new password for your account.'}
             </p>
 
-            {resetSent ? (
+            {/* Password reset success confirmation */}
+            {passwordResetSuccess ? (
               <div className="text-center py-4">
                 <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-sq-success/20 flex items-center justify-center">
                   <svg className="w-6 h-6 text-sq-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <p className="text-sm text-sq-text mb-4">Reset email sent!</p>
+                <p className="text-sm text-sq-text mb-4">Password updated successfully!</p>
+                <button
+                  onClick={() => switchMode('signin')}
+                  className="text-xs text-sq-accent hover:underline cursor-pointer"
+                >
+                  Sign In
+                </button>
+              </div>
+            ) : resetSent ? (
+              <div className="text-center py-4">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-sq-success/20 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-sq-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <p className="text-sm text-sq-text mb-2">Reset email sent!</p>
+                <p className="text-xs text-sq-text-muted mb-4">
+                  Open the link <strong className="text-sq-text">on this computer</strong> to set your new password.
+                </p>
                 <button
                   onClick={() => switchMode('signin')}
                   className="text-xs text-sq-accent hover:underline cursor-pointer"
@@ -149,34 +220,42 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-3">
-                <div>
-                  <label className="block text-[11px] text-sq-text-muted mb-1 uppercase tracking-wider">Email</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-sq-bg border border-sq-border text-sm text-sq-text placeholder:text-sq-text-dim focus:outline-none focus:border-sq-accent transition-colors"
-                    placeholder="you@example.com"
-                    autoFocus
-                    disabled={isSubmitting}
-                  />
-                </div>
-
-                {mode !== 'reset' && (
+                {/* Email field — shown for signin, signup, reset (not newpassword) */}
+                {mode !== 'newpassword' && (
                   <div>
-                    <label className="block text-[11px] text-sq-text-muted mb-1 uppercase tracking-wider">Password</label>
+                    <label className="block text-[11px] text-sq-text-muted mb-1 uppercase tracking-wider">Email</label>
                     <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       className="w-full px-3 py-2.5 rounded-lg bg-sq-bg border border-sq-border text-sm text-sq-text placeholder:text-sq-text-dim focus:outline-none focus:border-sq-accent transition-colors"
-                      placeholder={mode === 'signup' ? 'Min 6 characters' : 'Your password'}
+                      placeholder="you@example.com"
+                      autoFocus
                       disabled={isSubmitting}
                     />
                   </div>
                 )}
 
-                {mode === 'signup' && (
+                {/* Password field — shown for signin, signup, newpassword (not reset) */}
+                {mode !== 'reset' && (
+                  <div>
+                    <label className="block text-[11px] text-sq-text-muted mb-1 uppercase tracking-wider">
+                      {mode === 'newpassword' ? 'New Password' : 'Password'}
+                    </label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-lg bg-sq-bg border border-sq-border text-sm text-sq-text placeholder:text-sq-text-dim focus:outline-none focus:border-sq-accent transition-colors"
+                      placeholder={mode === 'signup' || mode === 'newpassword' ? 'Min 6 characters' : 'Your password'}
+                      autoFocus={mode === 'newpassword'}
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                )}
+
+                {/* Confirm password — shown for signup and newpassword */}
+                {(mode === 'signup' || mode === 'newpassword') && (
                   <div>
                     <label className="block text-[11px] text-sq-text-muted mb-1 uppercase tracking-wider">Confirm Password</label>
                     <input
@@ -188,6 +267,19 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
                       disabled={isSubmitting}
                     />
                   </div>
+                )}
+
+                {/* Stay signed in checkbox — sign in mode only */}
+                {mode === 'signin' && (
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded border-sq-border bg-sq-bg text-sq-accent focus:ring-sq-accent accent-sq-accent"
+                    />
+                    <span className="text-xs text-sq-text-muted">Stay signed in</span>
+                  </label>
                 )}
 
                 {error && (
@@ -207,16 +299,16 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
-                      {mode === 'reset' ? 'Sending...' : mode === 'signup' ? 'Creating Account...' : 'Signing In...'}
+                      {mode === 'reset' ? 'Sending...' : mode === 'signup' ? 'Creating Account...' : mode === 'newpassword' ? 'Updating...' : 'Signing In...'}
                     </span>
                   ) : (
-                    mode === 'reset' ? 'Send Reset Link' : mode === 'signup' ? 'Create Account' : 'Sign In'
+                    mode === 'reset' ? 'Send Reset Link' : mode === 'signup' ? 'Create Account' : mode === 'newpassword' ? 'Set Password' : 'Sign In'
                   )}
                 </button>
               </form>
             )}
 
-            {!resetSent && (
+            {!resetSent && !passwordResetSuccess && (
               <div className="mt-4 text-center space-y-2">
                 {mode === 'signin' && (
                   <>
@@ -244,6 +336,13 @@ export default function AuthGate({ onAuthenticated }: AuthGateProps) {
                     Remember your password?{' '}
                     <button onClick={() => switchMode('signin')} className="text-sq-accent hover:underline cursor-pointer">
                       Sign in
+                    </button>
+                  </p>
+                )}
+                {mode === 'newpassword' && (
+                  <p className="text-xs text-sq-text-muted">
+                    <button onClick={() => switchMode('signin')} className="text-sq-accent hover:underline cursor-pointer">
+                      Back to Sign In
                     </button>
                   </p>
                 )}

@@ -37,6 +37,7 @@ function getPlaintextPath(): string {
 interface StoredSession {
   access_token: string;
   refresh_token: string;
+  rememberMe?: boolean; // defaults true for backward compat
 }
 
 function saveSession(session: StoredSession): void {
@@ -113,6 +114,25 @@ function isNetworkError(err: unknown): boolean {
   );
 }
 
+/** Returns true only for auth errors that cannot recover with a retry (invalid/revoked tokens, banned user). */
+function isTerminalAuthError(err: unknown): boolean {
+  if (!err) return false;
+  const msg = ((err as { message?: string }).message || String(err)).toLowerCase();
+  const status = (err as { status?: number }).status;
+
+  // Explicit HTTP 401/403 = token rejected by server
+  if (status === 401 || status === 403) return true;
+
+  // Supabase-specific terminal messages
+  if (msg.includes('invalid_grant')) return true;
+  if (msg.includes('invalid refresh token')) return true;
+  if (msg.includes('user not found')) return true;
+  if (msg.includes('user banned')) return true;
+  if (msg.includes('refresh_token_not_found')) return true;
+
+  return false;
+}
+
 function mapAuthError(error: { message?: string; status?: number } | null): string {
   if (!error) return 'Unknown error';
   const msg = error.message || '';
@@ -177,6 +197,7 @@ export async function initAuth(): Promise<void> {
     auth: {
       autoRefreshToken: true,
       persistSession: false, // We handle persistence ourselves via safeStorage
+      flowType: 'implicit', // Required for custom protocol password reset (PKCE verifier lost on app restart)
     },
   });
 
@@ -194,9 +215,13 @@ export async function initAuth(): Promise<void> {
         if (isNetworkError(error)) {
           isOffline = true;
           console.warn('[auth] Offline — could not refresh session');
-        } else {
-          // Token is invalid/expired beyond refresh — clear it
+        } else if (isTerminalAuthError(error)) {
+          // Token is genuinely invalid/revoked — clear it
+          console.warn('[auth] Terminal auth error — clearing session:', error.message);
           clearSession();
+        } else {
+          // Transient server error (500, 429, etc.) — preserve session for retry
+          console.warn('[auth] Transient auth error — preserving session:', error.message);
         }
       } else {
         // Session restored successfully — re-persist (tokens may have been refreshed)
@@ -205,6 +230,7 @@ export async function initAuth(): Promise<void> {
           saveSession({
             access_token: data.session.access_token,
             refresh_token: data.session.refresh_token,
+            rememberMe: stored.rememberMe,
           });
         }
       }
@@ -212,8 +238,12 @@ export async function initAuth(): Promise<void> {
       if (isNetworkError(err)) {
         isOffline = true;
         console.warn('[auth] Offline — network error during init');
-      } else {
+      } else if (isTerminalAuthError(err)) {
+        console.warn('[auth] Terminal auth error (exception) — clearing session');
         clearSession();
+      } else {
+        // Transient error — preserve session
+        console.warn('[auth] Transient error during init — preserving session:', err instanceof Error ? err.message : err);
       }
     }
   }
@@ -257,7 +287,7 @@ export async function signUp(email: string, password: string): Promise<AuthResul
   }
 }
 
-export async function signIn(email: string, password: string): Promise<AuthResult> {
+export async function signIn(email: string, password: string, rememberMe = true): Promise<AuthResult> {
   if (!supabase) return { success: false, error: 'Auth not initialized' };
 
   try {
@@ -269,6 +299,7 @@ export async function signIn(email: string, password: string): Promise<AuthResul
     saveSession({
       access_token: data.session.access_token,
       refresh_token: data.session.refresh_token,
+      rememberMe,
     });
 
     isOffline = false;
@@ -296,7 +327,7 @@ export async function resetPassword(email: string): Promise<AuthResult> {
 
   try {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://sensequality.com/reset-password',
+      redirectTo: 'sensequality://reset-password',
     });
     if (error) return { success: false, error: mapAuthError(error) };
     return { success: true };
@@ -479,5 +510,84 @@ export async function hasJoinedWaitlist(feature: string): Promise<boolean> {
   } catch (err) {
     console.error('[auth] hasJoinedWaitlist exception:', err instanceof Error ? err.message : err);
     return false;
+  }
+}
+
+// ─── Remember Me ─────────────────────────────────────────
+
+export function getRememberMe(): boolean {
+  const stored = loadSession();
+  // Default to true for backward compat (sessions saved before this feature)
+  return stored?.rememberMe !== false;
+}
+
+export function setRememberMe(value: boolean): void {
+  const stored = loadSession();
+  if (stored) {
+    saveSession({ ...stored, rememberMe: value });
+  }
+}
+
+/** Call from before-quit to clear session when rememberMe is false. */
+export function onAppClosing(): void {
+  if (!getRememberMe()) {
+    console.log('[auth] rememberMe is false — clearing session on quit');
+    clearSession();
+  }
+}
+
+// ─── Password Reset Deep Link ────────────────────────────
+
+export async function setSessionFromTokens(tokens: {
+  access_token: string;
+  refresh_token: string;
+}): Promise<AuthResult> {
+  if (!supabase) return { success: false, error: 'Auth not initialized' };
+
+  try {
+    const { data, error } = await supabase.auth.setSession({
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+    });
+
+    if (error) return { success: false, error: mapAuthError(error) };
+    if (!data.session?.user) return { success: false, error: 'Failed to restore session from tokens.' };
+
+    // Don't persist to disk yet — this is a recovery session that should only
+    // be saved after the user successfully sets their new password.
+    isOffline = false;
+    return {
+      success: true,
+      user: { id: data.session.user.id, email: data.session.user.email || '' },
+    };
+  } catch (err) {
+    if (isNetworkError(err)) return { success: false, error: 'No internet connection.' };
+    return { success: false, error: mapAuthError(err as { message?: string }) };
+  }
+}
+
+export async function updatePassword(newPassword: string): Promise<AuthResult> {
+  if (!supabase) return { success: false, error: 'Auth not initialized' };
+
+  try {
+    const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+
+    if (error) return { success: false, error: mapAuthError(error) };
+    if (!data.user) return { success: false, error: 'Password update failed.' };
+
+    // Now that password is changed, persist the session so user can sign in next launch
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData.session) {
+      saveSession({
+        access_token: sessionData.session.access_token,
+        refresh_token: sessionData.session.refresh_token,
+        rememberMe: true,
+      });
+    }
+
+    return { success: true };
+  } catch (err) {
+    if (isNetworkError(err)) return { success: false, error: 'No internet connection.' };
+    return { success: false, error: mapAuthError(err as { message?: string }) };
   }
 }

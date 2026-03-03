@@ -48,13 +48,23 @@ const api = {
 
   // Auth
   signUp: (email: string, password: string) => ipcRenderer.invoke('auth:signUp', email, password),
-  signIn: (email: string, password: string) => ipcRenderer.invoke('auth:signIn', email, password),
+  signIn: (email: string, password: string, rememberMe?: boolean) => ipcRenderer.invoke('auth:signIn', email, password, rememberMe),
   signOut: () => ipcRenderer.invoke('auth:signOut'),
   resetPassword: (email: string) => ipcRenderer.invoke('auth:resetPassword', email),
   getSession: () => ipcRenderer.invoke('auth:getSession'),
   getAuthUser: () => ipcRenderer.invoke('auth:getUser'),
   isOffline: () => ipcRenderer.invoke('auth:isOffline'),
   getMachineId: () => ipcRenderer.invoke('auth:getMachineId'),
+  getRememberMe: () => ipcRenderer.invoke('auth:getRememberMe'),
+  setRememberMe: (value: boolean) => ipcRenderer.invoke('auth:setRememberMe', value),
+  setSessionFromTokens: (tokens: { access_token: string; refresh_token: string }) =>
+    ipcRenderer.invoke('auth:setSessionFromTokens', tokens),
+  updatePassword: (newPassword: string) => ipcRenderer.invoke('auth:updatePassword', newPassword),
+  onPasswordResetTokens: (callback: (tokens: { access_token: string; refresh_token: string }) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, tokens: { access_token: string; refresh_token: string }) => callback(tokens);
+    ipcRenderer.on('auth:passwordResetTokens', handler);
+    return () => { ipcRenderer.removeListener('auth:passwordResetTokens', handler); };
+  },
 
   // Machine management
   registerMachine: (info: { machine_name: string; gpu: string; cpu: string; ram_gb: number; os_build: string; gpu_driver?: string; gpu_vram_gb?: number }) =>
