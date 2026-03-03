@@ -50,8 +50,6 @@ if ($MonitorRefresh -ge 144) {
 }
 # ------------------------------------------------------------------------------
 
-$script:ValidationFailed = $false
-
 function Write-Check {
     param(
         [Parameter(Mandatory = $true)][ValidateSet('OK', 'FAIL', 'WARN')][string]$Status,
@@ -60,7 +58,6 @@ function Write-Check {
     )
     $suffix = if ([string]::IsNullOrWhiteSpace($Detail)) { '' } else { ":$Detail" }
     Write-Host "[SQ_CHECK_${Status}:$Key$suffix]"
-    if ($Status -eq 'FAIL') { $script:ValidationFailed = $true }
 }
 
 Write-Host "======================================================" -ForegroundColor Cyan
@@ -101,7 +98,9 @@ if (-not $GameExePath) {
             $candidate = Join-Path $eaPath "bf6.exe"
             if (Test-Path $candidate) { $GameExePath = $candidate }
         }
-    } catch { }
+    } catch {
+        Write-Host "  [INFO] EA App registry check failed: $($_.Exception.Message)" -ForegroundColor DarkGray
+    }
 }
 
 # Check Steam uninstall registry
@@ -112,7 +111,9 @@ if (-not $GameExePath) {
             $candidate = Join-Path $steamPath "bf6.exe"
             if (Test-Path $candidate) { $GameExePath = $candidate }
         }
-    } catch { }
+    } catch {
+        Write-Host "  [INFO] Steam registry check failed: $($_.Exception.Message)" -ForegroundColor DarkGray
+    }
 }
 
 # Common install paths
@@ -223,12 +224,22 @@ $CompetitiveSettings = [ordered]@{
     'GstRender.LensDistortion'              = '0'
     'GstRender.WeaponDOF'                    = '0'
     'GstRender.ScreenSpaceReflections'       = '0'
-    'GstRender.FrameRateLimiterEnable'       = '1'
 }
 
-# Add frame rate limit (dynamic based on monitor refresh)
+# Frame rate limit (dynamic based on monitor refresh)
 if ($FrameRateLimit -gt 0) {
+    $CompetitiveSettings['GstRender.FrameRateLimiterEnable'] = '1'
     $CompetitiveSettings['GstRender.FrameRateLimit'] = "$FrameRateLimit"
+} else {
+    $CompetitiveSettings['GstRender.FrameRateLimiterEnable'] = '0'
+    $CompetitiveSettings['GstRender.FrameRateLimit'] = '0'
+}
+
+# Validate USERPROFILE
+if (-not $env:USERPROFILE) {
+    Write-Host "  [FAIL] USERPROFILE environment variable is not set" -ForegroundColor Red
+    Write-Check -Status FAIL -Key BF6_CONFIG_WRITTEN -Detail "USERPROFILE not set"
+    return
 }
 
 # Locate PROFSAVE_profile -- check both EA App and Steam paths
@@ -253,7 +264,13 @@ foreach ($ConfigPath in $TargetPaths) {
     $ConfigDir = Split-Path $ConfigPath -Parent
 
     if (-not (Test-Path $ConfigDir)) {
-        New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
+        try {
+            New-Item -ItemType Directory -Path $ConfigDir -Force -ErrorAction Stop | Out-Null
+        } catch {
+            $WriteFailures += $ConfigPath
+            Write-Host "  [FAIL] Cannot create directory: $ConfigDir -- $($_.Exception.Message)" -ForegroundColor Red
+            continue
+        }
     }
 
     try {
@@ -294,11 +311,18 @@ foreach ($ConfigPath in $TargetPaths) {
         [System.IO.File]::WriteAllText($ConfigPath, $sb.ToString(), [System.Text.UTF8Encoding]::new($false))
 
         # Set read-only to prevent BF6 from overwriting
-        Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $true
+        try {
+            Set-ItemProperty -Path $ConfigPath -Name IsReadOnly -Value $true -ErrorAction Stop
+        } catch {
+            Write-Host "  [WARN] Could not set read-only flag -- BF6 may overwrite on exit: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
 
         # Verify key content was written
         $verifyContent = Get-Content -Path $ConfigPath -Raw -ErrorAction SilentlyContinue
-        if ($verifyContent -match 'GstRender\.ShadowQuality 0' -and $verifyContent -match 'GstRender\.VSyncMode 0' -and $verifyContent -match 'GstRender\.FutureFrameRendering 1') {
+        if (-not $verifyContent) {
+            $WriteFailures += $ConfigPath
+            Write-Host "  [FAIL] Cannot read config back for verification: $ConfigPath" -ForegroundColor Red
+        } elseif ($verifyContent -match 'GstRender\.ShadowQuality 0' -and $verifyContent -match 'GstRender\.VSyncMode 0' -and $verifyContent -match 'GstRender\.FutureFrameRendering 1') {
             $WriteSuccessCount++
             Write-Host "  [OK] Config written and locked: $ConfigPath" -ForegroundColor Green
         } else {
