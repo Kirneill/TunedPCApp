@@ -287,7 +287,7 @@ if ($env:VALORANT_PATH -and (Test-Path $env:VALORANT_PATH)) {
 }
 
 # HIGHDPIAWARE only: Valorant works well with fullscreen optimizations ON (unlike most games)
-Set-ExeCompatFlags -ExePaths $ValorantExePaths -CheckKey 'VALORANT_EXE_FLAGS' -Flags @('HIGHDPIAWARE')
+$null = Set-ExeCompatFlags -ExePaths $ValorantExePaths -CheckKey 'VALORANT_EXE_FLAGS' -Flags @('HIGHDPIAWARE')
 
 # =============================================================================
 # SECTION 3: PRINT FULL IN-GAME SETTINGS GUIDE

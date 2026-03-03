@@ -109,7 +109,7 @@ if (-not $GameExePath) {
 
 if ($GameExePath) {
     Write-Host "  [FOUND] bf6.exe: $GameExePath" -ForegroundColor Green
-    Set-ExeCompatFlags -ExePaths @($GameExePath) -CheckKey 'BF6_EXE_FLAGS'
+    $null = Set-ExeCompatFlags -ExePaths @($GameExePath) -CheckKey 'BF6_EXE_FLAGS'
 } else {
     Write-Host "  [WARN] bf6.exe not found -- skipping EXE flags (config optimization will still apply)" -ForegroundColor Yellow
     Write-Check -Status WARN -Key BF6_EXE_FLAGS -Detail "EXE_NOT_FOUND"

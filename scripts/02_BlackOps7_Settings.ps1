@@ -153,7 +153,7 @@ if (-not $GameExe) {
 
     # DISABLETHEMES: Prevents Windows from injecting visual theme DLL into the process
     # HIGHDPIAWARE: Lets game handle DPI rather than Windows scaling it
-    Set-ExeCompatFlags -ExePaths @($GameExe) -CheckKey 'COD_EXE_FLAGS' -Flags @('DISABLETHEMES', 'HIGHDPIAWARE')
+    $null = Set-ExeCompatFlags -ExePaths @($GameExe) -CheckKey 'COD_EXE_FLAGS' -Flags @('DISABLETHEMES', 'HIGHDPIAWARE')
 }
 
 # -----------------------------------------------------------------------------

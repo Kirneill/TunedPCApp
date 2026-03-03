@@ -249,7 +249,7 @@ miles_occlusion 0
     }
 
     $ApexExe = Join-Path $ApexInstallPath 'r5apex.exe'
-    Set-ExeCompatFlags -ExePaths @($ApexExe) -CheckKey 'APEX_EXE_FLAGS' -Flags @('HIGHDPIAWARE', 'DISABLEDXMAXIMIZEDWINDOWEDMODE')
+    $null = Set-ExeCompatFlags -ExePaths @($ApexExe) -CheckKey 'APEX_EXE_FLAGS' -Flags @('HIGHDPIAWARE', 'DISABLEDXMAXIMIZEDWINDOWEDMODE')
 }
 
 # -----------------------------------------------------------------------------

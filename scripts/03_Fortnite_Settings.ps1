@@ -351,7 +351,7 @@ $FNExePaths = @(
     "$env:ProgramFiles\Epic Games\Fortnite\FortniteGame\Binaries\Win64\FortniteClient-Win64-Shipping.exe"
 )
 
-Set-ExeCompatFlags -ExePaths $FNExePaths -CheckKey 'FN_EXE_FLAGS' -Flags @('HIGHDPIAWARE')
+$null = Set-ExeCompatFlags -ExePaths $FNExePaths -CheckKey 'FN_EXE_FLAGS' -Flags @('HIGHDPIAWARE')
 
 # -----------------------------------------------------------------------------
 # SECTION 5: PRINT REMAINING IN-GAME SETTINGS GUIDE

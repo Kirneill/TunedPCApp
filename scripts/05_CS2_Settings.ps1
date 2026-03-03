@@ -231,7 +231,7 @@ $CS2ExePaths = @(
     "D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\cs2.exe"
 )
 
-Set-ExeCompatFlags -ExePaths $CS2ExePaths -CheckKey 'CS2_EXE_FLAGS'
+$null = Set-ExeCompatFlags -ExePaths $CS2ExePaths -CheckKey 'CS2_EXE_FLAGS'
 
 # -----------------------------------------------------------------------------
 # SECTION 5: PRINT IN-GAME SETTINGS GUIDE
