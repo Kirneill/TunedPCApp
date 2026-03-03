@@ -11,7 +11,7 @@ import CodFpsGuideModal from '../ui/CodFpsGuideModal';
 const games = GAMES.map(g => ({
   id: g.id,
   toggleId: `game-${g.id}`,
-  name: g.name,
+  name: g.cardName ?? g.name,
   subtitle: g.subtitle,
   gradient: g.gradient,
   letter: g.letter,

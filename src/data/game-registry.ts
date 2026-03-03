@@ -14,7 +14,9 @@ export interface GameDefinition {
   id: string;
   /** Display name, e.g. 'Battlefield 6' */
   name: string;
-  /** Card subtitle on HomePage, e.g. 'PROFSAVE - FFR On - Reflex On+Boost' */
+  /** Short display name for game cards on HomePage. Falls back to `name` if omitted. */
+  cardName?: string;
+  /** Card subtitle on HomePage, e.g. 'PROFSAVE · FFR On · Reflex On+Boost' */
   subtitle: string;
   /** Description for Advanced page tweak cards */
   description: string;
@@ -42,7 +44,8 @@ export const GAMES: GameDefinition[] = [
   {
     id: 'blackops7',
     name: 'Call of Duty: Black Ops 7',
-    subtitle: 'Black Ops 7 - Competitive Settings',
+    cardName: 'Call of Duty',
+    subtitle: 'Black Ops 7 · Competitive Settings',
     description: 'Applies Windows EXE compatibility flags. In-game settings shown as reference guide (Ricochet protects config files).',
     gradient: 'from-orange-900 via-red-950 to-black',
     letter: 'COD',
@@ -65,8 +68,8 @@ export const GAMES: GameDefinition[] = [
   {
     id: 'fortnite',
     name: 'Fortnite',
-    subtitle: 'Performance Mode - Competitive',
-    description: 'Optimizes GameUserSettings.ini -- Performance Mode (DX11), all competitive settings, NVIDIA Reflex On+Boost.',
+    subtitle: 'Performance Mode · Competitive',
+    description: 'Optimizes GameUserSettings.ini — Performance Mode (DX11), all competitive settings, NVIDIA Reflex On+Boost.',
     gradient: 'from-blue-900 via-violet-950 to-black',
     letter: 'FN',
     risk: 'safe',
@@ -83,7 +86,7 @@ export const GAMES: GameDefinition[] = [
   {
     id: 'valorant',
     name: 'Valorant',
-    subtitle: 'Low Settings - Reflex On+Boost',
+    subtitle: 'Low Settings · Reflex On+Boost',
     description: 'Optimizes GameUserSettings.ini and EXE flags. Low materials, no shadows, NVIDIA Reflex On+Boost.',
     gradient: 'from-red-900 via-rose-950 to-black',
     letter: 'VAL',
@@ -133,8 +136,8 @@ export const GAMES: GameDefinition[] = [
   {
     id: 'arcraiders',
     name: 'Arc Raiders',
-    subtitle: 'DLSS Quality - Shadows Medium',
-    description: 'Optimizes Engine.ini -- Shadows MEDIUM minimum (player shadows), DLSS/FSR Quality, Frame Gen OFF.',
+    subtitle: 'DLSS Quality · Shadows Medium',
+    description: 'Optimizes Engine.ini — Shadows MEDIUM minimum (player shadows), DLSS/FSR Quality, Frame Gen OFF.',
     gradient: 'from-cyan-900 via-teal-950 to-black',
     letter: 'ARC',
     risk: 'safe',
@@ -190,8 +193,8 @@ export const GAMES: GameDefinition[] = [
   {
     id: 'r6siege',
     name: 'Rainbow Six Siege',
-    subtitle: 'Vulkan - Low Shadows - Reflex',
-    description: 'Optimizes GameSettings.ini -- Low shadows, TAA, Reflex On+Boost. Vulkan renderer recommended.',
+    subtitle: 'Vulkan · Low Shadows · Reflex',
+    description: 'Optimizes GameSettings.ini — Low shadows, TAA, Reflex On+Boost. Vulkan renderer recommended.',
     gradient: 'from-indigo-900 via-blue-950 to-black',
     letter: 'R6',
     risk: 'safe',
@@ -209,8 +212,8 @@ export const GAMES: GameDefinition[] = [
   {
     id: 'bf6',
     name: 'Battlefield 6',
-    subtitle: 'PROFSAVE - FFR On - Reflex On+Boost',
-    description: 'Optimizes PROFSAVE_profile -- Low shadows/effects, FFR On, Reflex On+Boost, all visual clutter off.',
+    subtitle: 'PROFSAVE · FFR On · Reflex On+Boost',
+    description: 'Optimizes PROFSAVE_profile — Low shadows/effects, FFR On, Reflex On+Boost, all visual clutter off.',
     gradient: 'from-emerald-900 via-green-950 to-black',
     letter: 'BF6',
     risk: 'safe',
