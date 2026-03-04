@@ -122,6 +122,7 @@ npx electron-builder --win nsis  # NSIS installer -> release/
 3. **JSON config files: write UTF-8 WITHOUT BOM.** PowerShell 5.1's `Set-Content -Encoding UTF8` adds a BOM (`EF BB BF`) that breaks Unity's JSON parser. Use `[System.IO.File]::WriteAllText($path, $json, [System.Text.UTF8Encoding]::new($false))`.
 4. **Validate structural requirements.** Some games require specific top-level fields to load (e.g., Tarkov needs `Version`, `Stored[]`, `DisplaySettings{}` in Graphics.ini). Missing these causes infinite loading screens.
 5. **Guide text must match config values.** If the script writes `DLSSMode = "Off"`, the printed guide must NOT say "DLSS: Quality".
+6. **NEVER cap FPS based on monitor refresh rate.** Higher FPS = lower input latency even above the monitor's refresh rate. Always set `FrameRateLimit=0` / `fps_max 0` (uncapped). If users want a cap, they set it in-game or via NVIDIA Control Panel. The app must not make that decision for them.
 
 ### Step-by-step Checklist
 
