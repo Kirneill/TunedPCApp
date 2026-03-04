@@ -204,16 +204,13 @@ function Unlock-ConfigFile {
 function Get-FrameRateLimit {
     <#
     .SYNOPSIS
-        Calculates FPS cap based on monitor refresh rate.
+        Returns the FPS limit for competitive play.
     .DESCRIPTION
-        For 144Hz+ monitors: refresh - 3 (stable frame pacing).
-        For sub-144Hz: returns 0 (uncapped -- higher FPS = lower input lag).
+        Always returns 0 (uncapped). Higher FPS = lower input latency
+        even above monitor refresh rate. Players who want a cap should
+        set it in-game or via NVIDIA Control Panel.
     #>
     param([int]$RefreshRate = $script:MonitorRefresh)
 
-    if ($RefreshRate -ge 144) {
-        return ($RefreshRate - 3)
-    } else {
-        return 0
-    }
+    return 0
 }

@@ -31,18 +31,13 @@
 # --- SHARED ENGINE + HEADLESS MODE --------------------------------------------
 . "$PSScriptRoot\SQEngine.ps1"
 Initialize-SQEngine
-$FrameRateLimit = Get-FrameRateLimit
 # ------------------------------------------------------------------------------
 
 Write-SQHeader -Title 'Battlefield 6 - Optimization Script v1.0' `
                -Subtitle 'March 2026 | Frostbite Engine'
 Write-Host "  Target Resolution : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
 Write-Host "  Refresh Rate      : ${MonitorRefresh}Hz" -ForegroundColor White
-if ($FrameRateLimit -eq 0) {
-    Write-Host "  FPS Cap           : Uncapped (monitor < 144Hz)" -ForegroundColor White
-} else {
-    Write-Host "  FPS Cap           : $FrameRateLimit (refresh-3 for stable pacing)" -ForegroundColor White
-}
+Write-Host "  FPS Cap           : Uncapped (higher FPS = lower input lag)" -ForegroundColor White
 Write-Host "  GPU               : $(if ($NvidiaGPU) { 'NVIDIA' } else { 'AMD/Intel' })" -ForegroundColor White
 Write-Host ""
 
@@ -183,14 +178,9 @@ $CompetitiveSettings = [ordered]@{
     'GstRender.ScreenSpaceReflections'       = '0'
 }
 
-# Frame rate limit (dynamic based on monitor refresh)
-if ($FrameRateLimit -gt 0) {
-    $CompetitiveSettings['GstRender.FrameRateLimiterEnable'] = '1'
-    $CompetitiveSettings['GstRender.FrameRateLimit'] = "$FrameRateLimit"
-} else {
-    $CompetitiveSettings['GstRender.FrameRateLimiterEnable'] = '0'
-    $CompetitiveSettings['GstRender.FrameRateLimit'] = '0'
-}
+# Frame rate limit -- uncapped for lowest input latency
+$CompetitiveSettings['GstRender.FrameRateLimiterEnable'] = '0'
+$CompetitiveSettings['GstRender.FrameRateLimit'] = '0'
 
 # Validate USERPROFILE
 if (-not $env:USERPROFILE) {
@@ -319,11 +309,7 @@ Write-Host "  DISPLAY:" -ForegroundColor Yellow
 Write-Host "    VSync                    : Off" -ForegroundColor White
 Write-Host "    HDR                      : Off" -ForegroundColor White
 Write-Host "    DirectX 12               : On" -ForegroundColor White
-if ($FrameRateLimit -gt 0) {
-    Write-Host "    Frame Rate Limit         : $FrameRateLimit fps" -ForegroundColor White
-} else {
-    Write-Host "    Frame Rate Limit         : Uncapped" -ForegroundColor White
-}
+Write-Host "    Frame Rate Limit         : Uncapped" -ForegroundColor White
 Write-Host ""
 Write-Host "  RENDERING:" -ForegroundColor Yellow
 Write-Host "    Future Frame Rendering   : On (30-50%% FPS boost)" -ForegroundColor White

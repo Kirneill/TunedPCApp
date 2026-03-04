@@ -123,11 +123,7 @@ Write-SQHeader -Title 'Fortnite Chapter 6 - Optimization Script v2.0' `
                -Subtitle 'March 2026 | UE5 Performance Mode (DX11)'
 Write-Host "  Target Resolution : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
 Write-Host "  Refresh Rate      : ${MonitorRefresh}Hz" -ForegroundColor White
-if ($FrameRateLimit -eq 0) {
-    Write-Host "  FPS Cap           : Uncapped (monitor < 144Hz -- higher FPS = lower input lag)" -ForegroundColor White
-} else {
-    Write-Host "  FPS Cap           : $FrameRateLimit (refresh-3 for stable pacing)" -ForegroundColor White
-}
+Write-Host "  FPS Cap           : Uncapped (higher FPS = lower input lag)" -ForegroundColor White
 Write-Host ""
 
 # -----------------------------------------------------------------------------
@@ -164,7 +160,7 @@ if (Test-Path $LegacyCandidate) {
 # - bMotionBlur=False: Motion blur reduces clarity during movement and fights
 # - sg.ShadowQuality=0: Shadows hurt FPS significantly with minimal visual need
 # - sg.EffectsQuality=0: Storm/explosion effects reduced for cleaner sightlines
-# - FrameRateLimit: Capping 3fps below max provides stable frame pacing
+# - FrameRateLimit=0: Uncapped -- higher FPS = lower input latency
 # - PreferredFullscreenMode=0: Fullscreen exclusive for lowest latency display path
 # - PreferredRHI=dx11: Performance Mode (DX11) gives 20-30% more FPS than DX12
 # - bShowGrass=True: Keep grass visible for casual users (pros toggle off in-game)
@@ -373,11 +369,7 @@ Write-Host ""
 Write-Host "  --- VIDEO SETTINGS (written to config) ---" -ForegroundColor Cyan
 Write-Host "  Window Mode            : Fullscreen Exclusive (PreferredFullscreenMode=0)" -ForegroundColor White
 Write-Host "  Resolution             : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
-if ($FrameRateLimit -eq 0) {
-    Write-Host "  Frame Rate Limit       : Uncapped (FrameRateLimit=0)" -ForegroundColor White
-} else {
-    Write-Host "  Frame Rate Limit       : $FrameRateLimit (FrameRateLimit=${FrameRateLimit}.000000)" -ForegroundColor White
-}
+Write-Host "  Frame Rate Limit       : Uncapped (FrameRateLimit=0)" -ForegroundColor White
 Write-Host "  3D Resolution          : 100% (sg.ResolutionQuality=100)" -ForegroundColor White
 Write-Host "  V-Sync                 : OFF (bUseVSync=False)" -ForegroundColor White
 Write-Host "  Multithreaded Rendering: ON (bAllowMultithreadedRendering=True)" -ForegroundColor White

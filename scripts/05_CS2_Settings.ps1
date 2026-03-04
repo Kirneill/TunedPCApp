@@ -76,7 +76,7 @@ if ($CS2Path) {
     # -------------------------------------------------------------------------
     # SECTION 2: WRITE OPTIMIZED AUTOEXEC.CFG
     # WHY FOR EACH SETTING:
-    # - fps_max: Cap at refresh+10 for stable frame pacing with GPU headroom
+    # - fps_max 0: Uncapped -- higher FPS = lower input latency
     # - cl_interp_ratio 1: Reduces interpolation delay for hit registration
     # - rate 786432: Maximum packet rate for modern connections (768KB/s)
     # - cl_updaterate/cmdrate: Maximum tick rate supported (128 on Valve servers)
@@ -94,9 +94,9 @@ if ($CS2Path) {
 // ============================================================
 
 // --- FRAME RATE ---
-// Cap FPS to prevent GPU from running unnecessarily hot
-// and to ensure consistent frame timing
-fps_max $($MonitorRefreshRate + 10)
+// Uncapped FPS -- higher frames = lower input latency even above
+// monitor refresh rate. Cap in-game or via NVIDIA CP if desired.
+fps_max 0
 fps_max_menu 60
 
 // --- NETWORK SETTINGS (Critical for hit registration) ---

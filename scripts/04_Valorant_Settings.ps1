@@ -48,11 +48,7 @@ Write-SQHeader -Title 'VALORANT - Optimization Script' `
                -Subtitle 'March 2026 | UE4 Engine | Vanguard Anti-Cheat'
 Write-Host "  Target Resolution : ${MonitorWidth}x${MonitorHeight}" -ForegroundColor White
 Write-Host "  Refresh Rate      : ${MonitorRefresh}Hz" -ForegroundColor White
-if ($FrameRateLimit -eq 0) {
-    Write-Host "  FPS Cap           : Uncapped (monitor < 144Hz -- higher FPS = lower input lag)" -ForegroundColor White
-} else {
-    Write-Host "  FPS Cap           : $FrameRateLimit (refresh-3 for stable pacing)" -ForegroundColor White
-}
+Write-Host "  FPS Cap           : Uncapped (higher FPS = lower input lag)" -ForegroundColor White
 Write-Host ""
 
 # =============================================================================
@@ -304,11 +300,7 @@ Write-Host "  Resolution             : ${MonitorWidth}x${MonitorHeight}" -Foregr
 Write-Host "  Display Mode           : Fullscreen" -ForegroundColor White
 Write-Host "                         (Exclusive fullscreen = lowest input latency)" -ForegroundColor DarkGray
 Write-Host "  V-Sync                 : OFF" -ForegroundColor White
-if ($FrameRateLimit -eq 0) {
-    Write-Host "  Max Frame Rate         : Uncapped" -ForegroundColor White
-} else {
-    Write-Host "  Max Frame Rate         : $FrameRateLimit" -ForegroundColor White
-}
+Write-Host "  Max Frame Rate         : Uncapped" -ForegroundColor White
 Write-Host "  NVIDIA Reflex          : Enabled + Boost (most important setting)" -ForegroundColor White
 Write-Host "                         Reduces system latency by 15-30ms" -ForegroundColor DarkGray
 Write-Host "  Multithreaded Rendering: ON (required for 6+ core CPUs)" -ForegroundColor White
