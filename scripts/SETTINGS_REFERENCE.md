@@ -68,7 +68,7 @@ This increases FPS by 20-30% over DX12 mode.
 | Rendering Mode | Performance | +20-30% FPS vs DX12 |
 | 3D Resolution | 100% | Lower hurts enemy clarity |
 | V-Sync | OFF | Eliminates latency |
-| Frame Rate Limit | Refresh-3 | Stable frame pacing |
+| Frame Rate Limit | Uncapped (0) | Higher FPS = lower input latency |
 | Multithreaded Rendering | ON | Requires 6+ CPU cores |
 
 ### Graphics Quality
@@ -103,7 +103,7 @@ This increases FPS by 20-30% over DX12 mode.
 | Display Mode | Fullscreen | Lowest latency |
 | Resolution | 1920x1080 | Pro standard |
 | V-Sync | OFF | Eliminates latency |
-| Max Frame Rate | Refresh-3 | Stable pacing |
+| Max Frame Rate | Uncapped (0) | Higher FPS = lower input latency |
 | NVIDIA Reflex | Enabled + Boost | 15-30ms latency reduction |
 | Multithreaded Rendering | ON | Required for modern CPUs |
 

@@ -159,34 +159,19 @@ Describe 'SQEngine shared module' -Tag 'sqengine' {
     # =========================================================================
     Describe 'Get-FrameRateLimit' {
 
-        It 'returns refresh - 3 for 144Hz' {
-            Get-FrameRateLimit -RefreshRate 144 | Should -Be 141
+        It 'always returns 0 (uncapped) regardless of refresh rate' {
+            Get-FrameRateLimit -RefreshRate 60  | Should -Be 0
+            Get-FrameRateLimit -RefreshRate 144 | Should -Be 0
+            Get-FrameRateLimit -RefreshRate 165 | Should -Be 0
+            Get-FrameRateLimit -RefreshRate 240 | Should -Be 0
+            Get-FrameRateLimit -RefreshRate 360 | Should -Be 0
         }
 
-        It 'returns refresh - 3 for 240Hz' {
-            Get-FrameRateLimit -RefreshRate 240 | Should -Be 237
-        }
-
-        It 'returns refresh - 3 for 165Hz' {
-            Get-FrameRateLimit -RefreshRate 165 | Should -Be 162
-        }
-
-        It 'returns refresh - 3 for 360Hz' {
-            Get-FrameRateLimit -RefreshRate 360 | Should -Be 357
-        }
-
-        It 'returns 0 for sub-144Hz (uncapped)' {
-            Get-FrameRateLimit -RefreshRate 60 | Should -Be 0
-            Get-FrameRateLimit -RefreshRate 75 | Should -Be 0
-            Get-FrameRateLimit -RefreshRate 120 | Should -Be 0
-            Get-FrameRateLimit -RefreshRate 143 | Should -Be 0
-        }
-
-        It 'uses $script:MonitorRefresh as default' {
+        It 'returns 0 regardless of $script:MonitorRefresh' {
             $script:MonitorRefresh = 165
-            Get-FrameRateLimit | Should -Be 162
+            Get-FrameRateLimit | Should -Be 0
 
-            $script:MonitorRefresh = 60
+            $script:MonitorRefresh = 240
             Get-FrameRateLimit | Should -Be 0
         }
     }

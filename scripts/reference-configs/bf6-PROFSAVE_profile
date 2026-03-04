@@ -38,5 +38,5 @@ GstRender.Vignette 0
 GstRender.LensDistortion 0
 GstRender.WeaponDOF 0
 GstRender.ScreenSpaceReflections 0
-GstRender.FrameRateLimiterEnable 1
-GstRender.FrameRateLimit 237
+GstRender.FrameRateLimiterEnable 0
+GstRender.FrameRateLimit 0

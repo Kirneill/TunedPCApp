@@ -765,10 +765,10 @@ Describe "Valorant GameUserSettings.ini" -Tag "valorant" {
             $sg['sg.ResolutionQuality'] | Should -Be '100.000000'
         }
 
-        It "FrameRateLimit is set to monitor refresh minus 3" {
+        It "FrameRateLimit is uncapped (0)" {
             $outSections = Parse-IniSections -Path $script:OutputFile
             $sg = $outSections['/Script/ShooterGame.ShooterGameUserSettings']
-            $sg['FrameRateLimit'] | Should -Be '237.000000'
+            $sg['FrameRateLimit'] | Should -Be '0.000000'
         }
 
         It "bUseVSync is False" {
@@ -2082,8 +2082,8 @@ Describe "CS2 autoexec.cfg" -Tag "cs2" {
             $autoexecBlock | Should -Match 'viewmodel_fov\s+68'
         }
 
-        It "Script uses dynamic fps_max based on monitor refresh" {
-            $autoexecBlock | Should -Match 'fps_max\s+\$\(' -Because "fps_max should use monitor refresh rate variable"
+        It "Script sets fps_max to 0 (uncapped)" {
+            $autoexecBlock | Should -Match 'fps_max\s+0' -Because "fps_max should be uncapped for lowest input latency"
         }
     }
 
