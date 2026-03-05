@@ -3100,3 +3100,260 @@ Describe "League of Legends game.cfg" -Tag "lol" {
         }
     }
 }
+
+# ===========================================================================
+# DOTA 2 TESTS -- VIDEO.TXT (KeyValues format)
+# ===========================================================================
+Describe "Dota 2 video.txt" -Tag "dota2" {
+
+    BeforeAll {
+        $ProjectRoot = (Get-Location).Path
+        $ScriptsDir = Join-Path $ProjectRoot "scripts"
+        $ReferenceDir = Join-Path $ScriptsDir "reference-configs"
+        $RefVideoFile = Join-Path $ReferenceDir "dota2-video.txt"
+        $RefAutoexecFile = Join-Path $ReferenceDir "dota2-autoexec.cfg"
+        $ScriptFile = Join-Path $ScriptsDir "20_Dota2_Settings.ps1"
+
+        # Helper: Parse KeyValues format into hashtable
+        function Get-KeyValuesConfig {
+            param([string]$Content)
+            $config = @{}
+            $kvMatches = [regex]::Matches($Content, '"([^"]+)"\s+"([^"]*)"')
+            foreach ($match in $kvMatches) {
+                $key = $match.Groups[1].Value
+                $value = $match.Groups[2].Value
+                if ($key -ne "VideoConfig") {
+                    $config[$key] = $value
+                }
+            }
+            return $config
+        }
+
+        # Helper: Extract command names from CFG content
+        function Get-CfgCommands {
+            param([string]$Content)
+            $Content -split "`n" |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { $_ -and $_ -notmatch '^\s*//' -and $_ -notmatch '^\s*$' } |
+                ForEach-Object { ($_ -split '\s+')[0] } |
+                Where-Object { $_ -ne 'echo' } |
+                Select-Object -Unique
+        }
+
+        # Load reference configs
+        $RefVideoContent = Get-Content $RefVideoFile -Raw
+        $RefVideoKeys = (Get-KeyValuesConfig $RefVideoContent).Keys
+        $RefAutoexecContent = Get-Content $RefAutoexecFile -Raw
+        $RefAutoexecCommands = Get-CfgCommands $RefAutoexecContent
+    }
+
+    # -----------------------------------------------------------------
+    Context "Reference video.txt is valid" {
+        It "Reference video.txt file exists" {
+            $RefVideoFile | Should -Exist
+        }
+
+        It "Reference video.txt uses KeyValues format" {
+            $RefVideoContent | Should -Match '"VideoConfig"'
+            $RefVideoContent | Should -Match '\{'
+            $RefVideoContent | Should -Match '\}'
+        }
+
+        It "Reference video.txt contains core competitive keys" {
+            $RefVideoKeys | Should -Contain "setting.mat_vsync"
+            $RefVideoKeys | Should -Contain "setting.fullscreen"
+            $RefVideoKeys | Should -Contain "setting.gpu_mem_level"
+            $RefVideoKeys | Should -Contain "setting.cpu_level"
+            $RefVideoKeys | Should -Contain "setting.r_ambient_occlusion"
+            $RefVideoKeys | Should -Contain "setting.r_grass"
+            $RefVideoKeys | Should -Contain "setting.mat_queue_mode"
+        }
+
+        It "Reference video.txt has resolution keys" {
+            $RefVideoKeys | Should -Contain "setting.defaultres"
+            $RefVideoKeys | Should -Contain "setting.defaultresheight"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Reference autoexec.cfg is valid" {
+        It "Reference autoexec.cfg file exists" {
+            $RefAutoexecFile | Should -Exist
+        }
+
+        It "Reference autoexec.cfg uses CFG format (command value per line)" {
+            $lines = Get-Content $RefAutoexecFile |
+                Where-Object { $_ -match '\S' -and $_ -notmatch '^\s*//' }
+            $lines.Count | Should -BeGreaterThan 0
+            foreach ($line in $lines) {
+                $line | Should -Match '^\s*\S+\s+.+' -Because "Each non-comment line should be: command value"
+            }
+        }
+
+        It "Reference autoexec.cfg contains core competitive commands" {
+            $RefAutoexecCommands | Should -Contain "fps_max"
+            $RefAutoexecCommands | Should -Contain "rate"
+            $RefAutoexecCommands | Should -Contain "cl_cmdrate"
+            $RefAutoexecCommands | Should -Contain "cl_updaterate"
+            $RefAutoexecCommands | Should -Contain "mat_vsync"
+            $RefAutoexecCommands | Should -Contain "mat_queue_mode"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script video.txt settings use valid key names" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptFile -Raw
+
+            # Extract the competitiveSettings ordered hashtable keys
+            $settingsBlock = [regex]::Match($scriptContent, '(?s)\$competitiveSettings\s*=\s*\[ordered\]@\{(.+?)\}')
+            $ScriptVideoKeys = @()
+            if ($settingsBlock.Success) {
+                $ScriptVideoKeys = [regex]::Matches($settingsBlock.Groups[1].Value, '"(setting\.[^"]+)"') |
+                    ForEach-Object { $_.Groups[1].Value } |
+                    Select-Object -Unique
+            }
+        }
+
+        It "Extracted video.txt setting keys from script" {
+            $ScriptVideoKeys.Count | Should -BeGreaterThan 0 -Because "Regex must extract setting keys from competitiveSettings"
+        }
+
+        It "All video.txt setting keys exist in the reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptVideoKeys) {
+                if ($key -notin $RefVideoKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These keys are not in the reference video.txt: $($missingKeys -join ', ')"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script autoexec commands use valid names" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptFile -Raw
+
+            # Extract the here-string that becomes autoexec.cfg
+            $hereStringMatch = [regex]::Match($scriptContent, '(?s)\$AutoExecContent\s*=\s*@"(.+?)"@')
+            $autoexecBlock = $hereStringMatch.Groups[1].Value
+
+            # Parse command names from the autoexec content
+            $ScriptAutoexecCommands = Get-CfgCommands $autoexecBlock
+        }
+
+        It "Here-string was successfully extracted from script" {
+            $autoexecBlock | Should -Not -BeNullOrEmpty -Because "The autoexec here-string must be extractable from the script source"
+        }
+
+        It "All autoexec commands exist in the reference config" {
+            $missingCmds = @()
+            foreach ($cmd in $ScriptAutoexecCommands) {
+                if ($cmd -notin $RefAutoexecCommands) {
+                    $missingCmds += $cmd
+                }
+            }
+            $missingCmds | Should -BeNullOrEmpty -Because "These commands are not in the reference autoexec.cfg: $($missingCmds -join ', ')"
+        }
+
+        It "Script sets fps_max to 0 (uncapped)" {
+            $autoexecBlock | Should -Match 'fps_max\s+0' -Because "fps_max should be uncapped for lowest input latency"
+        }
+
+        It "Script sets rate to maximum (786432)" {
+            $autoexecBlock | Should -Match 'rate\s+786432'
+        }
+
+        It "Script sets mat_vsync to 0" {
+            $autoexecBlock | Should -Match 'mat_vsync\s+0'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script autoexec content format" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptFile -Raw
+            $hereStringMatch = [regex]::Match($scriptContent, '(?s)\$AutoExecContent\s*=\s*@"(.+?)"@')
+            $autoexecBlock = $hereStringMatch.Groups[1].Value
+
+            $CommandLines = $autoexecBlock -split "`n" |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { $_ -and $_ -notmatch '^\s*//' -and $_ -notmatch '^\s*$' }
+        }
+
+        It "All command lines use CFG syntax (no equals signs)" {
+            foreach ($line in $CommandLines) {
+                $line | Should -Not -Match '^\w+=\S' -Because "CFG uses spaces, not equals: $line"
+            }
+        }
+
+        It "All command lines have a value after the command name" {
+            foreach ($line in $CommandLines) {
+                $line | Should -Match '^\S+\s+.+' -Because "Each line should be: command value. Got: $line"
+            }
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script source code correctness" {
+        BeforeAll {
+            $ScriptContent = Get-Content $ScriptFile -Raw
+        }
+
+        It "Script runs in headless mode" {
+            $ScriptContent | Should -Match 'Initialize-SQEngine|SENSEQUALITY_HEADLESS'
+        }
+
+        It "Script writes video.txt (read-merge-write)" {
+            $ScriptContent | Should -Match 'VideoTxtPath|video\.txt'
+        }
+
+        It "Script writes autoexec.cfg via Set-Content" {
+            $ScriptContent | Should -Match 'Set-Content.*AutoExec'
+        }
+
+        It "Script backs up existing configs before writing" {
+            $ScriptContent | Should -Match 'Backup-ConfigFile'
+        }
+
+        It "Script creates cfg directory if missing" {
+            $ScriptContent | Should -Match 'New-Item.*Directory.*CfgDir'
+        }
+
+        It "Script sets Steam launch options for Dota 2 (App ID 570)" {
+            $ScriptContent | Should -Match 'Apps\\570'
+            $ScriptContent | Should -Match 'LaunchOptions'
+        }
+
+        It "Launch options include +exec autoexec.cfg" {
+            $ScriptContent | Should -Match '\+exec autoexec\.cfg'
+        }
+
+        It "Script sets EXE compatibility flags" {
+            $ScriptContent | Should -Match 'Set-ExeCompatFlags'
+        }
+
+        It "Script searches multiple Steam library paths" {
+            $ScriptContent | Should -Match 'SteamLibraryPaths'
+            $pathCount = [regex]::Matches($ScriptContent, 'dota 2 beta').Count
+            $pathCount | Should -BeGreaterOrEqual 3
+        }
+
+        It "Script does NOT set video.txt to read-only" {
+            $ScriptContent | Should -Not -Match 'Lock-ConfigFile.*VideoTxt'
+        }
+
+        It "Script preserves user resolution (read-merge-write)" {
+            $ScriptContent | Should -Match 'existingConfig'
+            $ScriptContent | Should -Match 'mergedConfig'
+        }
+
+        It "Script emits all expected SQ_CHECK markers" {
+            $ScriptContent | Should -Match 'DOTA2_CONFIG_WRITTEN'
+            $ScriptContent | Should -Match 'DOTA2_AUTOEXEC_WRITTEN'
+            $ScriptContent | Should -Match 'DOTA2_EXE_FLAGS'
+            $ScriptContent | Should -Match 'DOTA2_LAUNCH_OPTIONS'
+        }
+    }
+}
