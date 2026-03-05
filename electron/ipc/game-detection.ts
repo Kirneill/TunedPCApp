@@ -54,6 +54,7 @@ const DETECTION_FUNCTIONS: Record<string, DetectFn> = {
   r6siege: findR6Siege,
   bf6: findBF6,
   marvelrivals: findMarvelRivals,
+  lol: findLeagueOfLegends,
 };
 
 // Derived from the unified game registry -- no manual sync needed
@@ -620,6 +621,64 @@ async function findMarvelRivals(): Promise<GameDetectionResult> {
       return { installed: true, gamePath: null };
     }
   }
+
+  return { installed: false, gamePath: null };
+}
+
+async function findLeagueOfLegends(): Promise<GameDetectionResult> {
+  // Method 1: RiotClientInstalls.json (most reliable)
+  const riotJsonPath = 'C:\\ProgramData\\Riot Games\\RiotClientInstalls.json';
+  if (fs.existsSync(riotJsonPath)) {
+    try {
+      const raw = fs.readFileSync(riotJsonPath, 'utf-8');
+      const parsed = JSON.parse(raw) as { associated_client?: Record<string, string> };
+      if (parsed.associated_client) {
+        for (const key of Object.keys(parsed.associated_client)) {
+          if (/league_of_legends/i.test(key) || /League of Legends/i.test(key)) {
+            // Key is the path to the game product folder (forward slashes)
+            const gamePath = key.replace(/\//g, '\\').replace(/\\[^\\]*$/, '');
+            if (fs.existsSync(gamePath)) {
+              return { installed: true, gamePath };
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`[game-detection] Failed to parse RiotClientInstalls.json: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  // Method 2: Direct LoL registry key
+  const lolRegResult = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Riot Games\\League of Legends' -ErrorAction SilentlyContinue).InstallPath`
+  );
+  if (lolRegResult.success && lolRegResult.output.length > 0 && lolRegResult.output[0] && fs.existsSync(lolRegResult.output[0])) {
+    return { installed: true, gamePath: lolRegResult.output[0] };
+  }
+
+  // Method 3: Uninstall registry key
+  const uninstResult = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\League of Legends' -ErrorAction SilentlyContinue).InstallLocation`
+  );
+  if (uninstResult.success && uninstResult.output.length > 0 && uninstResult.output[0] && fs.existsSync(uninstResult.output[0])) {
+    return { installed: true, gamePath: uninstResult.output[0] };
+  }
+
+  // Method 4: Common install paths
+  const commonPaths = [
+    'C:\\Riot Games\\League of Legends',
+    'D:\\Riot Games\\League of Legends',
+    'C:\\Program Files\\Riot Games\\League of Legends',
+    'C:\\Program Files (x86)\\Riot Games\\League of Legends',
+    'E:\\Riot Games\\League of Legends',
+  ];
+  const commonInstall = firstExistingPath(commonPaths);
+  if (commonInstall) return { installed: true, gamePath: commonInstall };
+
+  // Method 5: Config folder proves installation but is NOT a valid game path
+  // The config is inside the install dir (Game\Config\game.cfg), so if the
+  // install folder doesn't exist, we can't locate the config either.
+  // No separate config-only detection needed for LoL.
 
   return { installed: false, gamePath: null };
 }

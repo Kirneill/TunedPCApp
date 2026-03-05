@@ -2746,3 +2746,357 @@ Describe "Marvel Rivals GameUserSettings.ini" -Tag "marvelrivals" {
         }
     }
 }
+
+# ===========================================================================
+# LEAGUE OF LEGENDS TESTS
+# ===========================================================================
+Describe "League of Legends game.cfg" -Tag "lol" {
+
+    BeforeAll {
+        $ProjectRoot = (Get-Location).Path
+        $ScriptsDir = Join-Path $ProjectRoot "scripts"
+        $ReferenceDir = Join-Path $ScriptsDir "reference-configs"
+        $RefFile = Join-Path $ReferenceDir "lol-game.cfg"
+        $ScriptFile = Join-Path $ScriptsDir "19_LeagueOfLegends_Settings.ps1"
+
+        # Helper: Check if a file starts with UTF-8 BOM (EF BB BF)
+        function Test-HasBOM {
+            param([string]$Path)
+            $bytes = [System.IO.File]::ReadAllBytes($Path)
+            return ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+        }
+
+        # Helper: Parse INI into ordered dict of section -> keys
+        function Parse-IniSections {
+            param([string]$Path)
+            $sections = [ordered]@{}
+            $currentSection = ""
+            foreach ($line in (Get-Content $Path)) {
+                if ($line -match '^\[(.+)\]$') {
+                    $currentSection = $Matches[1]
+                    if (-not $sections.Contains($currentSection)) {
+                        $sections[$currentSection] = [ordered]@{}
+                    }
+                } elseif ($currentSection -and $line -match '^(.+?)=(.*)$') {
+                    $sections[$currentSection][$Matches[1]] = $Matches[2]
+                }
+            }
+            return $sections
+        }
+
+        # Helper: Run the LoL script in a temp sandbox
+        function Invoke-LolScript {
+            param(
+                [string]$TempRoot,
+                [bool]$SeedConfig = $true
+            )
+            # LoL config is at <install>\Game\Config\game.cfg
+            $configDir = Join-Path $TempRoot "Game\Config"
+            New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+
+            if ($SeedConfig) {
+                Copy-Item $RefFile (Join-Path $configDir "game.cfg") -Force
+            }
+
+            $origLolPath = $env:LOL_PATH
+            $env:LOL_PATH = $TempRoot
+            $env:SENSEQUALITY_HEADLESS = "1"
+            $env:MONITOR_WIDTH = "1920"
+            $env:MONITOR_HEIGHT = "1080"
+            $env:MONITOR_REFRESH = "240"
+            $env:NVIDIA_GPU = "1"
+
+            $output = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $ScriptFile 2>&1
+
+            $env:LOL_PATH = $origLolPath
+            $env:SENSEQUALITY_HEADLESS = $null
+            $env:MONITOR_WIDTH = $null
+            $env:MONITOR_HEIGHT = $null
+            $env:MONITOR_REFRESH = $null
+            $env:NVIDIA_GPU = $null
+
+            return @{
+                OutputCfg    = Join-Path $configDir "game.cfg"
+                ScriptOutput = $output
+            }
+        }
+
+        # Helper: Clean up temp dir (clears read-only flags first)
+        function Remove-TempSandbox {
+            param([string]$Path)
+            if ($Path -and (Test-Path $Path)) {
+                Get-ChildItem $Path -Recurse -File -ErrorAction SilentlyContinue |
+                    ForEach-Object { if ($_.IsReadOnly) { $_.IsReadOnly = $false } }
+                Remove-Item -Recurse -Force $Path -ErrorAction SilentlyContinue
+            }
+        }
+
+        # Parse reference config
+        $RefSections = Parse-IniSections -Path $RefFile
+    }
+
+    # -----------------------------------------------------------------
+    Context "Reference config is valid" {
+        It "Reference file exists" {
+            $RefFile | Should -Exist
+        }
+
+        It "Reference file has General section" {
+            $RefSections.Keys | Should -Contain 'General'
+        }
+
+        It "Reference file has Performance section" {
+            $RefSections.Keys | Should -Contain 'Performance'
+        }
+
+        It "Reference file has HUD section" {
+            $RefSections.Keys | Should -Contain 'HUD'
+        }
+
+        It "General section has display keys" {
+            $gen = $RefSections['General']
+            $gen.Keys | Should -Contain 'WindowMode'
+            $gen.Keys | Should -Contain 'Width'
+            $gen.Keys | Should -Contain 'Height'
+            $gen.Keys | Should -Contain 'WaitForVerticalSync'
+        }
+
+        It "Performance section has all expected keys" {
+            $perf = $RefSections['Performance']
+            $perf.Keys | Should -Contain 'ShadowsEnabled'
+            $perf.Keys | Should -Contain 'ShadowQuality'
+            $perf.Keys | Should -Contain 'CharacterQuality'
+            $perf.Keys | Should -Contain 'EnvironmentQuality'
+            $perf.Keys | Should -Contain 'EffectsQuality'
+            $perf.Keys | Should -Contain 'FrameCapType'
+            $perf.Keys | Should -Contain 'GraphicsSlider'
+            $perf.Keys | Should -Contain 'EnableParticleOptimizations'
+            $perf.Keys | Should -Contain 'BudgetOverdrawAverage'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script competitive settings use valid key names" {
+        BeforeAll {
+            $ScriptContent = Get-Content $ScriptFile -Raw
+
+            # Extract General override keys
+            $generalBlock = [regex]::Match($ScriptContent, '(?s)\$GeneralOverrides\s*=\s*@\{(.+?)\}')
+            $ScriptGeneralKeys = @()
+            if ($generalBlock.Success) {
+                $ScriptGeneralKeys = [regex]::Matches($generalBlock.Groups[1].Value, "'(\w+)'\s*=") |
+                    ForEach-Object { $_.Groups[1].Value } |
+                    Select-Object -Unique
+            }
+
+            # Extract Performance override keys
+            $perfBlock = [regex]::Match($ScriptContent, '(?s)\$PerformanceOverrides\s*=\s*@\{(.+?)\}')
+            $ScriptPerfKeys = @()
+            if ($perfBlock.Success) {
+                $ScriptPerfKeys = [regex]::Matches($perfBlock.Groups[1].Value, "'(\w+)'\s*=") |
+                    ForEach-Object { $_.Groups[1].Value } |
+                    Select-Object -Unique
+            }
+
+            # Extract HUD override keys
+            $hudBlock = [regex]::Match($ScriptContent, '(?s)\$HudOverrides\s*=\s*@\{(.+?)\}')
+            $ScriptHudKeys = @()
+            if ($hudBlock.Success) {
+                $ScriptHudKeys = [regex]::Matches($hudBlock.Groups[1].Value, "'(\w+)'\s*=") |
+                    ForEach-Object { $_.Groups[1].Value } |
+                    Select-Object -Unique
+            }
+
+            $RefGeneralKeys = $RefSections['General'].Keys
+            $RefPerfKeys = $RefSections['Performance'].Keys
+            $RefHudKeys = $RefSections['HUD'].Keys
+        }
+
+        It "Extracted General override keys are non-empty" {
+            $ScriptGeneralKeys.Count | Should -BeGreaterThan 0 -Because "Regex must extract General keys from script"
+        }
+
+        It "Extracted Performance override keys are non-empty" {
+            $ScriptPerfKeys.Count | Should -BeGreaterThan 0 -Because "Regex must extract Performance keys from script"
+        }
+
+        It "All General override keys exist in reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptGeneralKeys) {
+                if ($key -notin $RefGeneralKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These General keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+
+        It "All Performance override keys exist in reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptPerfKeys) {
+                if ($key -notin $RefPerfKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These Performance keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+
+        It "All HUD override keys exist in reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptHudKeys) {
+                if ($key -notin $RefHudKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These HUD keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script output -- seeded config (read-merge-write)" {
+        BeforeAll {
+            $script:TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "sq-test-lol-seeded-$(Get-Random)"
+            $script:Result = Invoke-LolScript -TempRoot $script:TempDir -SeedConfig $true
+        }
+
+        AfterAll { Remove-TempSandbox -Path $script:TempDir }
+
+        It "game.cfg output file exists" {
+            $script:Result.OutputCfg | Should -Exist
+        }
+
+        It "game.cfg has no UTF-8 BOM" {
+            Test-HasBOM -Path $script:Result.OutputCfg | Should -BeFalse -Because "INI should be UTF-8 without BOM"
+        }
+
+        It "Output is parseable" {
+            { Parse-IniSections -Path $script:Result.OutputCfg } | Should -Not -Throw
+        }
+
+        It "Output has General section" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output.Keys | Should -Contain 'General'
+        }
+
+        It "Output has Performance section" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output.Keys | Should -Contain 'Performance'
+        }
+
+        It "Output has HUD section" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output.Keys | Should -Contain 'HUD'
+        }
+
+        It "Shadows are disabled (ShadowsEnabled=0)" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output['Performance']['ShadowsEnabled'] | Should -Be '0'
+        }
+
+        It "FPS is uncapped (FrameCapType=10)" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output['Performance']['FrameCapType'] | Should -Be '10'
+        }
+
+        It "V-Sync is off" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output['General']['WaitForVerticalSync'] | Should -Be '0'
+        }
+
+        It "Window mode is fullscreen (0)" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output['General']['WindowMode'] | Should -Be '0'
+        }
+
+        It "GraphicsSlider is Custom (-1)" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output['Performance']['GraphicsSlider'] | Should -Be '-1'
+        }
+
+        It "Auto performance settings is off" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output['Performance']['AutoPerformanceSettings'] | Should -Be '0'
+        }
+
+        It "Character quality is Low (1)" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output['Performance']['CharacterQuality'] | Should -Be '1'
+        }
+
+        It "Particle optimizations are enabled" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output['Performance']['EnableParticleOptimizations'] | Should -Be '1'
+        }
+
+        It "game.cfg is read-only" {
+            (Get-Item $script:Result.OutputCfg).IsReadOnly | Should -BeTrue -Because "Config should be locked to prevent LoL from overwriting"
+        }
+
+        It "Read-merge-write preserves seeded Volume section" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output.Keys | Should -Contain 'Volume'
+            $output['Volume']['MasterVolume'] | Should -Be '0.5000'
+        }
+
+        It "Read-merge-write preserves seeded FloatingText section" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output.Keys | Should -Contain 'FloatingText'
+        }
+
+        It "Read-merge-write preserves Width and Height" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output['General']['Width'] | Should -Be '1920'
+            $output['General']['Height'] | Should -Be '1080'
+        }
+
+        It "Read-merge-write preserves CfgVersion" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output['General']['CfgVersion'] | Should -Not -BeNullOrEmpty
+        }
+
+        It "Script emitted LOL_EXE_FLAGS marker" {
+            $script:Result.ScriptOutput -join "`n" | Should -Match '\[SQ_CHECK_(OK|WARN):LOL_EXE_FLAGS'
+        }
+
+        It "Script emitted LOL_CONFIG_WRITTEN OK marker" {
+            $script:Result.ScriptOutput -join "`n" | Should -Match '\[SQ_CHECK_OK:LOL_CONFIG_WRITTEN\]'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script output -- fresh config (no existing game.cfg)" {
+        BeforeAll {
+            $script:TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "sq-test-lol-fresh-$(Get-Random)"
+            $script:Result = Invoke-LolScript -TempRoot $script:TempDir -SeedConfig $false
+        }
+
+        AfterAll { Remove-TempSandbox -Path $script:TempDir }
+
+        It "game.cfg is created from scratch" {
+            $script:Result.OutputCfg | Should -Exist
+        }
+
+        It "Fresh config has General section" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output.Keys | Should -Contain 'General'
+        }
+
+        It "Fresh config has Performance section" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output.Keys | Should -Contain 'Performance'
+        }
+
+        It "Fresh config has shadows disabled" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output['Performance']['ShadowsEnabled'] | Should -Be '0'
+        }
+
+        It "Fresh config has uncapped FPS" {
+            $output = Parse-IniSections -Path $script:Result.OutputCfg
+            $output['Performance']['FrameCapType'] | Should -Be '10'
+        }
+
+        It "Script emitted LOL_CONFIG_WRITTEN OK marker" {
+            $script:Result.ScriptOutput -join "`n" | Should -Match '\[SQ_CHECK_OK:LOL_CONFIG_WRITTEN\]'
+        }
+    }
+}

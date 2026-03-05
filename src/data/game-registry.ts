@@ -246,4 +246,22 @@ export const GAMES: GameDefinition[] = [
     },
     defaultEnabled: true,
   },
+  {
+    id: 'lol',
+    name: 'League of Legends',
+    subtitle: 'All Low · Shadows Off · Uncapped FPS',
+    description: 'Optimizes game.cfg -- Shadows off, all Low quality, uncapped FPS, particle budget tuning. Read-only lock prevents overwrite.',
+    gradient: 'from-yellow-900 via-amber-950 to-black',
+    letter: 'LoL',
+    risk: 'safe',
+    requiresReboot: false,
+    script: '19_LeagueOfLegends_Settings.ps1',
+    pathEnvVar: 'LOL_PATH',
+    steamFolders: [],
+    checkLabels: {
+      LOL_EXE_FLAGS: 'League of Legends EXE compatibility flags',
+      LOL_CONFIG_WRITTEN: 'League of Legends game.cfg written',
+    },
+    defaultEnabled: true,
+  },
 ];
