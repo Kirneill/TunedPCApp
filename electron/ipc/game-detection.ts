@@ -55,6 +55,7 @@ const DETECTION_FUNCTIONS: Record<string, DetectFn> = {
   bf6: findBF6,
   marvelrivals: findMarvelRivals,
   lol: findLeagueOfLegends,
+  dota2: findDota2,
 };
 
 // Derived from the unified game registry -- no manual sync needed
@@ -681,6 +682,20 @@ async function findLeagueOfLegends(): Promise<GameDetectionResult> {
   // No separate config-only detection needed for LoL.
 
   return { installed: false, gamePath: null };
+}
+
+async function findDota2(): Promise<string | null> {
+  // Dota 2 is Steam-only (app ID 570). Steam VDF detection handles the
+  // primary case via steamFolders: ['dota 2 beta']. This fallback checks
+  // the Steam uninstall registry key.
+  const result = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 570' -ErrorAction SilentlyContinue).InstallLocation`
+  );
+  if (result.success && result.output.length > 0 && result.output[0] && fs.existsSync(result.output[0])) {
+    return result.output[0];
+  }
+
+  return null;
 }
 
 // ---------------------------------------------------------------------------
