@@ -38,7 +38,6 @@ export default function HomePage() {
     'win-power-plan', 'win-hags', 'win-game-mode', 'win-mmcss',
     'win-network', 'win-visual-fx', 'win-fullscreen', 'win-mouse', 'win-cpu-power',
     'win-bg-apps', 'win-mpo', 'win-visual-extras', 'win-copilot', 'win-standard', 'win-gpu-profile',
-    'win-timer-res', 'win-power-throttle', 'win-priority-sep',
   ];
   const idsToRun = [
     ...(windowsEnabled ? allWindowsIds : []),
