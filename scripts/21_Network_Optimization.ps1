@@ -104,7 +104,7 @@ Write-Host "------------------------------------------" -ForegroundColor DarkGra
 
 $primaryAdapter = Get-NetAdapter -Physical | Where-Object { $_.Status -eq 'Up' } | Select-Object -First 1
 if (-not $primaryAdapter) {
-    Write-Host "  [FAIL] No active physical network adapter found." -ForegroundColor Red
+    Write-Host "  [FAIL] No active physical network adapter found (checked Ethernet and Wi-Fi)." -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:NET_ADAPTER:NO_ACTIVE_ADAPTER]"
     exit 1
 }
@@ -182,6 +182,11 @@ try {
     $activeAdapters = Get-NetAdapter -Physical | Where-Object { $_.Status -eq 'Up' }
     $dnsSet = 0
     foreach ($nic in $activeAdapters) {
+        # Log existing DNS before overwriting (for user reference if they need to revert)
+        $existingDns = Get-DnsClientServerAddress -InterfaceIndex $nic.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue
+        if ($existingDns -and $existingDns.ServerAddresses) {
+            Write-Host "  [BACKUP] $($nic.Name) DNS was: $($existingDns.ServerAddresses -join ', ')" -ForegroundColor DarkGray
+        }
         Set-DnsClientServerAddress -InterfaceIndex $nic.ifIndex -ServerAddresses @("1.1.1.1", "1.0.0.1", "8.8.8.8") -ErrorAction Stop
         $dnsSet++
     }
@@ -207,10 +212,8 @@ Write-Host "------------------------------------------" -ForegroundColor DarkGra
 Write-Host "[4/5] REGISTRY NETWORK TWEAKS" -ForegroundColor White
 Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
-# MMCSS Network Throttling -- remove 10 packets/ms default throttle
-$mmcss = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
-Set-RegistryValueSafe -Path $mmcss -Name "NetworkThrottlingIndex" -Value 0xFFFFFFFF -CheckKey "REG_NET_THROTTLE" -Label "NetworkThrottlingIndex = 0xFFFFFFFF (no throttle)"
-Set-RegistryValueSafe -Path $mmcss -Name "SystemResponsiveness" -Value 0 -CheckKey "REG_SYS_RESPONSIVE" -Label "SystemResponsiveness = 0 (100% CPU to foreground)"
+# NOTE: NetworkThrottlingIndex and SystemResponsiveness are handled by win-mmcss
+# (01_Windows_Optimization.ps1 Section 4). Not duplicated here to avoid conflicts.
 
 # QoS Packet Scheduler -- no reserved bandwidth
 Set-RegistryValueSafe -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Psched" -Name "NonBestEffortLimit" -Value 0 -CheckKey "REG_QOS" -Label "QoS NonBestEffortLimit = 0 (no reserved bandwidth)"
@@ -219,12 +222,13 @@ Set-RegistryValueSafe -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Psched" -
 $tcpParams = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
 Set-RegistryValueSafe -Path $tcpParams -Name "MaxUserPort" -Value 65534 -CheckKey "REG_MAX_PORT" -Label "MaxUserPort = 65534 (expanded ephemeral port range)"
 Set-RegistryValueSafe -Path $tcpParams -Name "TcpTimedWaitDelay" -Value 30 -CheckKey "REG_TCP_WAIT" -Label "TcpTimedWaitDelay = 30 (faster port recycling)"
-Set-RegistryValueSafe -Path $tcpParams -Name "DefaultTTL" -Value 64 -CheckKey "REG_TTL" -Label "DefaultTTL = 64 (matches Linux/macOS)"
+# NOTE: DefaultTTL is handled by win-network (01_Windows_Optimization.ps1 Section 5).
 
-# Per-Interface TCP -- Nagle Algorithm + Delayed ACK
+# Per-Interface TCP -- Delayed ACK Ticks (complements win-network Nagle settings)
+# NOTE: TcpAckFrequency and TCPNoDelay are handled by win-network (01_Windows_Optimization.ps1
+# Section 5) on ALL interfaces. We only add TcpDelAckTicks here (not covered by win-network).
+if ($adapterGuid -notmatch '^\{') { $adapterGuid = "{$adapterGuid}" }
 $ifPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\$adapterGuid"
-Set-RegistryValueSafe -Path $ifPath -Name "TcpAckFrequency" -Value 1 -CheckKey "REG_ACK_FREQ" -Label "TcpAckFrequency = 1 (ACK every packet)"
-Set-RegistryValueSafe -Path $ifPath -Name "TCPNoDelay" -Value 1 -CheckKey "REG_NO_DELAY" -Label "TCPNoDelay = 1 (Nagle algorithm disabled)"
 Set-RegistryValueSafe -Path $ifPath -Name "TcpDelAckTicks" -Value 0 -CheckKey "REG_DEL_ACK" -Label "TcpDelAckTicks = 0 (no delayed ACK timer)"
 
 # Host Resolution Priority -- lower number = higher priority
@@ -248,38 +252,28 @@ Write-Host "------------------------------------------" -ForegroundColor DarkGra
 Write-Host "[5/5] TCP/IP STACK TUNING" -ForegroundColor White
 Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
+# Helper: run netsh and check $LASTEXITCODE for honest SQ_CHECK reporting
+function Invoke-NetshSafe {
+    param([string]$Command, [string]$Label, [string]$CheckKey)
+    $output = Invoke-Expression "netsh $Command" 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  [OK] $Label" -ForegroundColor Green
+        Write-Host "[SQ_CHECK_OK:${CheckKey}]"
+    } else {
+        Write-Host "  [WARN] $Label -- netsh exit code $LASTEXITCODE" -ForegroundColor Yellow
+        Write-Host "[SQ_CHECK_WARN:${CheckKey}:NETSH_EXIT_$LASTEXITCODE]"
+    }
+}
+
 # TCP auto-tuning MUST stay normal (disabling is a harmful Vista-era myth)
-netsh interface tcp set global autotuninglevel=normal 2>&1 | Out-Null
-Write-Host "  [OK] TCP Auto-Tuning verified as normal (NEVER disable this)" -ForegroundColor Green
-Write-Host "[SQ_CHECK_OK:TCP_AUTO_TUNING]"
-
-netsh interface tcp set heuristics disabled 2>&1 | Out-Null
-Write-Host "  [OK] TCP heuristics disabled (lets auto-tuning work unimpeded)" -ForegroundColor Green
-Write-Host "[SQ_CHECK_OK:TCP_HEURISTICS]"
-
-netsh interface tcp set global ecncapability=disabled 2>&1 | Out-Null
-Write-Host "  [OK] ECN disabled (ISP compatibility)" -ForegroundColor Green
-Write-Host "[SQ_CHECK_OK:TCP_ECN]"
-
-netsh interface tcp set global timestamps=disabled 2>&1 | Out-Null
-Write-Host "  [OK] TCP timestamps disabled (saves 12 bytes/segment)" -ForegroundColor Green
-Write-Host "[SQ_CHECK_OK:TCP_TIMESTAMPS]"
-
-netsh interface tcp set global chimney=disabled 2>&1 | Out-Null
-Write-Host "  [OK] TCP chimney offload disabled (deprecated)" -ForegroundColor Green
-Write-Host "[SQ_CHECK_OK:TCP_CHIMNEY]"
-
-netsh interface tcp set global rsc=disabled 2>&1 | Out-Null
-Write-Host "  [OK] Receive Segment Coalescing (RSC) disabled globally" -ForegroundColor Green
-Write-Host "[SQ_CHECK_OK:TCP_RSC]"
-
-netsh interface tcp set global rss=enabled 2>&1 | Out-Null
-Write-Host "  [OK] Receive Side Scaling (RSS) enabled" -ForegroundColor Green
-Write-Host "[SQ_CHECK_OK:TCP_RSS]"
-
-netsh interface tcp set global initialRto=2000 2>&1 | Out-Null
-Write-Host "  [OK] Initial RTO set to 2000ms (RFC recommended)" -ForegroundColor Green
-Write-Host "[SQ_CHECK_OK:TCP_INITIAL_RTO]"
+Invoke-NetshSafe -Command "interface tcp set global autotuninglevel=normal" -Label "TCP Auto-Tuning verified as normal (NEVER disable this)" -CheckKey "TCP_AUTO_TUNING"
+Invoke-NetshSafe -Command "interface tcp set heuristics disabled" -Label "TCP heuristics disabled (lets auto-tuning work unimpeded)" -CheckKey "TCP_HEURISTICS"
+Invoke-NetshSafe -Command "interface tcp set global ecncapability=disabled" -Label "ECN disabled (ISP compatibility)" -CheckKey "TCP_ECN"
+Invoke-NetshSafe -Command "interface tcp set global timestamps=disabled" -Label "TCP timestamps disabled (saves 12 bytes/segment)" -CheckKey "TCP_TIMESTAMPS"
+Invoke-NetshSafe -Command "interface tcp set global chimney=disabled" -Label "TCP chimney offload disabled (deprecated, may not exist)" -CheckKey "TCP_CHIMNEY"
+Invoke-NetshSafe -Command "interface tcp set global rsc=disabled" -Label "Receive Segment Coalescing (RSC) disabled globally" -CheckKey "TCP_RSC"
+Invoke-NetshSafe -Command "interface tcp set global rss=enabled" -Label "Receive Side Scaling (RSS) enabled" -CheckKey "TCP_RSS"
+Invoke-NetshSafe -Command "interface tcp set global initialRto=2000" -Label "Initial RTO set to 2000ms (RFC recommended)" -CheckKey "TCP_INITIAL_RTO"
 
 try {
     Set-NetOffloadGlobalSetting -PacketCoalescingFilter Disabled -ErrorAction Stop
@@ -313,8 +307,8 @@ Write-Host ""
 Write-Host "  Applied to adapter: $adapterDesc" -ForegroundColor DarkCyan
 Write-Host ""
 Write-Host "  REBOOT REQUIRED for these changes:" -ForegroundColor Yellow
-Write-Host "    - NetworkThrottlingIndex, SystemResponsiveness" -ForegroundColor Yellow
-Write-Host "    - TcpAckFrequency, TCPNoDelay, TcpDelAckTicks" -ForegroundColor Yellow
+Write-Host "    - QoS, MaxUserPort, TcpTimedWaitDelay, TcpDelAckTicks" -ForegroundColor Yellow
+Write-Host "    - Host resolution priority" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  No reboot needed for:" -ForegroundColor DarkGray
 Write-Host "    - Adapter properties, DNS, netsh TCP settings" -ForegroundColor DarkGray
