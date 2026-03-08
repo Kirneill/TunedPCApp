@@ -154,6 +154,46 @@ export const windowsOptimizations: OptimizationItem[] = [
     risk: 'safe',
     requiresReboot: true,
   },
+  {
+    id: 'win-timer-res',
+    label: 'Timer Resolution (0.5ms)',
+    description: 'Enables global timer resolution requests so games achieve 0.5ms tick rate. Improves 1%/0.1% lows by 20-30%.',
+    category: 'windows',
+    risk: 'safe',
+    requiresReboot: false,
+  },
+  {
+    id: 'win-power-throttle',
+    label: 'Disable Power Throttling',
+    description: 'Prevents Windows from reducing CPU frequency for efficiency mode. Eliminates micro-stutters from incorrect thread throttling.',
+    category: 'windows',
+    risk: 'safe',
+    requiresReboot: true,
+  },
+  {
+    id: 'win-priority-sep',
+    label: 'Foreground Priority Boost',
+    description: 'Sets Win32PrioritySeparation to 0x26 giving the active game 3x more CPU time than background processes.',
+    category: 'windows',
+    risk: 'safe',
+    requiresReboot: false,
+  },
+  {
+    id: 'win-dynamic-tick',
+    label: 'Disable Dynamic Tick',
+    description: 'Forces consistent system clock rate instead of power-saving dynamic ticks. Reduces latency jitter but hardware-dependent.',
+    category: 'windows',
+    risk: 'moderate',
+    requiresReboot: true,
+  },
+  {
+    id: 'win-hpet',
+    label: 'Disable HPET',
+    description: 'Ensures Windows uses the fast TSC timer instead of the slower HPET. Most modern systems benefit but results vary by hardware.',
+    category: 'windows',
+    risk: 'moderate',
+    requiresReboot: true,
+  },
 ];
 
 // Derived from the unified game registry -- no manual sync needed
