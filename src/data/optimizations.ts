@@ -122,6 +122,14 @@ export const windowsOptimizations: OptimizationItem[] = [
     risk: 'moderate',
     requiresReboot: false,
   },
+  {
+    id: 'win-network-adapter',
+    label: 'Network Adapter & TCP/IP Tuning',
+    description: 'Tunes adapter properties (interrupt moderation, LSO, flow control, energy efficiency), sets DNS to Cloudflare/Google, removes network throttling, optimizes TCP stack and QoS settings.',
+    category: 'windows',
+    risk: 'moderate',
+    requiresReboot: true,
+  },
 ];
 
 // Derived from the unified game registry -- no manual sync needed

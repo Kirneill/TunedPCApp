@@ -47,6 +47,7 @@ const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   'win-copilot': { script: '11_Disable_Copilot.ps1' },
   'win-standard': { script: '08_Standard_Windows_Settings.ps1' },
   'win-gpu-profile': { script: '13_GPU_Optimization.ps1' },
+  'win-network-adapter': { script: '21_Network_Optimization.ps1' },
   // Windows Update mode actions
   'updates-off': { script: '09_Windows_Update_Off.ps1' },
   'updates-on': { script: '10_Windows_Update_On.ps1' },
