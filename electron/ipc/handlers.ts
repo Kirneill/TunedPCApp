@@ -52,6 +52,11 @@ const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   'win-tcp-stack': { script: '21_Network_Optimization.ps1', envPrefix: 'TCP_STACK' },
   'win-net-throttle': { script: '21_Network_Optimization.ps1', envPrefix: 'NET_THROTTLE' },
   'win-memory': { script: '22_Memory_Optimization.ps1' },
+  'win-timer-res': { script: '23_Latency_Reduction.ps1', envPrefix: 'TIMER_RES' },
+  'win-power-throttle': { script: '23_Latency_Reduction.ps1', envPrefix: 'POWER_THROTTLE' },
+  'win-priority-sep': { script: '23_Latency_Reduction.ps1', envPrefix: 'PRIORITY_SEP' },
+  'win-dynamic-tick': { script: '23_Latency_Reduction.ps1', envPrefix: 'DYNAMIC_TICK' },
+  'win-hpet': { script: '23_Latency_Reduction.ps1', envPrefix: 'HPET' },
   // Windows Update mode actions
   'updates-off': { script: '09_Windows_Update_Off.ps1' },
   'updates-on': { script: '10_Windows_Update_On.ps1' },

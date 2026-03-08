@@ -128,6 +128,11 @@ const DEFAULT_TOGGLES: Record<string, boolean> = {
   'win-net-adapter': true,
   'win-tcp-stack': true,
   'win-net-throttle': true,
+  'win-timer-res': true,
+  'win-power-throttle': true,
+  'win-priority-sep': true,
+  'win-dynamic-tick': true,
+  'win-hpet': true,
   ...gameToggles,
 };
 
