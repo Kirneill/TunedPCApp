@@ -1,7 +1,7 @@
 import { useAppStore } from '../../store/appStore';
 import appLogo from '../../assets/app-logo.ico';
 
-type Page = 'dashboard' | 'advanced' | 'bios-guide' | 'gpu-guide' | 'backups';
+type Page = 'dashboard' | 'advanced' | 'network' | 'bios-guide' | 'gpu-guide' | 'backups';
 
 const GamepadIcon = () => (
   <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -27,6 +27,12 @@ const GpuIcon = () => (
   </svg>
 );
 
+const NetworkIcon = () => (
+  <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />
+  </svg>
+);
+
 const ShieldIcon = () => (
   <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
@@ -44,6 +50,7 @@ const sections = [
     label: 'Tweaks',
     items: [
       { id: 'advanced' as Page, label: 'Advanced', hint: 'Fine-grained controls', icon: <SlidersIcon /> },
+      { id: 'network' as Page, label: 'Network', hint: 'Latency optimization', icon: <NetworkIcon /> },
     ],
   },
   {

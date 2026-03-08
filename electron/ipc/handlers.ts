@@ -47,7 +47,10 @@ const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   'win-copilot': { script: '11_Disable_Copilot.ps1' },
   'win-standard': { script: '08_Standard_Windows_Settings.ps1' },
   'win-gpu-profile': { script: '13_GPU_Optimization.ps1' },
-  'win-network-adapter': { script: '21_Network_Optimization.ps1' },
+  'win-dns': { script: '21_Network_Optimization.ps1', envPrefix: 'DNS' },
+  'win-net-adapter': { script: '21_Network_Optimization.ps1', envPrefix: 'NET_ADAPTER_TUNE' },
+  'win-tcp-stack': { script: '21_Network_Optimization.ps1', envPrefix: 'TCP_STACK' },
+  'win-net-throttle': { script: '21_Network_Optimization.ps1', envPrefix: 'NET_THROTTLE' },
   // Windows Update mode actions
   'updates-off': { script: '09_Windows_Update_Off.ps1' },
   'updates-on': { script: '10_Windows_Update_On.ps1' },
@@ -663,11 +666,20 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
     const failureReasons: Record<string, string> = {};
 
     // Group Windows optimizations:
-    // - Section-based IDs run through script 01 with SKIP_* env flags
-    // - Standalone IDs run their own scripts
+    // - IDs with envPrefix are grouped by script (run once with SKIP_* env flags)
+    // - IDs without envPrefix run their own scripts standalone
     const windowsIds = ids.filter(id => id.startsWith('win-'));
-    const windowsSectionIds = windowsIds.filter(id => SCRIPT_MAP[id]?.script === '01_Windows_Optimization.ps1');
-    const windowsStandaloneIds = windowsIds.filter(id => SCRIPT_MAP[id] && SCRIPT_MAP[id].script !== '01_Windows_Optimization.ps1');
+    const groupedScripts: Record<string, string[]> = {};
+    const windowsStandaloneIds: string[] = [];
+    for (const id of windowsIds) {
+      const mapping = SCRIPT_MAP[id];
+      if (!mapping) continue;
+      if (mapping.envPrefix) {
+        (groupedScripts[mapping.script] ??= []).push(id);
+      } else {
+        windowsStandaloneIds.push(id);
+      }
+    }
     const gameIds = ids.filter(id => id.startsWith('game-'));
 
     // Build env vars
@@ -712,28 +724,30 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       });
     }
 
-    // Run Windows optimizations (single script, skip flags for unselected)
-    if (windowsSectionIds.length > 0) {
-      const allWindowsSectionKeys = Object.keys(SCRIPT_MAP).filter(
-        k => k.startsWith('win-') && SCRIPT_MAP[k].script === '01_Windows_Optimization.ps1'
+    // Run grouped Windows scripts (each grouped script runs once with SKIP_* env flags)
+    for (const [groupScript, groupIds] of Object.entries(groupedScripts)) {
+      // Set SKIP flags: enabled sections get '0', all other sections in the same script get '1'
+      const allKeysForScript = Object.keys(SCRIPT_MAP).filter(
+        k => k.startsWith('win-') && SCRIPT_MAP[k].script === groupScript && SCRIPT_MAP[k].envPrefix
       );
-      for (const key of allWindowsSectionKeys) {
+      const groupEnvVars = { ...envVars };
+      for (const key of allKeysForScript) {
         const prefix = SCRIPT_MAP[key]?.envPrefix;
         if (prefix) {
-          envVars[`SKIP_${prefix}`] = windowsSectionIds.includes(key) ? '0' : '1';
+          groupEnvVars[`SKIP_${prefix}`] = groupIds.includes(key) ? '0' : '1';
         }
       }
 
       // Track per-section results via structured markers from PowerShell stdout
       const sectionResults: Record<string, boolean> = {};
 
-      log('start', 'Applying Windows optimizations...', {
+      log('start', `Applying ${groupScript}...`, {
         component: 'Windows',
         action: 'script-start',
-        script: '01_Windows_Optimization.ps1',
+        script: groupScript,
       });
-      const scriptPath = getScriptPath('01_Windows_Optimization.ps1');
-      const result = await runPowerShellScript(scriptPath, envVars, (line) => {
+      const scriptPath = getScriptPath(groupScript);
+      const result = await runPowerShellScript(scriptPath, groupEnvVars, (line) => {
         // Parse structured markers: [SQ_OK:POWER_PLAN], [SQ_FAIL:POWER_PLAN], [SQ_SKIP:POWER_PLAN]
         const okMatch = line.match(/\[SQ_OK:(\w+)\]/);
         const failMatch = line.match(/\[SQ_FAIL:(\w+)\]/);
@@ -746,43 +760,43 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
           const id = PREFIX_TO_ID[failMatch[1]];
           if (id) sectionResults[id] = false;
         } else if (skipMatch) {
-          // Skipped sections are not failures — don't track them
+          // Skipped sections are not failures -- don't track them
         } else {
-          // Regular log line — forward to UI
+          // Regular log line -- forward to UI
           log('info', line, {
             component: 'Windows',
             action: 'script-output',
-            script: '01_Windows_Optimization.ps1',
+            script: groupScript,
           });
         }
       });
 
       // Assign per-section results; fall back to overall script result for sections without markers
-      for (const id of windowsSectionIds) {
+      for (const id of groupIds) {
         results[id] = sectionResults[id] !== undefined ? sectionResults[id] : result.success;
         if (!results[id]) {
           const stderrHint = result.errors[0] || '';
           failureReasons[id] = stderrHint
-            ? `Windows optimization section failed. ${stderrHint}`
-            : 'Windows optimization section failed.';
+            ? `Optimization section failed. ${stderrHint}`
+            : 'Optimization section failed.';
         }
       }
 
-      const winFailed = windowsSectionIds.filter(id => !results[id]);
-      if (winFailed.length === 0) {
-        log('success', 'Windows optimizations applied!', {
+      const failed = groupIds.filter(id => !results[id]);
+      if (failed.length === 0) {
+        log('success', `${groupScript} applied!`, {
           component: 'Windows',
           action: 'script-exit',
-          script: '01_Windows_Optimization.ps1',
+          script: groupScript,
           success: true,
         });
       } else {
         log('error',
-          `Windows optimizations: ${winFailed.length} section(s) had errors`,
+          `${groupScript}: ${failed.length} section(s) had errors`,
           {
             component: 'Windows',
             action: 'script-exit',
-            script: '01_Windows_Optimization.ps1',
+            script: groupScript,
             success: false,
             errorCode: `SCRIPT_EXIT_${result.exitCode}`,
           }
@@ -790,18 +804,18 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       }
 
       if (result.errors.length > 0) {
-        log('warning', `Windows script stderr captured (${result.errors.length} line(s)).`, {
+        log('warning', `Script stderr captured (${result.errors.length} line(s)).`, {
           component: 'Windows',
           action: 'script-stderr',
-          script: '01_Windows_Optimization.ps1',
+          script: groupScript,
           success: result.success,
           errorCode: result.success ? null : `SCRIPT_STDERR_${result.exitCode}`,
         });
       }
 
       if (!result.success) {
-        const failureText = result.errors.join(' | ') || `Windows script exited with code ${result.exitCode}`;
-        void trackFailureStage('script-exit', failureText, undefined, windowsSectionIds).catch(err => {
+        const failureText = result.errors.join(' | ') || `Script exited with code ${result.exitCode}`;
+        void trackFailureStage('script-exit', failureText, undefined, groupIds).catch(err => {
           console.warn(`[telemetry] trackFailureStage failed: ${err instanceof Error ? err.message : err}`);
         });
       }

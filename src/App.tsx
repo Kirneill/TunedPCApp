@@ -3,6 +3,7 @@ import { useAppStore } from './store/appStore';
 import TitleBar from './components/layout/TitleBar';
 import HomePage from './components/home/HomePage';
 import AdvancedPage from './components/advanced/AdvancedPage';
+import NetworkPage from './components/network/NetworkPage';
 import BiosGuidePage from './components/guides/BiosGuidePage';
 import NvidiaGuidePage from './components/guides/NvidiaGuidePage';
 import BackupPage from './components/backups/BackupPage';
@@ -301,6 +302,7 @@ export default function App() {
   const renderPage = () => {
     switch (currentPage) {
       case 'advanced': return <AdvancedPage />;
+      case 'network': return <NetworkPage />;
       case 'bios-guide': return <BiosGuidePage />;
       case 'gpu-guide': return <NvidiaGuidePage />;
       case 'backups': return <BackupPage />;

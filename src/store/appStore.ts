@@ -20,7 +20,7 @@ interface AppState {
   isLoading: boolean;
 
   // Navigation
-  currentPage: 'dashboard' | 'advanced' | 'bios-guide' | 'gpu-guide' | 'backups';
+  currentPage: 'dashboard' | 'advanced' | 'network' | 'bios-guide' | 'gpu-guide' | 'backups';
 
   // Optimization toggles
   toggles: Record<string, boolean>;
@@ -124,6 +124,10 @@ const DEFAULT_TOGGLES: Record<string, boolean> = {
   'win-copilot': true,
   'win-standard': true,
   'win-gpu-profile': true,
+  'win-dns': true,
+  'win-net-adapter': true,
+  'win-tcp-stack': true,
+  'win-net-throttle': true,
   ...gameToggles,
 };
 

@@ -9,7 +9,8 @@ import WindowsUpdateModeCard from '../windows/WindowsUpdateModeCard';
 import RestorePointControls from '../windows/RestorePointControls';
 import CodFpsGuideModal from '../ui/CodFpsGuideModal';
 
-const allOptimizations = [...windowsOptimizations, ...gameOptimizations];
+const NETWORK_IDS = new Set(['win-network', 'win-dns', 'win-net-adapter', 'win-tcp-stack', 'win-net-throttle']);
+const allOptimizations = [...windowsOptimizations.filter(o => !NETWORK_IDS.has(o.id)), ...gameOptimizations];
 
 const filterTabs = [
   { id: 'all', label: 'All Tweaks' },

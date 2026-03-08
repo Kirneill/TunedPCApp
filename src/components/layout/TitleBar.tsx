@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../../store/appStore';
 
-type Page = 'dashboard' | 'advanced' | 'bios-guide' | 'gpu-guide' | 'backups';
+type Page = 'dashboard' | 'advanced' | 'network' | 'bios-guide' | 'gpu-guide' | 'backups';
 
 const pageIcons: Record<Page, React.ReactNode> = {
   dashboard: (
@@ -12,6 +12,11 @@ const pageIcons: Record<Page, React.ReactNode> = {
   advanced: (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+    </svg>
+  ),
+  network: (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />
     </svg>
   ),
   'bios-guide': (
@@ -34,6 +39,7 @@ const pageIcons: Record<Page, React.ReactNode> = {
 const pageNames: Record<Page, string> = {
   dashboard: 'Home',
   advanced: 'Advanced',
+  network: 'Network',
   'bios-guide': 'BIOS',
   'gpu-guide': 'GPU Driver',
   backups: 'Restore',
