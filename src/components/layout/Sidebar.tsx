@@ -1,7 +1,7 @@
 import { useAppStore } from '../../store/appStore';
 import appLogo from '../../assets/app-logo.ico';
 
-type Page = 'dashboard' | 'advanced' | 'network' | 'bios-guide' | 'gpu-guide' | 'backups';
+type Page = 'dashboard' | 'advanced' | 'network' | 'bios-guide' | 'gpu-guide' | 'memory' | 'backups';
 
 const GamepadIcon = () => (
   <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -33,6 +33,12 @@ const NetworkIcon = () => (
   </svg>
 );
 
+const MemoryIcon = () => (
+  <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 003 3h7.5a3 3 0 003-3m-13.5 0V5.25A2.25 2.25 0 017.5 3h9a2.25 2.25 0 012.25 2.25v6m-13.5 3v5.25a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-5.25" />
+  </svg>
+);
+
 const ShieldIcon = () => (
   <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
@@ -58,6 +64,7 @@ const sections = [
     items: [
       { id: 'bios-guide' as Page, label: 'BIOS Guide', hint: 'Firmware setup', icon: <ChipIcon /> },
       { id: 'gpu-guide' as Page, label: 'GPU Driver', hint: 'One-click GPU profile', icon: <GpuIcon /> },
+      { id: 'memory' as Page, label: 'Memory', hint: 'RAM optimization', icon: <MemoryIcon /> },
       { id: 'backups' as Page, label: 'Restore', hint: 'System restore points', icon: <ShieldIcon /> },
     ],
   },

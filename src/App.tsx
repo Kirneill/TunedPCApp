@@ -7,6 +7,7 @@ import NetworkPage from './components/network/NetworkPage';
 import BiosGuidePage from './components/guides/BiosGuidePage';
 import NvidiaGuidePage from './components/guides/NvidiaGuidePage';
 import BackupPage from './components/backups/BackupPage';
+import MemoryPage from './components/memory/MemoryPage';
 import ConsentModal from './components/ui/ConsentModal';
 import AuthGate from './components/auth/AuthGate';
 import MaxDevicesScreen from './components/auth/MaxDevicesScreen';
@@ -305,6 +306,7 @@ export default function App() {
       case 'network': return <NetworkPage />;
       case 'bios-guide': return <BiosGuidePage />;
       case 'gpu-guide': return <NvidiaGuidePage />;
+      case 'memory': return <MemoryPage />;
       case 'backups': return <BackupPage />;
       default: return <HomePage />;
     }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../../store/appStore';
 
-type Page = 'dashboard' | 'advanced' | 'network' | 'bios-guide' | 'gpu-guide' | 'backups';
+type Page = 'dashboard' | 'advanced' | 'network' | 'bios-guide' | 'gpu-guide' | 'memory' | 'backups';
 
 const pageIcons: Record<Page, React.ReactNode> = {
   dashboard: (
@@ -29,6 +29,11 @@ const pageIcons: Record<Page, React.ReactNode> = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25A2.25 2.25 0 015.25 3h13.5A2.25 2.25 0 0121 5.25z" />
     </svg>
   ),
+  memory: (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 003 3h7.5a3 3 0 003-3m-13.5 0V5.25A2.25 2.25 0 017.5 3h9a2.25 2.25 0 012.25 2.25v6m-13.5 3v5.25a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-5.25" />
+    </svg>
+  ),
   backups: (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
@@ -42,6 +47,7 @@ const pageNames: Record<Page, string> = {
   network: 'Network',
   'bios-guide': 'BIOS',
   'gpu-guide': 'GPU Driver',
+  memory: 'Memory',
   backups: 'Restore',
 };
 

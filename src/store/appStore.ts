@@ -20,7 +20,7 @@ interface AppState {
   isLoading: boolean;
 
   // Navigation
-  currentPage: 'dashboard' | 'advanced' | 'network' | 'bios-guide' | 'gpu-guide' | 'backups';
+  currentPage: 'dashboard' | 'advanced' | 'network' | 'bios-guide' | 'gpu-guide' | 'memory' | 'backups';
 
   // Optimization toggles
   toggles: Record<string, boolean>;

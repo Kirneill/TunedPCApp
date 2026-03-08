@@ -51,6 +51,7 @@ const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   'win-net-adapter': { script: '21_Network_Optimization.ps1', envPrefix: 'NET_ADAPTER_TUNE' },
   'win-tcp-stack': { script: '21_Network_Optimization.ps1', envPrefix: 'TCP_STACK' },
   'win-net-throttle': { script: '21_Network_Optimization.ps1', envPrefix: 'NET_THROTTLE' },
+  'win-memory': { script: '22_Memory_Optimization.ps1' },
   // Windows Update mode actions
   'updates-off': { script: '09_Windows_Update_Off.ps1' },
   'updates-on': { script: '10_Windows_Update_On.ps1' },
