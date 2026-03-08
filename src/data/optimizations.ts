@@ -173,7 +173,7 @@ export const windowsOptimizations: OptimizationItem[] = [
   {
     id: 'win-priority-sep',
     label: 'Foreground Priority Boost',
-    description: 'Sets Win32PrioritySeparation to 0x26 giving the active game 3x more CPU time than background processes.',
+    description: 'Ensures foreground priority is set to the optimal 3:1 CPU ratio (restores default if changed by third-party tools or group policy).',
     category: 'windows',
     risk: 'safe',
     requiresReboot: false,
