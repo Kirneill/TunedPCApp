@@ -56,6 +56,7 @@ const DETECTION_FUNCTIONS: Record<string, DetectFn> = {
   marvelrivals: findMarvelRivals,
   lol: findLeagueOfLegends,
   dota2: findDota2,
+  eafc26: findEAFC26,
 };
 
 // Derived from the unified game registry -- no manual sync needed
@@ -696,6 +697,45 @@ async function findDota2(): Promise<string | null> {
   }
 
   return null;
+}
+
+async function findEAFC26(): Promise<GameDetectionResult> {
+  // EA App uninstall registry key
+  const eaResult = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{CC38BDAB-B776-4908-9A26-CC27C96404C2}' -ErrorAction SilentlyContinue).InstallLocation`
+  );
+  if (eaResult.success && eaResult.output.length > 0 && eaResult.output[0] && fs.existsSync(eaResult.output[0])) {
+    return { installed: true, gamePath: eaResult.output[0] };
+  }
+
+  // Steam uninstall registry (App ID 3405690)
+  const steamResult = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 3405690' -ErrorAction SilentlyContinue).InstallLocation`
+  );
+  if (steamResult.success && steamResult.output.length > 0 && steamResult.output[0] && fs.existsSync(steamResult.output[0])) {
+    return { installed: true, gamePath: steamResult.output[0] };
+  }
+
+  // Common install paths
+  const commonPaths = [
+    'C:\\Program Files\\EA Games\\EA SPORTS FC 26',
+    'D:\\EA Games\\EA SPORTS FC 26',
+    'E:\\EA Games\\EA SPORTS FC 26',
+  ];
+  const commonInstall = firstExistingPath(commonPaths);
+  if (commonInstall) return { installed: true, gamePath: commonInstall };
+
+  // Config folder detection (proves game is installed)
+  const localAppData = process.env.LOCALAPPDATA || '';
+  if (localAppData) {
+    const configPath = path.join(localAppData, 'EA SPORTS FC 26', 'fcsetup.ini');
+    if (fs.existsSync(configPath)) {
+      console.log(`[game-detection] EA FC 26 config found at ${configPath} but no install directory located. PS1 script will use its own detection.`);
+      return { installed: true, gamePath: null };
+    }
+  }
+
+  return { installed: false, gamePath: null };
 }
 
 // ---------------------------------------------------------------------------

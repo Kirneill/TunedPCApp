@@ -96,12 +96,12 @@ describe('Game Registry', () => {
 
 describe('Game Registry - cross-field consistency', () => {
   it('games with pathEnvVar have non-empty steamFolders or detection logic', () => {
-    // Games that pass install path to PS1 should have detection support
+    // Non-Steam games use their own launcher and custom detection (not Steam folder scanning)
+    const nonSteamGames = new Set(['tarkov', 'lol']);
     const gamesWithPath = GAMES.filter(g => g.pathEnvVar);
     for (const game of gamesWithPath) {
-      // Either steamFolders or a dedicated detection function (we check steamFolders here)
       expect(
-        game.steamFolders.length > 0 || game.id === 'tarkov'
+        game.steamFolders.length > 0 || nonSteamGames.has(game.id)
       ).toBe(true);
     }
   });

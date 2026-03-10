@@ -3357,3 +3357,238 @@ Describe "Dota 2 video.txt" -Tag "dota2" {
         }
     }
 }
+
+# ===========================================================================
+# EA SPORTS FC 26 TESTS
+# ===========================================================================
+Describe "EA Sports FC 26 fcsetup.ini" -Tag "eafc26" {
+
+    BeforeAll {
+        $ProjectRoot = (Get-Location).Path
+        $ScriptsDir = Join-Path $ProjectRoot "scripts"
+        $ReferenceDir = Join-Path $ScriptsDir "reference-configs"
+        $RefFile = Join-Path $ReferenceDir "eafc26-fcsetup.ini"
+        $ScriptFile = Join-Path $ScriptsDir "24_EAFC26_Settings.ps1"
+
+        # Helper: Parse fcsetup.ini key-value lines into hashtable
+        function Parse-FcSetup {
+            param([string]$Path)
+            $result = @{}
+            foreach ($line in (Get-Content $Path)) {
+                if ($line -match '^\s*(\S+)\s*=\s*(.+?)\s*$') {
+                    $result[$Matches[1]] = $Matches[2]
+                }
+            }
+            return $result
+        }
+
+        # Load reference keys
+        $RefSettings = Parse-FcSetup -Path $RefFile
+        $RefKeys = @($RefSettings.Keys)
+    }
+
+    # -----------------------------------------------------------------
+    Context "Reference config is valid" {
+        It "Reference file exists" {
+            $RefFile | Should -Exist
+        }
+
+        It "Reference file uses KEY = VALUE format" {
+            $lines = Get-Content $RefFile | Where-Object { $_ -match '\S' }
+            $lines.Count | Should -BeGreaterThan 0 -Because "Should have settings lines"
+            foreach ($line in $lines) {
+                $line | Should -Match '^\s*\S+\s*=\s*.+$' -Because "Each line should be: KEY = VALUE"
+            }
+        }
+
+        It "Reference has core competitive keys" {
+            $RefKeys | Should -Contain "WAITFORVSYNC"
+            $RefKeys | Should -Contain "MAX_FRAME_RATE"
+            $RefKeys | Should -Contain "RENDERING_QUALITY"
+            $RefKeys | Should -Contain "DYNAMIC_AO_QUALITY"
+            $RefKeys | Should -Contain "MOTION_BLUR"
+            $RefKeys | Should -Contain "STRAND_BASED_HAIR"
+            $RefKeys | Should -Contain "RENDERING_SCALE"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script competitive settings use valid key names" {
+        BeforeAll {
+            $scriptContent = Get-Content $ScriptFile -Raw
+            # Extract keys from the CompetitiveSettings ordered hashtable
+            # Matches lines like: 'WAITFORVSYNC' = '0'
+            $ScriptKeys = [regex]::Matches($scriptContent, "'([A-Z_]+)'\s*=") |
+                ForEach-Object { $_.Groups[1].Value } |
+                Select-Object -Unique
+        }
+
+        It "All script config keys exist in reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptKeys) {
+                if ($key -notin $RefKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script output file format" {
+        BeforeAll {
+            # Create temp sandbox simulating %LOCALAPPDATA%\EA SPORTS FC 26\
+            $script:TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "sq-test-eafc26-$(Get-Random)"
+            $configDir = Join-Path $script:TempDir "EA SPORTS FC 26"
+            New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+
+            # Seed with reference config to test read-merge-write
+            Copy-Item $RefFile (Join-Path $configDir "fcsetup.ini") -Force
+
+            # Save original LOCALAPPDATA
+            $script:OrigLocalAppData = $env:LOCALAPPDATA
+
+            # Run the script in headless mode with overridden LOCALAPPDATA
+            $env:SENSEQUALITY_HEADLESS = "1"
+            $env:MONITOR_WIDTH = "1920"
+            $env:MONITOR_HEIGHT = "1080"
+            $env:MONITOR_REFRESH = "240"
+            $env:NVIDIA_GPU = "1"
+            $env:LOCALAPPDATA = $script:TempDir
+
+            $scriptPath = Join-Path $ScriptsDir "24_EAFC26_Settings.ps1"
+            $script:Output = & $scriptPath *>&1 | Out-String
+            $script:OutputFile = Join-Path $configDir "fcsetup.ini"
+        }
+
+        AfterAll {
+            # Restore LOCALAPPDATA and clean up
+            $env:LOCALAPPDATA = $script:OrigLocalAppData
+            $env:SENSEQUALITY_HEADLESS = ""
+            if ($script:TempDir -and (Test-Path $script:TempDir)) {
+                Get-ChildItem $script:TempDir -Recurse -File -ErrorAction SilentlyContinue |
+                    ForEach-Object { if ($_.IsReadOnly) { $_.IsReadOnly = $false } }
+                Remove-Item $script:TempDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Output file exists" {
+            $script:OutputFile | Should -Exist
+        }
+
+        It "Output file uses KEY = VALUE format" {
+            $lines = Get-Content $script:OutputFile | Where-Object { $_ -match '\S' }
+            $lines.Count | Should -BeGreaterThan 0
+            foreach ($line in $lines) {
+                $line | Should -Match '^\s*\S+\s*=\s*.+$' -Because "Each line should be: KEY = VALUE"
+            }
+        }
+
+        It "Output file has no UTF-8 BOM" {
+            $bytes = [System.IO.File]::ReadAllBytes($script:OutputFile)
+            ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) | Should -Be $false
+        }
+
+        It "Output has VSync off" {
+            $settings = Parse-FcSetup -Path $script:OutputFile
+            $settings['WAITFORVSYNC'] | Should -Be '0'
+        }
+
+        It "Output has uncapped frame rate" {
+            $settings = Parse-FcSetup -Path $script:OutputFile
+            $settings['MAX_FRAME_RATE'] | Should -Be '0'
+        }
+
+        It "Output has Medium rendering quality" {
+            $settings = Parse-FcSetup -Path $script:OutputFile
+            $settings['RENDERING_QUALITY'] | Should -Be '1'
+        }
+
+        It "Output has motion blur off" {
+            $settings = Parse-FcSetup -Path $script:OutputFile
+            $settings['MOTION_BLUR'] | Should -Be '0'
+        }
+
+        It "Output has ambient occlusion low" {
+            $settings = Parse-FcSetup -Path $script:OutputFile
+            $settings['DYNAMIC_AO_QUALITY'] | Should -Be '0'
+        }
+
+        It "Output has strand-based hair off" {
+            $settings = Parse-FcSetup -Path $script:OutputFile
+            $settings['STRAND_BASED_HAIR'] | Should -Be '0'
+        }
+
+        It "Output has render scale at native" {
+            $settings = Parse-FcSetup -Path $script:OutputFile
+            $settings['RENDERING_SCALE'] | Should -Be '1.0'
+        }
+
+        It "Output has fullscreen exclusive" {
+            $settings = Parse-FcSetup -Path $script:OutputFile
+            $settings['FULLSCREEN'] | Should -Be '1'
+            $settings['WINDOWED_BORDERLESS'] | Should -Be '0'
+        }
+
+        It "Output has refresh rate matching monitor" {
+            $settings = Parse-FcSetup -Path $script:OutputFile
+            $settings['REFRESH_RATE'] | Should -Be '240'
+        }
+
+        It "Output file is read-only" {
+            (Get-Item $script:OutputFile).IsReadOnly | Should -Be $true
+        }
+
+        It "Script emitted SQ_CHECK markers" {
+            $script:Output | Should -Match '\[SQ_CHECK_(OK|WARN):EAFC26_EXE_FLAGS'
+            $script:Output | Should -Match '\[SQ_CHECK_OK:EAFC26_CONFIG_WRITTEN\]'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script structure validation" {
+        BeforeAll {
+            $ScriptContent = Get-Content $ScriptFile -Raw
+        }
+
+        It "Script uses SQEngine shared module" {
+            $ScriptContent | Should -Match 'SQEngine\.ps1'
+            $ScriptContent | Should -Match 'Initialize-SQEngine'
+        }
+
+        It "Script uses read-merge-write pattern" {
+            $ScriptContent | Should -Match 'existingSettings'
+            $ScriptContent | Should -Match 'CompetitiveSettings'
+        }
+
+        It "Script sets config to read-only" {
+            $ScriptContent | Should -Match 'Lock-ConfigFile'
+        }
+
+        It "Script creates backup before writing" {
+            $ScriptContent | Should -Match 'Backup-ConfigFile'
+        }
+
+        It "Script writes UTF-8 without BOM" {
+            $ScriptContent | Should -Match 'UTF8Encoding.*\$false'
+        }
+
+        It "Script emits all expected SQ_CHECK markers" {
+            $ScriptContent | Should -Match 'EAFC26_CONFIG_WRITTEN'
+            $ScriptContent | Should -Match 'EAFC26_EXE_FLAGS'
+        }
+
+        It "Guide text matches config values" {
+            # VSync Off matches WAITFORVSYNC = 0
+            $ScriptContent | Should -Match "VSync\s+:\s+Off"
+            # Rendering Quality Medium matches RENDERING_QUALITY = 1
+            $ScriptContent | Should -Match "Rendering Quality\s+:\s+Medium"
+            # Motion Blur Off matches MOTION_BLUR = 0
+            $ScriptContent | Should -Match "Motion Blur\s+:\s+Off"
+            # Ambient Occlusion Low matches DYNAMIC_AO_QUALITY = 0
+            $ScriptContent | Should -Match "Ambient Occlusion\s+:\s+Low"
+            # Strand-Based Hair Off matches STRAND_BASED_HAIR = 0
+            $ScriptContent | Should -Match "Strand-Based Hair\s+:\s+Off"
+        }
+    }
+}
