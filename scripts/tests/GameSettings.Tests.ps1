@@ -3405,10 +3405,10 @@ Describe "EA Sports FC 26 fcsetup.ini" -Tag "eafc26" {
             $RefKeys | Should -Contain "WAITFORVSYNC"
             $RefKeys | Should -Contain "MAX_FRAME_RATE"
             $RefKeys | Should -Contain "RENDERING_QUALITY"
-            $RefKeys | Should -Contain "AMBIENT_OCCLUSION_QUALITY"
+            $RefKeys | Should -Contain "DYNAMIC_AO_QUALITY"
             $RefKeys | Should -Contain "MOTION_BLUR"
             $RefKeys | Should -Contain "STRAND_BASED_HAIR"
-            $RefKeys | Should -Contain "RENDER_SCALE"
+            $RefKeys | Should -Contain "RENDERING_SCALE"
         }
     }
 
@@ -3511,7 +3511,7 @@ Describe "EA Sports FC 26 fcsetup.ini" -Tag "eafc26" {
 
         It "Output has ambient occlusion low" {
             $settings = Parse-FcSetup -Path $script:OutputFile
-            $settings['AMBIENT_OCCLUSION_QUALITY'] | Should -Be '0'
+            $settings['DYNAMIC_AO_QUALITY'] | Should -Be '0'
         }
 
         It "Output has strand-based hair off" {
@@ -3519,9 +3519,15 @@ Describe "EA Sports FC 26 fcsetup.ini" -Tag "eafc26" {
             $settings['STRAND_BASED_HAIR'] | Should -Be '0'
         }
 
-        It "Output has render scale at 100" {
+        It "Output has render scale at native" {
             $settings = Parse-FcSetup -Path $script:OutputFile
-            $settings['RENDER_SCALE'] | Should -Be '100'
+            $settings['RENDERING_SCALE'] | Should -Be '1.0'
+        }
+
+        It "Output has fullscreen exclusive" {
+            $settings = Parse-FcSetup -Path $script:OutputFile
+            $settings['FULLSCREEN'] | Should -Be '1'
+            $settings['WINDOWED_BORDERLESS'] | Should -Be '0'
         }
 
         It "Output has refresh rate matching monitor" {
@@ -3579,7 +3585,7 @@ Describe "EA Sports FC 26 fcsetup.ini" -Tag "eafc26" {
             $ScriptContent | Should -Match "Rendering Quality\s+:\s+Medium"
             # Motion Blur Off matches MOTION_BLUR = 0
             $ScriptContent | Should -Match "Motion Blur\s+:\s+Off"
-            # Ambient Occlusion Low matches AMBIENT_OCCLUSION_QUALITY = 0
+            # Ambient Occlusion Low matches DYNAMIC_AO_QUALITY = 0
             $ScriptContent | Should -Match "Ambient Occlusion\s+:\s+Low"
             # Strand-Based Hair Off matches STRAND_BASED_HAIR = 0
             $ScriptContent | Should -Match "Strand-Based Hair\s+:\s+Off"

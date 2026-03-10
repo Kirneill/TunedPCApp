@@ -127,7 +127,7 @@ if ($GameExePath) {
 #
 # WHY each setting:
 # - RENDERING_QUALITY 1 (Medium): Largest FPS gain, visually identical in-match
-# - AMBIENT_OCCLUSION_QUALITY 0 (Low): Up to 20% FPS gain vs High
+# - DYNAMIC_AO_QUALITY 0 (Low): Up to 20% FPS gain vs High
 # - STRAND_BASED_HAIR 0 (Off): 4%+ FPS gain, invisible during gameplay
 # - CLOTH_QUALITY 0 (Low): Jersey physics -- indistinguishable at 60+ FPS
 # - GRASS_QUALITY 1 (Medium): Low looks bad on pitch, Medium is optimal
@@ -136,7 +136,7 @@ if ($GameExePath) {
 # - WAITFORVSYNC 0 (Off): Eliminates input lag from VSync
 # - MAX_FRAME_RATE 0 (Uncapped): Higher FPS = lower input latency
 # - DYNAMIC_RESOLUTION 0 (Off): Prevents resolution fluctuations mid-match
-# - RENDER_SCALE 100: Native resolution -- never reduce for competitive
+# - RENDERING_SCALE 1.0: Native resolution -- never reduce for competitive
 # =============================================================================
 
 Write-Host ""
@@ -152,11 +152,13 @@ $CompetitiveSettings = [ordered]@{
     'GRASS_QUALITY'                = '1'
     'CROWD_QUALITY'                = '1'
     'CLOTH_QUALITY'                = '0'
-    'AMBIENT_OCCLUSION_QUALITY'    = '0'
+    'DYNAMIC_AO_QUALITY'           = '0'
     'MOTION_BLUR'                  = '0'
     'STRAND_BASED_HAIR'            = '0'
     'DYNAMIC_RESOLUTION'           = '0'
-    'RENDER_SCALE'                 = '100'
+    'RENDERING_SCALE'              = '1.0'
+    'FULLSCREEN'                   = '1'
+    'WINDOWED_BORDERLESS'          = '0'
 }
 
 # Validate LOCALAPPDATA
@@ -250,7 +252,8 @@ Write-Host "    VSync                    : Off" -ForegroundColor White
 Write-Host "    Frame Rate Limit         : Uncapped" -ForegroundColor White
 Write-Host "    Refresh Rate             : ${MonitorRefresh}Hz" -ForegroundColor White
 Write-Host "    Dynamic Resolution       : Off" -ForegroundColor White
-Write-Host "    Render Scale             : 100%%" -ForegroundColor White
+Write-Host "    Render Scale             : 100%% (1.0)" -ForegroundColor White
+Write-Host "    Display Mode             : Fullscreen Exclusive" -ForegroundColor White
 Write-Host ""
 Write-Host "  GRAPHICS:" -ForegroundColor Yellow
 Write-Host "    Rendering Quality        : Medium" -ForegroundColor White
@@ -262,7 +265,6 @@ Write-Host "    Strand-Based Hair        : Off" -ForegroundColor White
 Write-Host "    Motion Blur              : Off" -ForegroundColor White
 Write-Host ""
 Write-Host "  SET MANUALLY IN-GAME:" -ForegroundColor Magenta
-Write-Host "    Display Mode             : Fullscreen (Exclusive)" -ForegroundColor White
 Write-Host "    Graphics Preset          : Custom (prevents preset override bug)" -ForegroundColor White
 Write-Host "    Anti-Aliasing            : Set in-game (no config key)" -ForegroundColor White
 Write-Host "    Cutscene Performance     : Full Frame Rate" -ForegroundColor White
