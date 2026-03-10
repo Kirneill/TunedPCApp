@@ -284,4 +284,23 @@ export const GAMES: GameDefinition[] = [
     },
     defaultEnabled: true,
   },
+  {
+    id: 'eafc26',
+    name: 'EA Sports FC 26',
+    cardName: 'EA FC 26',
+    subtitle: 'Medium Quality · VSync Off · Uncapped FPS',
+    description: 'Optimizes fcsetup.ini -- Medium rendering, AO Low, Strand Hair Off, VSync Off, uncapped FPS. Read-only lock prevents overwrite.',
+    gradient: 'from-green-900 via-emerald-950 to-black',
+    letter: 'FC',
+    risk: 'safe',
+    requiresReboot: false,
+    script: '24_EAFC26_Settings.ps1',
+    pathEnvVar: 'EAFC26_PATH',
+    steamFolders: ['FC 26'],
+    checkLabels: {
+      EAFC26_EXE_FLAGS: 'EA FC 26 EXE compatibility flags',
+      EAFC26_CONFIG_WRITTEN: 'EA FC 26 fcsetup.ini written',
+    },
+    defaultEnabled: true,
+  },
 ];
