@@ -26,8 +26,8 @@ function errorResponse(message: string, status = 400): Response {
   return jsonResponse({ error: message }, status);
 }
 
-/** Verify the caller's JWT and return their Supabase user ID. */
-async function getAuthUserId(authHeader: string | null): Promise<{ userId: string; email: string } | Response> {
+/** Verify the caller's JWT and return their Supabase user ID + metadata. */
+async function getAuthUserId(authHeader: string | null): Promise<{ userId: string; email: string; tier: string } | Response> {
   if (!authHeader?.startsWith("Bearer ")) {
     return errorResponse("Missing or invalid Authorization header", 401);
   }
@@ -42,7 +42,9 @@ async function getAuthUserId(authHeader: string | null): Promise<{ userId: strin
     return errorResponse("Invalid or expired token", 401);
   }
 
-  return { userId: user.id, email: user.email || "" };
+  const tier = (user.app_metadata as Record<string, unknown>)?.tier;
+
+  return { userId: user.id, email: user.email || "", tier: typeof tier === "string" ? tier : "free" };
 }
 
 /** Forward a request to the Autumn API. */
@@ -66,10 +68,15 @@ async function autumnFetch(
 
 // ─── Action Handlers ─────────────────────────────────────
 
-async function handleCheck(userId: string, params: Record<string, unknown>): Promise<Response> {
+async function handleCheck(userId: string, tier: string, params: Record<string, unknown>): Promise<Response> {
   const featureId = params.feature_id;
   if (typeof featureId !== "string") {
     return errorResponse("feature_id is required");
+  }
+
+  // Users with tier='pro' in Supabase Auth metadata (e.g. beta testers) bypass Autumn
+  if (tier === "pro") {
+    return jsonResponse({ allowed: true });
   }
 
   const { data, status } = await autumnFetch("POST", "/check", {
@@ -145,7 +152,7 @@ Deno.serve(async (req) => {
   // Authenticate
   const authResult = await getAuthUserId(req.headers.get("authorization"));
   if (authResult instanceof Response) return authResult;
-  const { userId, email } = authResult;
+  const { userId, email, tier } = authResult;
 
   // Parse body
   let body: Record<string, unknown>;
@@ -163,7 +170,7 @@ Deno.serve(async (req) => {
   try {
     switch (action) {
       case "check":
-        return await handleCheck(userId, body);
+        return await handleCheck(userId, tier, body);
       case "attach":
         return await handleAttach(userId, email, body);
       case "cancel":

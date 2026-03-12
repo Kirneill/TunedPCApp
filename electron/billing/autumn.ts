@@ -109,6 +109,14 @@ export async function checkBiosAccess(): Promise<BillingAccessResult> {
     if (entitlementCache && entitlementCache.customerId === customerId) {
       return { allowed: entitlementCache.allowed, plan: entitlementCache.allowed ? 'pro' : 'free' };
     }
+    // Fall back to Supabase Auth tier (covers beta testers with app_metadata.tier='pro')
+    try {
+      const session = await getSession();
+      if (session?.user?.tier === 'pro') {
+        entitlementCache = { customerId, allowed: true, checkedAt: Date.now() };
+        return { allowed: true, plan: 'pro' };
+      }
+    } catch { /* ignore secondary check failure */ }
     return { allowed: false, plan: 'free' };
   }
 }
