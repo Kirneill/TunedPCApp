@@ -349,6 +349,8 @@ declare global {
       provisionScewin: () => Promise<{ success: boolean; error?: string }>;
       cancelScewinProvision: () => Promise<{ success: boolean }>;
       onScewinProvisionProgress: (callback: (progress: ScewinProvisionProgress) => void) => () => void;
+      // Debloat
+      checkDebloatManifest: () => Promise<{ exists: boolean; timestamp?: string; servicesChanged?: number; appxRemoved?: number; tasksDisabled?: number; capabilitiesRemoved?: number }>;
       // System monitoring
       onSystemUsage: (callback: (usage: { cpu: number; gpu: number; ram: number }) => void) => () => void;
     };

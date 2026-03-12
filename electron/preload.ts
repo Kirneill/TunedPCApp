@@ -112,6 +112,10 @@ const api = {
     return () => { ipcRenderer.removeListener('bios:provisionProgress', handler); };
   },
 
+  // Debloat
+  checkDebloatManifest: (): Promise<{ exists: boolean; timestamp?: string; servicesChanged?: number; appxRemoved?: number; tasksDisabled?: number; capabilitiesRemoved?: number }> =>
+    ipcRenderer.invoke('debloat:checkManifest'),
+
   // System monitoring
   onSystemUsage: (callback: (usage: { cpu: number; gpu: number; ram: number }) => void): (() => void) => {
     const handler = (_: Electron.IpcRendererEvent, usage: { cpu: number; gpu: number; ram: number }) => callback(usage);

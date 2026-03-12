@@ -1146,4 +1146,26 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
 
   // Diagnostics
   ipcMain.handle('diagnostics:export', () => exportDiagnosticsBundle());
+
+  // Debloat manifest check
+  ipcMain.handle('debloat:checkManifest', async () => {
+    const manifestPath = path.join(process.env.APPDATA || '', 'SENSEQUALITY', 'debloat-manifest.json');
+    try {
+      if (fs.existsSync(manifestPath)) {
+        const content = fs.readFileSync(manifestPath, 'utf-8');
+        const manifest = JSON.parse(content);
+        return {
+          exists: true,
+          timestamp: manifest.Timestamp || null,
+          servicesChanged: Array.isArray(manifest.Services) ? manifest.Services.length : 0,
+          appxRemoved: Array.isArray(manifest.AppxRemoved) ? manifest.AppxRemoved.length : 0,
+          tasksDisabled: Array.isArray(manifest.Tasks) ? manifest.Tasks.length : 0,
+          capabilitiesRemoved: Array.isArray(manifest.Capabilities) ? manifest.Capabilities.length : 0,
+        };
+      }
+      return { exists: false };
+    } catch {
+      return { exists: false };
+    }
+  });
 }

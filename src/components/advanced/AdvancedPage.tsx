@@ -10,7 +10,8 @@ import RestorePointControls from '../windows/RestorePointControls';
 import CodFpsGuideModal from '../ui/CodFpsGuideModal';
 
 const NETWORK_IDS = new Set(['win-network', 'win-dns', 'win-net-adapter', 'win-tcp-stack', 'win-net-throttle']);
-const allOptimizations = [...windowsOptimizations.filter(o => !NETWORK_IDS.has(o.id)), ...gameOptimizations];
+const DEBLOAT_IDS = new Set(['win-deep-debloat', 'win-undo-debloat']);
+const allOptimizations = [...windowsOptimizations.filter(o => !NETWORK_IDS.has(o.id) && !DEBLOAT_IDS.has(o.id)), ...gameOptimizations];
 
 const filterTabs = [
   { id: 'all', label: 'All Tweaks' },
