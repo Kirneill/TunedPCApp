@@ -128,15 +128,21 @@ try {
                 # Try to find the package in the Windows store manifest cache
                 $manifestPaths = Get-ChildItem -Path "C:\Program Files\WindowsApps\$appName*" -Filter 'AppxManifest.xml' -Recurse -ErrorAction SilentlyContinue
                 if ($manifestPaths) {
+                    $registered = $false
                     foreach ($mPath in $manifestPaths) {
                         try {
                             Add-AppxPackage -Register $mPath.FullName -DisableDevelopmentMode -ErrorAction Stop
                             $reregisteredCount++
+                            $registered = $true
                             Write-Host "  [OK] Re-registered: $appName" -ForegroundColor Green
                             break
                         } catch {
                             # Try next manifest path
                         }
+                    }
+                    if (-not $registered) {
+                        $failedAppxCount++
+                        Write-Host "  [WARN] Could not re-register: $appName (may need manual reinstall)" -ForegroundColor Yellow
                     }
                 } else {
                     $failedAppxCount++
@@ -329,19 +335,31 @@ try {
     if ($Manifest.NtfsOriginal) {
         $ntfs = $Manifest.NtfsOriginal
 
-        if ($ntfs.disable8dot3) {
+        if ($null -ne $ntfs.disable8dot3) {
             fsutil behavior set disable8dot3 $ntfs.disable8dot3 | Out-Null
-            Write-Host "  [OK] 8.3 short names restored to: $($ntfs.disable8dot3)" -ForegroundColor Green
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  [WARN] fsutil disable8dot3 restore returned exit code $LASTEXITCODE" -ForegroundColor Yellow
+            } else {
+                Write-Host "  [OK] 8.3 short names restored to: $($ntfs.disable8dot3)" -ForegroundColor Green
+            }
         }
 
-        if ($ntfs.disablelastaccess) {
+        if ($null -ne $ntfs.disablelastaccess) {
             fsutil behavior set disablelastaccess $ntfs.disablelastaccess | Out-Null
-            Write-Host "  [OK] Last-access timestamps restored to: $($ntfs.disablelastaccess)" -ForegroundColor Green
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  [WARN] fsutil disablelastaccess restore returned exit code $LASTEXITCODE" -ForegroundColor Yellow
+            } else {
+                Write-Host "  [OK] Last-access timestamps restored to: $($ntfs.disablelastaccess)" -ForegroundColor Green
+            }
         }
 
-        if ($ntfs.memoryusage) {
+        if ($null -ne $ntfs.memoryusage) {
             fsutil behavior set memoryusage $ntfs.memoryusage | Out-Null
-            Write-Host "  [OK] NTFS memory usage restored to: $($ntfs.memoryusage)" -ForegroundColor Green
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  [WARN] fsutil memoryusage restore returned exit code $LASTEXITCODE" -ForegroundColor Yellow
+            } else {
+                Write-Host "  [OK] NTFS memory usage restored to: $($ntfs.memoryusage)" -ForegroundColor Green
+            }
         }
 
         Write-Host "[SQ_CHECK_OK:UNDO_NTFS]"

@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../../store/appStore';
+import ConfirmModal from '../ui/ConfirmModal';
 import LogViewer from '../ui/LogViewer';
+import Spinner from '../ui/Spinner';
+import StatusTile from '../ui/StatusTile';
+import TabButton from '../ui/TabButton';
 
 type OsTab = 'debloat' | 'undo';
 
@@ -13,14 +17,28 @@ interface ManifestData {
   capabilitiesRemoved?: number;
 }
 
-const optimizations = [
-  { text: 'Disable 34 unnecessary services (telemetry, sync, compatibility)' },
-  { text: 'Remove 30 bloatware apps (Cortana, Teams, Clipchamp, Bing)' },
-  { text: 'Disable 14 telemetry scheduled tasks' },
-  { text: 'Remove 8 unused capabilities (IE, Fax, WordPad, WMP)' },
-  { text: 'NTFS and filesystem optimizations' },
-  { text: 'Defer feature updates 365 days (security updates continue)' },
-  { text: '25+ privacy and performance registry tweaks' },
+const OPTIMIZATIONS = [
+  'Disable 34 unnecessary services (telemetry, sync, compatibility)',
+  'Remove 30 bloatware apps (Cortana, Teams, Clipchamp, Bing)',
+  'Disable 14 telemetry scheduled tasks',
+  'Remove 8 unused capabilities (IE, Fax, WordPad, WMP)',
+  'NTFS and filesystem optimizations',
+  'Defer feature updates 365 days (security updates continue)',
+  '25+ privacy and performance registry tweaks',
+];
+
+const SAFETY_ITEMS = [
+  'Full system backup created before any changes',
+  'One-click undo available after debloat',
+  'Anti-cheat safe: Secure Boot, TPM, Defender untouched',
+  'Reboot required after completion',
+];
+
+const MANIFEST_STATS: { key: keyof ManifestData; label: string }[] = [
+  { key: 'servicesChanged', label: 'Services changed' },
+  { key: 'appxRemoved', label: 'Apps removed' },
+  { key: 'tasksDisabled', label: 'Tasks disabled' },
+  { key: 'capabilitiesRemoved', label: 'Capabilities removed' },
 ];
 
 export default function OSOptimizerPage() {
@@ -37,20 +55,15 @@ export default function OSOptimizerPage() {
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
   const [expertOpen, setExpertOpen] = useState(false);
 
-  // Check manifest on mount
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const result = await window.sensequality.checkDebloatManifest();
-        if (!cancelled) {
-          setManifest(result);
-        }
+        if (!cancelled) setManifest(result);
       } catch (err) {
         console.error('Failed to check debloat manifest:', err);
-        if (!cancelled) {
-          setManifest({ exists: false });
-        }
+        if (!cancelled) setManifest({ exists: false });
       } finally {
         if (!cancelled) setManifestLoading(false);
       }
@@ -58,7 +71,6 @@ export default function OSOptimizerPage() {
     return () => { cancelled = true; };
   }, []);
 
-  // Re-check manifest after a run completes
   const refreshManifest = async () => {
     try {
       const result = await window.sensequality.checkDebloatManifest();
@@ -68,34 +80,28 @@ export default function OSOptimizerPage() {
     }
   };
 
-  const handleDebloat = async () => {
-    setShowConfirm(false);
+  const runScript = async (scriptId: string, label: string) => {
     if (isRunning) return;
     setIsRunning(true);
     clearLog();
     try {
-      await window.sensequality.runSelected(['win-deep-debloat'], userConfig);
+      await window.sensequality.runSelected([scriptId], userConfig);
       await refreshManifest();
     } catch (err) {
-      console.error('Debloat run failed:', err);
+      console.error(`${label} failed:`, err);
     } finally {
       setIsRunning(false);
     }
   };
 
+  const handleDebloat = async () => {
+    setShowConfirm(false);
+    await runScript('win-deep-debloat', 'Debloat run');
+  };
+
   const handleUndo = async () => {
     setShowUndoConfirm(false);
-    if (isRunning) return;
-    setIsRunning(true);
-    clearLog();
-    try {
-      await window.sensequality.runSelected(['win-undo-debloat'], userConfig);
-      await refreshManifest();
-    } catch (err) {
-      console.error('Undo run failed:', err);
-    } finally {
-      setIsRunning(false);
-    }
+    await runScript('win-undo-debloat', 'Undo run');
   };
 
   const manifestTimestamp = manifest?.timestamp
@@ -104,6 +110,17 @@ export default function OSOptimizerPage() {
         hour: '2-digit', minute: '2-digit',
       })
     : null;
+
+  function getManifestValue(): string {
+    if (manifestLoading) return 'Checking...';
+    if (manifest?.exists) return 'Active';
+    return 'Clean (no prior debloat)';
+  }
+
+  function getManifestStatus(): 'good' | 'warning' | 'unknown' {
+    if (manifestLoading) return 'unknown';
+    return manifest?.exists ? 'warning' : 'good';
+  }
 
   return (
     <div className="h-full overflow-y-auto px-6 py-5 space-y-4">
@@ -117,32 +134,10 @@ export default function OSOptimizerPage() {
 
       {/* Status Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-        <StatusTile
-          label="System"
-          value="Ready"
-          status="good"
-        />
-        <StatusTile
-          label="Manifest"
-          value={
-            manifestLoading
-              ? 'Checking...'
-              : manifest?.exists
-                ? 'Active'
-                : 'Clean (no prior debloat)'
-          }
-          status={manifestLoading ? 'unknown' : manifest?.exists ? 'warning' : 'good'}
-        />
-        <StatusTile
-          label="Admin"
-          value="Elevated"
-          status="good"
-        />
-        <StatusTile
-          label="Duration"
-          value="2-5 min"
-          status="neutral"
-        />
+        <StatusTile label="System" value="Ready" status="good" />
+        <StatusTile label="Manifest" value={getManifestValue()} status={getManifestStatus()} />
+        <StatusTile label="Admin" value="Elevated" status="good" />
+        <StatusTile label="Duration" value="2-5 min" status="neutral" />
       </div>
 
       {/* Tab Bar */}
@@ -178,12 +173,12 @@ export default function OSOptimizerPage() {
           <div className="space-y-2">
             <span className="text-[10px] font-bold text-sq-text-dim uppercase tracking-wider">What Gets Optimized</span>
             <div className="space-y-1.5">
-              {optimizations.map((item, i) => (
+              {OPTIMIZATIONS.map((text, i) => (
                 <div key={i} className="flex items-center gap-2 text-[12px] text-sq-text-muted">
                   <svg className="w-3.5 h-3.5 text-sq-success shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                   </svg>
-                  {item.text}
+                  {text}
                 </div>
               ))}
             </div>
@@ -193,22 +188,12 @@ export default function OSOptimizerPage() {
           <div className="rounded-lg border border-sq-success/20 bg-sq-success/5 p-3 space-y-1.5">
             <p className="text-[11px] font-bold text-sq-success">Safety Guarantees</p>
             <ul className="text-[11px] text-sq-text-muted space-y-1">
-              <li className="flex items-start gap-2">
-                <span className="text-sq-success mt-0.5 shrink-0">&#10003;</span>
-                <span>Full system backup created before any changes</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-sq-success mt-0.5 shrink-0">&#10003;</span>
-                <span>One-click undo available after debloat</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-sq-success mt-0.5 shrink-0">&#10003;</span>
-                <span>Anti-cheat safe: Secure Boot, TPM, Defender untouched</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-sq-success mt-0.5 shrink-0">&#10003;</span>
-                <span>Reboot required after completion</span>
-              </li>
+              {SAFETY_ITEMS.map((text, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span className="text-sq-success mt-0.5 shrink-0">&#10003;</span>
+                  <span>{text}</span>
+                </li>
+              ))}
             </ul>
           </div>
 
@@ -245,10 +230,7 @@ export default function OSOptimizerPage() {
             >
               {isRunning ? (
                 <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
+                  <Spinner />
                   APPLYING...
                 </span>
               ) : (
@@ -283,35 +265,13 @@ export default function OSOptimizerPage() {
                   <span className="text-[11px] font-bold text-sq-warning uppercase tracking-wider">Active Debloat</span>
                 </div>
                 {manifestTimestamp && (
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="text-sq-text-muted">Applied on</span>
-                    <span className="text-sq-text font-medium">{manifestTimestamp}</span>
-                  </div>
+                  <ManifestRow label="Applied on" value={manifestTimestamp} />
                 )}
-                {manifest.servicesChanged != null && (
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="text-sq-text-muted">Services changed</span>
-                    <span className="text-sq-text font-medium">{manifest.servicesChanged}</span>
-                  </div>
-                )}
-                {manifest.appxRemoved != null && (
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="text-sq-text-muted">Apps removed</span>
-                    <span className="text-sq-text font-medium">{manifest.appxRemoved}</span>
-                  </div>
-                )}
-                {manifest.tasksDisabled != null && (
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="text-sq-text-muted">Tasks disabled</span>
-                    <span className="text-sq-text font-medium">{manifest.tasksDisabled}</span>
-                  </div>
-                )}
-                {manifest.capabilitiesRemoved != null && (
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="text-sq-text-muted">Capabilities removed</span>
-                    <span className="text-sq-text font-medium">{manifest.capabilitiesRemoved}</span>
-                  </div>
-                )}
+                {MANIFEST_STATS.map(({ key, label }) => {
+                  const value = manifest[key] as string | number | undefined;
+                  if (value == null) return null;
+                  return <ManifestRow key={key} label={label} value={value} />;
+                })}
               </div>
 
               {/* Undo Button */}
@@ -328,10 +288,7 @@ export default function OSOptimizerPage() {
               >
                 {isRunning ? (
                   <span className="flex items-center justify-center gap-2">
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
+                    <Spinner />
                     RESTORING...
                   </span>
                 ) : (
@@ -366,78 +323,76 @@ export default function OSOptimizerPage() {
           AME Wizard Playbook (Advanced Users)
         </button>
         {expertOpen && (
-          <div className="mt-3 rounded-lg border border-sq-border/50 p-4 space-y-2 sq-fade-up">
+          <div className="mt-3 rounded-lg border border-sq-border/50 p-4 space-y-3 sq-fade-up">
             <p className="text-xs text-sq-text-muted leading-relaxed">
-              For even deeper optimization, power users can use the AME Wizard playbook included in this repo.
-              It uses TrustedInstaller-level access to remove WinSxS components that PowerShell cannot reach.
+              For even deeper optimization, power users can run the TUNEDPC playbook with AME Wizard.
+              It goes beyond what the in-app optimizer can do by using system-level access to permanently
+              remove unused Windows components from the component store, freeing additional disk space and
+              reducing background overhead.
             </p>
-            <p className="text-xs text-sq-text-dim">
-              Requires AME Wizard from ameliorated.io. See the playbook/Executables/README.txt for instructions.
-            </p>
+            <div className="flex items-center gap-3 text-xs">
+              <p className="text-sq-text-dim">1. Export the playbook</p>
+              <svg className="w-3 h-3 text-sq-text-dim" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              <p className="text-sq-text-dim">2. Download AME Wizard</p>
+              <svg className="w-3 h-3 text-sq-text-dim" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              <p className="text-sq-text-dim">3. Drag the .apbx file into AME Wizard</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleExportPlaybook}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-sq-accent/10 text-sq-accent border border-sq-accent/20 hover:bg-sq-accent/20 transition-colors"
+              >
+                <span className="flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Export Playbook to Downloads
+                </span>
+              </button>
+              <button
+                onClick={() => window.sensequality.openExternal('https://ameliorated.io')}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-sq-text-muted border border-sq-border/50 hover:border-sq-border hover:text-sq-text-secondary transition-colors"
+              >
+                <span className="flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                  Download AME Wizard
+                </span>
+              </button>
+            </div>
           </div>
         )}
       </div>
 
       {/* Debloat Confirmation Modal */}
       {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-sq-surface border border-sq-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl space-y-4">
-            <h2 className="text-lg font-bold text-sq-text">Apply Lightweight OS Mode?</h2>
-            <p className="text-sm text-sq-text-muted leading-relaxed">
-              This will make significant changes to Windows. A full system backup will be created automatically.
-            </p>
-            <ul className="text-xs text-sq-text-muted space-y-1 list-disc list-inside">
-              <li>34 services will be disabled</li>
-              <li>30 bloatware apps will be removed</li>
-              <li>14 scheduled tasks will be disabled</li>
-              <li>Requires reboot after completion</li>
-            </ul>
-            <div className="flex gap-3 justify-end pt-2">
-              <button
-                onClick={() => setShowConfirm(false)}
-                className="px-4 py-2.5 rounded-xl text-sm font-medium text-sq-text-muted border border-sq-border hover:bg-sq-surface-hover transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDebloat}
-                className="px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-sq-accent hover:bg-sq-accent-hover transition-colors cursor-pointer"
-              >
-                Yes, Optimize
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal
+          title="Apply Lightweight OS Mode?"
+          description="This will make significant changes to Windows. A full system backup will be created automatically."
+          bullets={[
+            '34 services will be disabled',
+            '30 bloatware apps will be removed',
+            '14 scheduled tasks will be disabled',
+            'Requires reboot after completion',
+          ]}
+          confirmLabel="Yes, Optimize"
+          confirmClassName="bg-sq-accent hover:bg-sq-accent-hover"
+          onConfirm={handleDebloat}
+          onCancel={() => setShowConfirm(false)}
+        />
       )}
 
       {/* Undo Confirmation Modal */}
       {showUndoConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-sq-surface border border-sq-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl space-y-4">
-            <h2 className="text-lg font-bold text-sq-text">Undo Lightweight Mode?</h2>
-            <p className="text-sm text-sq-text-muted leading-relaxed">
-              This will restore Windows to its pre-debloat state. All disabled services and tasks will be re-enabled.
-            </p>
-            <ul className="text-xs text-sq-text-muted space-y-1 list-disc list-inside">
-              <li>Some removed apps may need manual reinstall from the Microsoft Store</li>
-              <li>Requires reboot after completion</li>
-            </ul>
-            <div className="flex gap-3 justify-end pt-2">
-              <button
-                onClick={() => setShowUndoConfirm(false)}
-                className="px-4 py-2.5 rounded-xl text-sm font-medium text-sq-text-muted border border-sq-border hover:bg-sq-surface-hover transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUndo}
-                className="px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-sq-warning hover:brightness-110 transition-colors cursor-pointer"
-              >
-                Yes, Restore
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal
+          title="Undo Lightweight Mode?"
+          description="This will restore Windows to its pre-debloat state. All disabled services and tasks will be re-enabled."
+          bullets={[
+            'Some removed apps may need manual reinstall from the Microsoft Store',
+            'Requires reboot after completion',
+          ]}
+          confirmLabel="Yes, Restore"
+          confirmClassName="bg-sq-warning hover:brightness-110"
+          onConfirm={handleUndo}
+          onCancel={() => setShowUndoConfirm(false)}
+        />
       )}
     </div>
   );
@@ -445,72 +400,22 @@ export default function OSOptimizerPage() {
 
 /* --- Subcomponents --- */
 
-function TabButton({ active, onClick, icon, label, badge }: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-  badge?: string;
-}) {
+function ManifestRow({ label, value }: { label: string; value: string | number }) {
   return (
-    <button
-      onClick={onClick}
-      data-active={active}
-      className={`
-        sq-card-hover flex-1 flex items-center justify-center gap-3 px-6 py-4 rounded-xl text-sm font-bold transition-all cursor-pointer
-        ${active
-          ? 'sq-glass text-white border-sq-accent shadow-lg shadow-sq-accent/10'
-          : 'text-sq-text-muted hover:text-sq-text border border-sq-border/40 bg-sq-surface/40'
-        }
-      `}
-    >
-      <span className={`
-        w-9 h-9 rounded-lg flex items-center justify-center transition-colors
-        ${active ? 'bg-sq-accent/20 text-sq-accent' : 'bg-sq-border/40 text-sq-text-dim'}
-      `}>
-        {icon}
-      </span>
-      <span className="text-[14px]">{label}</span>
-      {badge && (
-        <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-md ${
-          active ? 'bg-sq-accent/25 text-sq-accent border border-sq-accent/30' : 'bg-sq-bg/80 text-sq-text-dim'
-        }`}>
-          {badge}
-        </span>
-      )}
-    </button>
+    <div className="flex items-center justify-between text-[12px]">
+      <span className="text-sq-text-muted">{label}</span>
+      <span className="text-sq-text font-medium">{value}</span>
+    </div>
   );
 }
 
-function StatusTile({ label, value, status }: { label: string; value: string; status: 'good' | 'warning' | 'unknown' | 'neutral' }) {
-  const borderColor =
-    status === 'good' ? 'border-sq-success/30'
-    : status === 'warning' ? 'border-sq-warning/30'
-    : status === 'neutral' ? 'border-sq-accent/20'
-    : 'border-sq-border/40';
-  const dotColor =
-    status === 'good' ? 'bg-sq-success'
-    : status === 'warning' ? 'bg-sq-warning'
-    : status === 'neutral' ? 'bg-sq-accent'
-    : 'bg-sq-text-dim';
-  const glowBg =
-    status === 'good' ? 'bg-sq-success/5'
-    : status === 'warning' ? 'bg-sq-warning/5'
-    : status === 'neutral' ? 'bg-sq-accent/5'
-    : '';
-  const dotGlow =
-    status === 'good' ? { boxShadow: '0 0 6px var(--color-sq-success)' }
-    : status === 'warning' ? { boxShadow: '0 0 6px var(--color-sq-warning)' }
-    : status === 'neutral' ? { boxShadow: '0 0 6px var(--color-sq-accent)' }
-    : {};
-
-  return (
-    <div className={`sq-glass border ${borderColor} rounded-xl px-3.5 py-3 ${glowBg}`}>
-      <div className="flex items-center gap-1.5 mb-1">
-        <div className={`w-2 h-2 rounded-full ${dotColor}`} style={dotGlow} />
-        <span className="text-[10px] font-bold text-sq-text-muted uppercase tracking-wider">{label}</span>
-      </div>
-      <span className="text-[12px] font-semibold text-sq-text">{value}</span>
-    </div>
-  );
+async function handleExportPlaybook(): Promise<void> {
+  try {
+    const result = await window.sensequality.exportPlaybook();
+    if (!result.success) {
+      console.error('Export failed:', result.error);
+    }
+  } catch (err) {
+    console.error('Export failed:', err);
+  }
 }

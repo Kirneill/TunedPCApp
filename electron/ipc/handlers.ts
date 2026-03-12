@@ -1,4 +1,4 @@
-import { IpcMain, BrowserWindow, app } from 'electron';
+import { IpcMain, BrowserWindow, app, shell } from 'electron';
 import { getSystemInfo } from './system-info';
 import { detectInstalledGames } from './game-detection';
 import { runPowerShellScript, runPowerShellCommand, getScriptPath } from './powershell';
@@ -10,7 +10,8 @@ import type { RestorePointInfo } from '../../src/types/index';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import { execFileSync } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
+import { promisify } from 'util';
 
 interface UserConfig {
   monitorWidth: number;
@@ -1148,6 +1149,40 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
   ipcMain.handle('diagnostics:export', () => exportDiagnosticsBundle());
 
   // Debloat manifest check
+  ipcMain.handle('debloat:exportPlaybook', async () => {
+    try {
+      const execFileAsync = promisify(execFile);
+      const downloadsDir = app.getPath('downloads');
+      const outputFile = path.join(downloadsDir, 'TUNEDPC-Lightweight-OS.apbx');
+      const zipFile = outputFile.replace('.apbx', '.zip');
+
+      const playbookDir = app.isPackaged
+        ? path.join(process.resourcesPath, 'playbook')
+        : path.join(app.getAppPath(), 'playbook');
+
+      if (!fs.existsSync(path.join(playbookDir, 'playbook.conf'))) {
+        return { success: false, error: 'Playbook files not found' };
+      }
+
+      if (fs.existsSync(outputFile)) fs.unlinkSync(outputFile);
+
+      const itemsToZip = ['playbook.conf', 'Configuration', 'Executables']
+        .map(name => `'${path.join(playbookDir, name).replace(/'/g, "''")}'`)
+        .join(',');
+
+      await execFileAsync('powershell.exe', [
+        '-NoProfile', '-NonInteractive', '-Command',
+        `Compress-Archive -Path ${itemsToZip} -DestinationPath '${zipFile}' -Force; ` +
+        `Rename-Item -Path '${zipFile}' -NewName '${path.basename(outputFile)}' -Force`
+      ]);
+
+      shell.showItemInFolder(outputFile);
+      return { success: true, path: outputFile };
+    } catch (err: unknown) {
+      return { success: false, error: String(err) };
+    }
+  });
+
   ipcMain.handle('debloat:checkManifest', async () => {
     const manifestPath = path.join(process.env.APPDATA || '', 'SENSEQUALITY', 'debloat-manifest.json');
     try {
@@ -1156,11 +1191,11 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
         const manifest = JSON.parse(content);
         return {
           exists: true,
-          timestamp: manifest.Timestamp || null,
+          timestamp: manifest.CompletedAt || manifest.CreatedAt || null,
           servicesChanged: Array.isArray(manifest.Services) ? manifest.Services.length : 0,
           appxRemoved: Array.isArray(manifest.AppxRemoved) ? manifest.AppxRemoved.length : 0,
           tasksDisabled: Array.isArray(manifest.Tasks) ? manifest.Tasks.length : 0,
-          capabilitiesRemoved: Array.isArray(manifest.Capabilities) ? manifest.Capabilities.length : 0,
+          capabilitiesRemoved: Array.isArray(manifest.DismRemoved) ? manifest.DismRemoved.length : 0,
         };
       }
       return { exists: false };

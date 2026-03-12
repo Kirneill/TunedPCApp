@@ -39,6 +39,12 @@ extraResources:
     filter:
       - "*.exe"
       - "*.sys"
+  - from: playbook
+    to: playbook
+    filter:
+      - "**/*"
+      - "!build.ps1"
+      - "!*.apbx"
 
 win:
   target: nsis

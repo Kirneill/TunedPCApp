@@ -113,6 +113,8 @@ const api = {
   },
 
   // Debloat
+  exportPlaybook: (): Promise<{ success: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke('debloat:exportPlaybook'),
   checkDebloatManifest: (): Promise<{ exists: boolean; timestamp?: string; servicesChanged?: number; appxRemoved?: number; tasksDisabled?: number; capabilitiesRemoved?: number }> =>
     ipcRenderer.invoke('debloat:checkManifest'),
 
