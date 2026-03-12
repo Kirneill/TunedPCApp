@@ -1202,7 +1202,6 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       const execFileAsync = promisify(execFile);
       const downloadsDir = app.getPath('downloads');
       const outputFile = path.join(downloadsDir, 'TUNEDPC-Lightweight-OS.apbx');
-      const zipFile = outputFile.replace('.apbx', '.zip');
 
       const playbookDir = app.isPackaged
         ? path.join(process.resourcesPath, 'playbook')
@@ -1215,17 +1214,58 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       if (fs.existsSync(outputFile)) fs.unlinkSync(outputFile);
 
       const itemsToZip = ['playbook.conf', 'Configuration', 'Executables']
-        .map(name => `'${path.join(playbookDir, name).replace(/'/g, "''")}'`)
-        .join(',');
+        .filter(name => fs.existsSync(path.join(playbookDir, name)));
 
-      await execFileAsync('powershell.exe', [
-        '-NoProfile', '-NonInteractive', '-Command',
-        `Compress-Archive -Path ${itemsToZip} -DestinationPath '${zipFile}' -Force; ` +
-        `Rename-Item -Path '${zipFile}' -NewName '${path.basename(outputFile)}' -Force`
-      ]);
+      // Find 7-Zip executable
+      const sevenZipPaths = [
+        'C:\\Program Files\\7-Zip\\7z.exe',
+        'C:\\Program Files (x86)\\7-Zip\\7z.exe',
+      ];
+      let sevenZipExe: string | null = null;
+      for (const p of sevenZipPaths) {
+        if (fs.existsSync(p)) { sevenZipExe = p; break; }
+      }
+      if (!sevenZipExe) {
+        // Check if 7z is on PATH
+        try {
+          execFileSync('where', ['7z.exe'], { stdio: 'pipe' });
+          sevenZipExe = '7z.exe';
+        } catch { /* not on PATH */ }
+      }
 
-      shell.showItemInFolder(outputFile);
-      return { success: true, path: outputFile };
+      if (sevenZipExe) {
+        // 7-Zip: create password-encrypted ZIP (required by AME Wizard)
+        const args = [
+          'a', '-tzip', '-pmalte', '-mem=AES256',
+          outputFile,
+          ...itemsToZip.map(name => path.join(playbookDir, name)),
+        ];
+        await execFileAsync(sevenZipExe, args, { cwd: playbookDir });
+
+        shell.showItemInFolder(outputFile);
+        return { success: true, path: outputFile };
+      } else {
+        // Fallback: unencrypted ZIP via PowerShell (AME Wizard may reject this)
+        const zipFile = outputFile.replace('.apbx', '.zip');
+        if (fs.existsSync(zipFile)) fs.unlinkSync(zipFile);
+
+        const psItems = itemsToZip
+          .map(name => `'${path.join(playbookDir, name).replace(/'/g, "''")}'`)
+          .join(',');
+
+        await execFileAsync('powershell.exe', [
+          '-NoProfile', '-NonInteractive', '-Command',
+          `Compress-Archive -Path ${psItems} -DestinationPath '${zipFile}' -Force; ` +
+          `Rename-Item -Path '${zipFile}' -NewName '${path.basename(outputFile)}' -Force`
+        ]);
+
+        shell.showItemInFolder(outputFile);
+        return {
+          success: true,
+          path: outputFile,
+          warning: '7-Zip not found. Created unencrypted archive. AME Wizard may reject this file. Install 7-Zip to fix.',
+        };
+      }
     } catch (err: unknown) {
       return { success: false, error: String(err) };
     }
