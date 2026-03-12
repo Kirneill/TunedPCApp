@@ -5,6 +5,7 @@ import HomePage from './components/home/HomePage';
 import AdvancedPage from './components/advanced/AdvancedPage';
 import NetworkPage from './components/network/NetworkPage';
 import BiosGuidePage from './components/guides/BiosGuidePage';
+import ProGate from './components/ui/ProGate';
 import NvidiaGuidePage from './components/guides/NvidiaGuidePage';
 import BackupPage from './components/backups/BackupPage';
 import MemoryPage from './components/memory/MemoryPage';
@@ -12,19 +13,20 @@ import ConsentModal from './components/ui/ConsentModal';
 import AuthGate from './components/auth/AuthGate';
 import MaxDevicesScreen from './components/auth/MaxDevicesScreen';
 import UpdateBanner from './components/ui/UpdateBanner';
+import PastDueBanner from './components/ui/PastDueBanner';
 import Sidebar from './components/layout/Sidebar';
 import appLogo from './assets/app-logo.ico';
 
 export default function App() {
   const {
-    currentPage, authLoading, showAuthGate, showMaxDevices, isOffline,
+    currentPage, authLoading, authUser, showAuthGate, showMaxDevices, isOffline,
     passwordResetTokens,
     setAuthUser, setAuthLoading, setShowAuthGate, setShowMaxDevices,
     setIsOffline, setMachines, clearAuthState,
     setSystemInfo, setDetectedGames, setIsAdmin, setIsLoading,
     addLogEntry, setShowConsentModal, setTelemetryEnabled, setToggle,
     setUpdateInfo, setUpdaterState, setCloseToBackground, setUserConfig,
-    setSystemUsage, setPasswordResetTokens,
+    setSystemUsage, setPasswordResetTokens, setSubscription,
   } = useAppStore();
 
   // StrictMode guard — prevent double-init in dev
@@ -96,12 +98,14 @@ export default function App() {
 
       setShowMaxDevices(false);
 
-      // Phase 4: Normal app init
-      const [games, admin, updaterState] = await Promise.all([
+      // Phase 4: Normal app init (fetch games, admin, updater, subscription in parallel)
+      const [games, admin, updaterState, subscription] = await Promise.all([
         window.sensequality.getInstalledGames(),
         window.sensequality.isAdmin(),
         window.sensequality.getUpdaterState(),
+        window.sensequality.billingGetSubscription(),
       ]);
+      setSubscription(subscription);
       setDetectedGames(games);
       // Auto-enable installed games on first launch (no persisted config yet)
       const authUser = useAppStore.getState().authUser;
@@ -189,11 +193,15 @@ export default function App() {
       setPasswordResetTokens(tokens);
       setShowAuthGate(true);
     });
+    const unsubscribeProvision = window.sensequality.onScewinProvisionProgress((progress) => {
+      useAppStore.getState().setScewinProvisionProgress(progress);
+    });
     return () => {
       unsubscribeLogs();
       unsubscribeUpdater();
       unsubscribeUsage();
       unsubscribeReset();
+      unsubscribeProvision();
     };
   }, []);
 
@@ -304,7 +312,7 @@ export default function App() {
     switch (currentPage) {
       case 'advanced': return <AdvancedPage />;
       case 'network': return <NetworkPage />;
-      case 'bios-guide': return <BiosGuidePage />;
+      case 'bios-guide': return <ProGate feature="bios-guide"><BiosGuidePage /></ProGate>;
       case 'gpu-guide': return <NvidiaGuidePage />;
       case 'memory': return <MemoryPage />;
       case 'backups': return <BackupPage />;
@@ -316,6 +324,7 @@ export default function App() {
     <div className="flex flex-col h-full bg-sq-bg">
       <TitleBar />
       <UpdateBanner />
+      <PastDueBanner />
       <div className="flex-1 min-h-0 flex gap-3 p-3 pt-2">
         <Sidebar />
         <main className="flex-1 min-h-0 overflow-y-auto rounded-2xl sq-panel border sq-subtle-divider">

@@ -32,6 +32,11 @@ extraResources:
     filter:
       - "*.exe"
       - "*.nip"
+  - from: resources/scewin
+    to: scewin
+    filter:
+      - "*.exe"
+      - "*.sys"
 
 win:
   target: nsis

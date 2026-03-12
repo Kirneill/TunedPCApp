@@ -10,14 +10,14 @@
 
     FEATURES:
     1. Standby List Clearing -- frees cached memory for the game (8-32GB systems)
-    2. Memory Compression Toggle -- disables CPU-intensive compression (16GB+ with SSD)
-    3. Pagefile Optimization -- sets fixed-size pagefile to prevent resize stalls
+    2. Memory Compression Toggle -- keeps enabled on most systems for safety
+    3. Pagefile Optimization -- sets fixed-size 8GB pagefile to prevent resize stalls
     4. Working Set Trim -- conservative trim of background apps (8GB systems only)
 
     SAFETY:
     - 8GB systems: compression stays ENABLED, standby clear + pagefile only
-    - 16GB+: compression disabled (unless HDD), standby clear, pagefile
-    - 64GB+: standby clear skipped, minimal changes
+    - 16-32GB: compression stays ENABLED (safety net), standby clear, pagefile
+    - 64GB+: compression disabled, standby clear skipped, minimal changes
     - Working set trim only on 8GB under extreme memory pressure
     - Recent BSOD detection skips aggressive optimizations
     - All changes are logged with SQ_CHECK markers
@@ -132,6 +132,35 @@ try {
     Write-Host ""
 
     Write-Host "[SQ_CHECK_OK:MEM_HW_DETECT]"
+
+    # SAFETY GATE: This optimizer is designed for low-end PCs (16GB or less).
+    # Systems with more than 16GB don't need memory optimization and changing
+    # pagefile/compression settings can actually cause crashes on high-end rigs.
+    if ($totalRAM_GB -gt 16) {
+        Write-Host ""
+        Write-Host "  [INFO] ${totalRAM_GB}GB RAM detected -- your system does not need memory optimization." -ForegroundColor Cyan
+        Write-Host "  [INFO] This tool is designed for systems with 16GB or less RAM." -ForegroundColor Cyan
+        Write-Host "  [INFO] No changes will be made. Your system is already in great shape." -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "[SQ_CHECK_OK:MEM_HIGH_RAM_SKIP]"
+
+        # Only run standby list clearing if free memory is genuinely low (safety net)
+        if (-not $SkipStandby -and $freeMB -lt 2048) {
+            Write-Host "  [INFO] Free memory is low (${freeMB}MB). Clearing standby list as a one-time fix..." -ForegroundColor Yellow
+            # (standby clearing code will run below since we don't exit)
+        } else {
+            Write-Host "[SQ_CHECK_OK:MEM_STANDBY_SKIP_HIGH_RAM]"
+            Write-Host "[SQ_CHECK_OK:MEM_COMPRESSION_SKIP_HIGH_RAM]"
+            Write-Host "[SQ_CHECK_OK:MEM_PAGEFILE_SKIP_HIGH_RAM]"
+            Write-Host "[SQ_CHECK_OK:MEM_WORKINGSET_SKIP_HIGH_RAM]"
+            Write-Host ""
+            Write-Host "======================================================" -ForegroundColor Cyan
+            Write-Host "  Memory Optimization -- No Changes Needed" -ForegroundColor Cyan
+            Write-Host "======================================================" -ForegroundColor Cyan
+            Write-Host ""
+            exit 0
+        }
+    }
 } catch {
     Write-Host "  [FAIL] Hardware detection failed: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:MEM_HW_DETECT:$($_.Exception.Message)]"
@@ -356,7 +385,7 @@ if ($SkipCompression) {
         if ($recentCrashes -gt 2) {
             $reason = "Skipped due to $recentCrashes recent system crashes"
         }
-        # NEVER disable on 8GB -- compression is critical
+        # NEVER disable on systems under 16GB -- compression is critical
         elseif ($totalRAM_GB -lt 16) {
             if (-not $compressionEnabled) {
                 # Re-enable it -- someone incorrectly disabled it
@@ -374,8 +403,14 @@ if ($SkipCompression) {
         elseif ($isHDD) {
             $reason = "Compression kept enabled -- system drive is HDD (disk paging would be worse)"
         }
-        # 16GB+ with SSD -- safe to disable
-        elseif ($totalRAM_GB -ge 16) {
+        # 16-32GB: keep compression enabled -- CPU cost is ~2-4% (negligible in-game)
+        # but provides a critical safety net against OOM when games + browser + Discord
+        # push past physical RAM. Only disable at 64GB+ where it truly cannot matter.
+        elseif ($totalRAM_GB -lt 64) {
+            $reason = "Compression kept enabled -- safety net for ${totalRAM_GB}GB systems (negligible CPU cost)"
+        }
+        # 64GB+ with SSD -- safe to disable (compression is truly unnecessary)
+        elseif ($totalRAM_GB -ge 64) {
             $shouldDisableCompression = $true
         }
 
@@ -423,11 +458,14 @@ if ($SkipPagefile) {
 
     try {
         # Calculate target size based on RAM
+        # IMPORTANT: Never set pagefile smaller than what the system may need.
+        # Modern games (BO7, Warzone, Tarkov) use 15-20GB commit charge alone.
+        # Total commit limit = RAM + pagefile. Too small = "memory limit reached" crashes.
         $targetPagefileMB = switch ($true) {
-            ($totalRAM_GB -le 8)  { 8192 }    # 8GB: pagefile = RAM size (critical)
-            ($totalRAM_GB -le 16) { 8192 }    # 16GB: 8GB pagefile
-            ($totalRAM_GB -le 32) { 4096 }    # 32GB: 4GB pagefile
-            default               { 4096 }    # 64GB+: 4GB minimum for crash dumps
+            ($totalRAM_GB -le 8)  { 8192 }    # 8GB: pagefile = RAM size (critical for stability)
+            ($totalRAM_GB -le 16) { 8192 }    # 16GB: half RAM -- games need the headroom
+            ($totalRAM_GB -le 32) { 8192 }    # 32GB: 8GB -- safe floor for heavy games + background apps
+            default               { 8192 }    # 64GB+: 8GB minimum for crash dumps and edge cases
         }
 
         Write-Host "  [INFO] RAM: ${totalRAM_GB}GB -- target pagefile: ${targetPagefileMB}MB (fixed)" -ForegroundColor DarkCyan

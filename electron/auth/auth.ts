@@ -4,8 +4,14 @@ import fs from 'fs';
 import path from 'path';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../telemetry/config';
 import { generateAnonymousId } from '../telemetry/telemetry';
-export type { AuthUser, AuthResult, MachineRegistrationResult, UserMachine } from '../../src/types/index';
-import type { AuthUser, AuthResult, MachineRegistrationResult, UserMachine } from '../../src/types/index';
+export type { AuthUser, AuthResult, MachineRegistrationResult, UserMachine, UserTier } from '../../src/types/index';
+import type { AuthUser, AuthResult, MachineRegistrationResult, UserMachine, UserTier } from '../../src/types/index';
+
+/** Extract user tier from Supabase app_metadata. Set via Supabase Dashboard > Auth > Users > Edit. */
+function extractTier(user: { app_metadata?: Record<string, unknown> }): UserTier {
+  const raw = user.app_metadata?.tier;
+  return raw === 'pro' ? 'pro' : 'free';
+}
 
 // ─── State ───────────────────────────────────────────────
 
@@ -281,7 +287,7 @@ export async function signUp(email: string, password: string): Promise<AuthResul
     }
 
     isOffline = false;
-    return { success: true, user: { id: data.user.id, email: data.user.email || email } };
+    return { success: true, user: { id: data.user.id, email: data.user.email || email, tier: extractTier(data.user) } };
   } catch (err) {
     if (isNetworkError(err)) return { success: false, error: 'No internet connection. Please check your network and try again.' };
     return { success: false, error: mapAuthError(err as { message?: string }) };
@@ -304,7 +310,7 @@ export async function signIn(email: string, password: string, rememberMe = true)
     });
 
     isOffline = false;
-    return { success: true, user: { id: data.user.id, email: data.user.email || email } };
+    return { success: true, user: { id: data.user.id, email: data.user.email || email, tier: extractTier(data.user) } };
   } catch (err) {
     if (isNetworkError(err)) return { success: false, error: 'No internet connection. Please check your network and try again.' };
     return { success: false, error: mapAuthError(err as { message?: string }) };
@@ -356,6 +362,7 @@ export async function getSession(): Promise<{ user: AuthUser } | null> {
       user: {
         id: data.session.user.id,
         email: data.session.user.email || '',
+        tier: extractTier(data.session.user),
       },
     };
   } catch (err) {
@@ -371,6 +378,17 @@ export async function getSession(): Promise<{ user: AuthUser } | null> {
 export async function getAuthUser(): Promise<AuthUser | null> {
   const session = await getSession();
   return session?.user || null;
+}
+
+/** Return the current Supabase access token (JWT), or null if no session. */
+export async function getAccessToken(): Promise<string | null> {
+  if (!supabase) return null;
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token || null;
+  } catch {
+    return null;
+  }
 }
 
 export function getMachineId(): string {
@@ -563,7 +581,7 @@ export async function setSessionFromTokens(tokens: {
     isOffline = false;
     return {
       success: true,
-      user: { id: data.session.user.id, email: data.session.user.email || '' },
+      user: { id: data.session.user.id, email: data.session.user.email || '', tier: extractTier(data.session.user) },
     };
   } catch (err) {
     if (isNetworkError(err)) return { success: false, error: 'No internet connection.' };

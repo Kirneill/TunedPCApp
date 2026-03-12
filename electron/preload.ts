@@ -75,6 +75,14 @@ const api = {
   joinWaitlist: (feature: string) => ipcRenderer.invoke('waitlist:join', feature),
   hasJoinedWaitlist: (feature: string) => ipcRenderer.invoke('waitlist:hasJoined', feature),
 
+  // Billing
+  billingCheckAccess: () => ipcRenderer.invoke('billing:checkAccess'),
+  billingCheckout: (successUrl?: string) => ipcRenderer.invoke('billing:checkout', successUrl),
+  billingCancelSubscription: (immediately?: boolean) => ipcRenderer.invoke('billing:cancelSubscription', immediately),
+  billingGetSubscription: () => ipcRenderer.invoke('billing:getSubscription'),
+  billingOpenPortal: () => ipcRenderer.invoke('billing:openBillingPortal'),
+  billingRefreshAccess: () => ipcRenderer.invoke('billing:refreshAccess'),
+
   // Updates
   checkForUpdate: () => ipcRenderer.invoke('updater:check'),
   getUpdaterState: (): Promise<UpdaterState> => ipcRenderer.invoke('updater:getState'),
@@ -86,6 +94,23 @@ const api = {
     return () => { ipcRenderer.removeListener('updater:state', handler); };
   },
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
+
+  // BIOS
+  scanBiosState: () => ipcRenderer.invoke('bios:scan'),
+  getBiosProvisionStatus: () => ipcRenderer.invoke('bios:provisionStatus'),
+  exportNvram: () => ipcRenderer.invoke('bios:export'),
+  backupBios: () => ipcRenderer.invoke('bios:backup'),
+  listBiosBackups: () => ipcRenderer.invoke('bios:listBackups'),
+  previewBiosProfile: (profileId: string) => ipcRenderer.invoke('bios:previewProfile', profileId),
+  applyBiosProfile: (profileId: string) => ipcRenderer.invoke('bios:applyProfile', profileId),
+  restoreBiosBackup: (filename: string) => ipcRenderer.invoke('bios:restore', filename),
+  provisionScewin: () => ipcRenderer.invoke('bios:provisionScewin'),
+  cancelScewinProvision: () => ipcRenderer.invoke('bios:cancelProvision'),
+  onScewinProvisionProgress: (callback: (progress: { step: string; progress: number; message: string; error?: string }) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, progress: { step: string; progress: number; message: string; error?: string }) => callback(progress);
+    ipcRenderer.on('bios:provisionProgress', handler);
+    return () => { ipcRenderer.removeListener('bios:provisionProgress', handler); };
+  },
 
   // System monitoring
   onSystemUsage: (callback: (usage: { cpu: number; gpu: number; ram: number }) => void): (() => void) => {

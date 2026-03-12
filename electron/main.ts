@@ -4,12 +4,14 @@ import fs from 'fs';
 import { execFileSync } from 'child_process';
 import { registerIpcHandlers } from './ipc/handlers';
 import { registerAuthHandlers } from './ipc/auth-handlers';
+import { registerBiosHandlers } from './ipc/bios-handlers';
 import { initTelemetry, hasConsentDecision, getConsentStatus, setConsent, trackFailureStage, trackAppLaunch, trackInstalledGames, buildHardwareInfo } from './telemetry/telemetry';
 import { initAuth, onAppClosing } from './auth/auth';
 import { getSystemInfo } from './ipc/system-info';
 import { detectInstalledGames } from './ipc/game-detection';
 import { checkForUpdate, initUpdater, getUpdaterState, downloadUpdate, installUpdate } from './updater';
 import { startSystemMonitor, stopSystemMonitor } from './ipc/system-monitor';
+import { initBilling, registerBillingHandlers } from './billing/autumn';
 
 // --- Diagnostic Logger ---
 // app.getPath() is unavailable before 'ready', so defer log path resolution
@@ -432,10 +434,15 @@ if (!gotLock) {
       return;
     }
 
-    // Phase 3: Register IPC handlers
+    // Phase 3: Init billing (Autumn + Stripe)
+    initBilling();
+
+    // Phase 3b: Register IPC handlers
     log('INFO', 'App ready, registering IPC handlers');
     registerIpcHandlers(ipcMain);
     registerAuthHandlers(ipcMain);
+    registerBiosHandlers(ipcMain, () => mainWindow);
+    registerBillingHandlers(ipcMain);
 
     // Window controls & app-level IPC (registered once, outside createWindow to avoid double-registration)
     ipcMain.on('window:minimize', () => mainWindow?.minimize());

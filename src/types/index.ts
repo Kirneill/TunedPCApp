@@ -83,6 +83,127 @@ export interface BiosGuideStep {
   impact: string;
 }
 
+export interface BiosCategory {
+  id: string;
+  title: string;
+  description: string;
+  platform: 'both' | 'amd' | 'intel';
+  order: number;
+}
+
+export interface BiosSetting {
+  id: string;
+  categoryId: string;
+  title: string;
+  description: string;
+  details: string;
+  recommendedValue: string;
+  impact: 'high' | 'medium' | 'low';
+  risk: 'safe' | 'caution' | 'advanced';
+  platform: 'both' | 'amd' | 'intel';
+  requiresReboot: boolean;
+  vendorNav: { asus: string; msi: string; gigabyte: string; asrock: string };
+  warning?: string;
+  detectable?: boolean;
+  automatable?: boolean;
+}
+
+export interface BiosDetectionResult {
+  cpuName: string | null;
+  cpuManufacturer: string | null;
+  motherboardVendor: string | null;
+  motherboardModel: string | null;
+  biosVendor: string | null;
+  biosVersion: string | null;
+  isAmiBios: boolean | null;
+  ramCurrentSpeed: number | null;
+  ramRatedSpeed: number | null;
+  ramSticks: number | null;
+  ramTotalGB: number | null;
+  xmpLikelyEnabled: boolean | null;
+  vbsRunning: boolean | null;
+  memoryIntegrityEnabled: boolean | null;
+  memoryIntegrityRegistry: boolean | null;
+  hyperVInstalled: boolean | null;
+  virtualizationEnabled: boolean | null;
+  secureBootEnabled: boolean | null;
+  rebarDetected: boolean | null;
+  bar1TotalMB: number | null;
+}
+
+// ─── BIOS Automation Types (Phase 3) ──────────────────────
+
+export interface NvramSetting {
+  name: string;
+  token: string;
+  offset: string;
+  width: string;
+  biosDefault: string;
+  currentValue: string;
+  options: Record<string, string>; // label → value
+  isNumeric: boolean;
+  numericMin?: string;
+  numericMax?: string;
+  numericStep?: string;
+  rawBlock: string;
+}
+
+export interface ProfileSetting {
+  name: string;
+  targetValue: string;
+  riskLevel: 'safe' | 'low' | 'medium' | 'high';
+  description: string;
+  matchPattern: string;
+}
+
+export interface ProfileChange {
+  name: string;
+  nvramName: string;
+  currentValue: string;
+  targetValue: string;
+  resolvedValue: string;
+  riskLevel: string;
+  description: string;
+  applied: boolean;
+  found: boolean;
+}
+
+export interface BiosProfile {
+  id: string;
+  label: string;
+  description: string;
+  targetCpus: string[];
+  coolingRequirement: string;
+  criticalNote?: string;
+  settings: ProfileSetting[];
+}
+
+export interface BiosBackupInfo {
+  filename: string;
+  timestamp: string;
+  sizeBytes: number;
+}
+
+export interface ScewinProvisionStatus {
+  ready: boolean;
+  missingFiles: string[];
+  scewinDir: string;
+}
+
+export interface ApplyProfileResult {
+  success: boolean;
+  changes: ProfileChange[];
+  backupPath?: string;
+  error?: string;
+}
+
+export interface ScewinProvisionProgress {
+  step: string;
+  progress: number;
+  message: string;
+  error?: string;
+}
+
 export interface GpuGuideSetting {
   setting: string;
   value: string;
@@ -90,11 +211,36 @@ export interface GpuGuideSetting {
   critical?: boolean;
 }
 
+// ─── Subscription Types ──────────────────────────────────
+
+import type { Plan } from '../data/feature-tiers';
+
+/** Statuses Autumn can report, plus internal-only values */
+export type SubscriptionStatus = 'free' | 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired';
+
+export interface Subscription {
+  plan: Plan;
+  status: SubscriptionStatus;
+}
+
+export interface BillingAccessResult {
+  allowed: boolean;
+  plan: Plan;
+}
+
+export interface BillingCheckoutResult {
+  url?: string;
+  error?: string;
+}
+
 // ─── Auth Types ──────────────────────────────────────────
+
+export type UserTier = 'free' | 'pro';
 
 export interface AuthUser {
   id: string;
   email: string;
+  tier: UserTier;
 }
 
 export interface AuthResult {
@@ -177,6 +323,13 @@ declare global {
       // Waitlist
       joinWaitlist: (feature: string) => Promise<{ success: boolean; error?: string }>;
       hasJoinedWaitlist: (feature: string) => Promise<boolean>;
+      // Billing
+      billingCheckAccess: () => Promise<BillingAccessResult>;
+      billingCheckout: (successUrl?: string) => Promise<BillingCheckoutResult>;
+      billingCancelSubscription: (immediately?: boolean) => Promise<{ success: boolean; error?: string }>;
+      billingGetSubscription: () => Promise<Subscription>;
+      billingOpenPortal: () => Promise<{ success: boolean; error?: string }>;
+      billingRefreshAccess: () => Promise<BillingAccessResult>;
       // Updates
       checkForUpdate: () => Promise<UpdateInfo>;
       getUpdaterState: () => Promise<UpdaterState>;
@@ -184,6 +337,18 @@ declare global {
       installUpdate: () => Promise<UpdaterActionResult>;
       onUpdaterState: (callback: (state: UpdaterState) => void) => () => void;
       getAppVersion: () => Promise<string>;
+      // BIOS
+      scanBiosState: () => Promise<{ success: boolean; data: BiosDetectionResult | null; error?: string }>;
+      getBiosProvisionStatus: () => Promise<ScewinProvisionStatus>;
+      exportNvram: () => Promise<{ success: boolean; settings?: NvramSetting[]; settingsCount?: number; error?: string }>;
+      backupBios: () => Promise<{ success: boolean; path?: string; filename?: string; error?: string }>;
+      listBiosBackups: () => Promise<BiosBackupInfo[]>;
+      previewBiosProfile: (profileId: string) => Promise<{ success: boolean; changes?: ProfileChange[]; error?: string }>;
+      applyBiosProfile: (profileId: string) => Promise<ApplyProfileResult>;
+      restoreBiosBackup: (filename: string) => Promise<{ success: boolean; error?: string }>;
+      provisionScewin: () => Promise<{ success: boolean; error?: string }>;
+      cancelScewinProvision: () => Promise<{ success: boolean }>;
+      onScewinProvisionProgress: (callback: (progress: ScewinProvisionProgress) => void) => () => void;
       // System monitoring
       onSystemUsage: (callback: (usage: { cpu: number; gpu: number; ram: number }) => void) => () => void;
     };

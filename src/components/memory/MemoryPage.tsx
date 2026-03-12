@@ -34,8 +34,8 @@ const optimizations: OptimizationCard[] = [
     getRecommendation: (ramGB, isHDD) => {
       if (ramGB < 16) return { action: 'Keep On', badge: 'warning', reason: 'Your system needs this. Turning it off with 8 GB would cause freezes and crashes.' };
       if (isHDD) return { action: 'Keep On', badge: 'warning', reason: 'Your main drive is an HDD. Better to use a little CPU than wait on slow disk reads.' };
-      if (ramGB >= 32) return { action: 'Turn Off', badge: 'safe', reason: 'You have plenty of RAM. Compression just wastes CPU cycles that your game could use.' };
-      return { action: 'Turn Off', badge: 'safe', reason: 'With 16 GB+ and an SSD, compression just adds CPU overhead for no benefit.' };
+      if (ramGB >= 64) return { action: 'Turn Off', badge: 'safe', reason: 'You have so much RAM that compression is unnecessary. Frees up a tiny bit of CPU.' };
+      return { action: 'Keep On', badge: 'safe', reason: 'Compression uses ~2-4% CPU (unnoticeable in-game) but provides a safety net against out-of-memory crashes.' };
     },
     requiresReboot: true,
   },
@@ -44,11 +44,11 @@ const optimizations: OptimizationCard[] = [
     title: 'Virtual Memory',
     description: 'Locks your pagefile to a fixed size so Windows doesn\'t resize it while you\'re in a match. Resizing causes lag spikes.',
     getRecommendation: (ramGB, isHDD) => {
-      const size = ramGB <= 16 ? '8 GB' : '4 GB';
+      const size = '8 GB';
       const extra = isHDD ? ' Pro tip: move your pagefile to an SSD if you can.' : '';
       if (ramGB <= 8) return { action: `Lock to ${size}`, badge: 'moderate', reason: `Matches your RAM size. Games like Warzone and Tarkov need this to avoid crashes.${extra}` };
       if (ramGB <= 16) return { action: `Lock to ${size}`, badge: 'safe', reason: `Prevents mid-game lag spikes from Windows resizing your virtual memory.${extra}` };
-      return { action: `Lock to ${size}`, badge: 'safe', reason: `Small but needed. Keeps crash dumps working and prevents rare out-of-memory errors.${extra}` };
+      return { action: `Lock to ${size}`, badge: 'safe', reason: `Safe floor for heavy games. Modern titles like BO7 can use 15-20 GB commit charge.${extra}` };
     },
     requiresReboot: true,
   },
@@ -88,16 +88,18 @@ export default function MemoryPage() {
   const ramGB = systemInfo?.ramGB ?? 16;
   // We don't have storage type in SystemInfo yet, so assume SSD (safe default)
   const isHDD = false;
+  const isHighRam = ramGB > 16;
 
   const ramTier = useMemo(() => getRamTier(ramGB), [ramGB]);
   const ramUsagePercent = systemUsage?.ram ?? 0;
 
   const stateBadge = useMemo(() => {
+    if (isHighRam) return { label: 'Not Needed', className: 'text-sq-success' };
     if (runState === 'running') return { label: 'Optimizing...', className: 'text-sq-accent' };
     if (runState === 'success') return { label: 'Optimized', className: 'text-sq-success' };
     if (runState === 'error') return { label: 'Failed', className: 'text-sq-danger' };
     return { label: 'Not Optimized', className: 'text-sq-text-muted' };
-  }, [runState]);
+  }, [runState, isHighRam]);
 
   const handleOptimize = async () => {
     if (isRunning) return;
@@ -203,134 +205,108 @@ export default function MemoryPage() {
         </div>
       </Card>
 
-      {/* Optimization Cards */}
-      <Card title="What We'll Do">
-        <div className="space-y-4">
-          {optimizations.map((opt) => {
-            const rec = opt.getRecommendation(ramGB, isHDD);
-            return (
-              <div
-                key={opt.id}
-                className="flex items-start gap-4 p-3 rounded-xl bg-sq-bg/50 border border-sq-border/40"
-              >
-                {/* Action badge -- fixed width so titles align */}
-                <div className="shrink-0 pt-0.5 w-[130px]">
-                  <Badge variant={rec.badge}>{rec.action}</Badge>
-                </div>
+      {/* HIGH RAM BLOCK: Show "not needed" message for 16GB+ systems */}
+      {isHighRam ? (
+        <div className="flex items-start gap-4 px-5 py-5 rounded-xl bg-sq-success/8 border border-sq-success/20">
+          <svg className="w-8 h-8 text-sq-success shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <p className="text-sm font-bold text-sq-success">Your system doesn't need this</p>
+            <p className="text-xs text-sq-text-muted mt-1.5 leading-relaxed">
+              With <span className="text-sq-text font-semibold">{ramGB} GB of RAM</span>, your system already has more than enough memory for any game.
+              This optimizer is designed for systems with 16 GB or less, where Windows memory management can cause stutters and lag spikes.
+            </p>
+            <p className="text-xs text-sq-text-muted mt-2 leading-relaxed">
+              Running memory optimizations on high-RAM systems can actually cause problems -- like reducing your virtual memory below what modern games need.
+              Your PC is already in great shape for gaming.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Optimization Cards */}
+          <Card title="What We'll Do">
+            <div className="space-y-4">
+              {optimizations.map((opt) => {
+                const rec = opt.getRecommendation(ramGB, isHDD);
+                return (
+                  <div
+                    key={opt.id}
+                    className="flex items-start gap-4 p-3 rounded-xl bg-sq-bg/50 border border-sq-border/40"
+                  >
+                    {/* Action badge -- fixed width so titles align */}
+                    <div className="shrink-0 pt-0.5 w-[130px]">
+                      <Badge variant={rec.badge}>{rec.action}</Badge>
+                    </div>
 
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-sq-text">{opt.title}</span>
-                    {opt.requiresReboot && (
-                      <span className="text-[9px] text-sq-warning font-bold uppercase tracking-wider">Reboot</span>
-                    )}
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-sq-text">{opt.title}</span>
+                        {opt.requiresReboot && (
+                          <span className="text-[9px] text-sq-warning font-bold uppercase tracking-wider">Reboot</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-sq-text-dim mt-0.5">{opt.description}</p>
+                      <p className="text-xs text-sq-text-muted mt-1.5">
+                        <span className="font-medium text-sq-accent-hover">With {ramGB} GB RAM:</span>{' '}
+                        {rec.reason}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs text-sq-text-dim mt-0.5">{opt.description}</p>
-                  <p className="text-xs text-sq-text-muted mt-1.5">
-                    <span className="font-medium text-sq-accent-hover">With {ramGB} GB RAM:</span>{' '}
-                    {rec.reason}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
+                );
+              })}
+            </div>
+          </Card>
 
-      {/* Safety notice */}
-      <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-sq-success/8 border border-sq-success/20">
-        <svg className="w-5 h-5 text-sq-success shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-        </svg>
-        <div>
-          <p className="text-xs font-semibold text-sq-success">System Restore Point Required</p>
-          <p className="text-xs text-sq-text-muted mt-0.5">
-            A restore point is created automatically before any changes are made. If it fails, the optimization will <span className="text-sq-text font-medium">stop and won't touch anything</span>. Make sure System Protection is turned on for your C: drive (search "Create a restore point" in Windows).
-          </p>
-        </div>
-      </div>
+          {/* Safety notice */}
+          <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-sq-success/8 border border-sq-success/20">
+            <svg className="w-5 h-5 text-sq-success shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+            </svg>
+            <div>
+              <p className="text-xs font-semibold text-sq-success">System Restore Point Required</p>
+              <p className="text-xs text-sq-text-muted mt-0.5">
+                A restore point is created automatically before any changes are made. If it fails, the optimization will <span className="text-sq-text font-medium">stop and won't touch anything</span>. Make sure System Protection is turned on for your C: drive (search "Create a restore point" in Windows).
+              </p>
+            </div>
+          </div>
 
-      {/* Optimize Button */}
-      <Card title="Run It">
-        <div className="space-y-3">
-          <p className="text-xs text-sq-text-muted">
-            Scans your PC and only applies what's safe for your setup. Nothing is changed without checking your hardware first.
-            {ramGB < 16 && (
-              <span className="text-sq-warning font-medium"> RAM compression stays ON because your system needs it at {ramGB} GB.</span>
-            )}
-          </p>
+          {/* Optimize Button */}
+          <Card title="Run It">
+            <div className="space-y-3">
+              <p className="text-xs text-sq-text-muted">
+                Scans your PC and only applies what's safe for your setup. Nothing is changed without checking your hardware first.
+                {ramGB < 16 && (
+                  <span className="text-sq-warning font-medium"> RAM compression stays ON because your system needs it at {ramGB} GB.</span>
+                )}
+              </p>
 
-          <button
-            onClick={handleOptimize}
-            disabled={isRunning}
-            className={`
-              w-full py-3 rounded-xl font-bold text-sm tracking-wide transition-all
-              ${isRunning
-                ? 'bg-sq-accent/50 text-white/70 cursor-wait'
-                : 'bg-sq-accent hover:bg-sq-accent-hover text-white shadow-lg shadow-sq-accent/25 cursor-pointer active:scale-[0.99]'
-              }
-            `}
-          >
-            {isRunning ? 'OPTIMIZING MEMORY...' : 'OPTIMIZE MEMORY'}
-          </button>
+              <button
+                onClick={handleOptimize}
+                disabled={isRunning}
+                className={`
+                  w-full py-3 rounded-xl font-bold text-sm tracking-wide transition-all
+                  ${isRunning
+                    ? 'bg-sq-accent/50 text-white/70 cursor-wait'
+                    : 'bg-sq-accent hover:bg-sq-accent-hover text-white shadow-lg shadow-sq-accent/25 cursor-pointer active:scale-[0.99]'
+                  }
+                `}
+              >
+                {isRunning ? 'OPTIMIZING MEMORY...' : 'OPTIMIZE MEMORY'}
+              </button>
 
-          <div className="text-xs text-sq-text-dim">{statusText}</div>
-        </div>
-      </Card>
+              <div className="text-xs text-sq-text-dim">{statusText}</div>
+            </div>
+          </Card>
 
-      {/* Decision Matrix Reference */}
-      <details className="bg-sq-surface border border-sq-border rounded-xl px-4 py-3">
-        <summary className="text-sm font-semibold text-sq-text cursor-pointer">What happens at different RAM sizes?</summary>
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-sq-border text-left">
-                <th className="pb-2 text-sq-text-muted font-medium" />
-                <th className="pb-2 text-sq-text-muted font-medium text-center">8 GB</th>
-                <th className="pb-2 text-sq-text-muted font-medium text-center">16 GB</th>
-                <th className="pb-2 text-sq-text-muted font-medium text-center">32 GB</th>
-                <th className="pb-2 text-sq-text-muted font-medium text-center">64 GB+</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-sq-border/50">
-              <tr>
-                <td className="py-2.5 pr-3 text-sq-text font-medium">Free Cached RAM</td>
-                <td className="py-2.5 text-center font-mono text-sq-success">Yes</td>
-                <td className="py-2.5 text-center font-mono text-sq-success">Yes</td>
-                <td className="py-2.5 text-center font-mono text-sq-text-muted">If needed</td>
-                <td className="py-2.5 text-center font-mono text-sq-text-dim">Skip</td>
-              </tr>
-              <tr>
-                <td className="py-2.5 pr-3 text-sq-text font-medium">RAM Compression</td>
-                <td className="py-2.5 text-center font-mono text-sq-danger font-bold">Keep On</td>
-                <td className="py-2.5 text-center font-mono text-sq-success">Turn Off</td>
-                <td className="py-2.5 text-center font-mono text-sq-success">Turn Off</td>
-                <td className="py-2.5 text-center font-mono text-sq-success">Turn Off</td>
-              </tr>
-              <tr>
-                <td className="py-2.5 pr-3 text-sq-text font-medium">Virtual Memory</td>
-                <td className="py-2.5 text-center font-mono text-sq-success">8 GB</td>
-                <td className="py-2.5 text-center font-mono text-sq-success">8 GB</td>
-                <td className="py-2.5 text-center font-mono text-sq-success">4 GB</td>
-                <td className="py-2.5 text-center font-mono text-sq-success">4 GB</td>
-              </tr>
-              <tr>
-                <td className="py-2.5 pr-3 text-sq-text font-medium">Background Cleanup</td>
-                <td className="py-2.5 text-center font-mono text-sq-warning">If needed</td>
-                <td className="py-2.5 text-center font-mono text-sq-text-dim">Skip</td>
-                <td className="py-2.5 text-center font-mono text-sq-text-dim">Skip</td>
-                <td className="py-2.5 text-center font-mono text-sq-text-dim">Skip</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </details>
-
-      {/* Run Log */}
-      <Card title="Run Log">
-        <LogViewer entries={progressLog} maxHeight="260px" />
-      </Card>
+          {/* Run Log */}
+          <Card title="Run Log">
+            <LogViewer entries={progressLog} maxHeight="260px" />
+          </Card>
+        </>
+      )}
     </div>
   );
 }

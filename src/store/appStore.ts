@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { SystemInfo, DetectedGame, LogEntry, UserConfig, AuthUser, UserMachine, UpdateInfo, UpdaterState, PasswordResetTokens } from '../types';
+import type { SystemInfo, DetectedGame, LogEntry, UserConfig, AuthUser, UserMachine, UpdateInfo, UpdaterState, PasswordResetTokens, Subscription, BiosDetectionResult, ScewinProvisionStatus, BiosBackupInfo, ProfileChange, ApplyProfileResult, ScewinProvisionProgress } from '../types';
+import { isProActive } from '../data/feature-tiers';
 import { GAMES } from '../data/game-registry';
 
 interface AppState {
@@ -44,8 +45,35 @@ interface AppState {
   updaterState: UpdaterState;
   closeToBackground: boolean;
 
+  // Subscription
+  subscription: Subscription;
+  isPro: () => boolean;
+  setSubscription: (sub: Subscription) => void;
+
   // Password reset deep link
   passwordResetTokens: PasswordResetTokens | null;
+
+  // BIOS detection
+  biosDetection: BiosDetectionResult | null;
+  biosScanLoading: boolean;
+  biosScanError: string | null;
+
+  // BIOS automation (Phase 3)
+  scewinStatus: ScewinProvisionStatus | null;
+  biosBackups: BiosBackupInfo[];
+  selectedBiosProfile: string | null;
+  profilePreview: ProfileChange[] | null;
+  profilePreviewLoading: boolean;
+  biosApplying: boolean;
+  biosApplyResult: ApplyProfileResult | null;
+  scewinProvisionProgress: ScewinProvisionProgress | null;
+
+  // BIOS UI state
+  biosActiveTab: 'overview' | 'guide' | 'automate';
+  biosHasAutoScanned: boolean;
+  checkedBiosSettings: Record<string, boolean>;
+  biosExpandedCategories: Record<string, boolean>;
+  biosExpandedSettings: Record<string, boolean>;
 
   // Auth actions
   setAuthUser: (user: AuthUser | null) => void;
@@ -79,6 +107,22 @@ interface AppState {
   dismissUpdate: () => void;
   setCloseToBackground: (enabled: boolean) => void;
   setPasswordResetTokens: (tokens: PasswordResetTokens | null) => void;
+  setBiosDetection: (data: BiosDetectionResult | null) => void;
+  setBiosScanLoading: (loading: boolean) => void;
+  setBiosScanError: (error: string | null) => void;
+  setScewinStatus: (status: ScewinProvisionStatus | null) => void;
+  setBiosBackups: (backups: BiosBackupInfo[]) => void;
+  setSelectedBiosProfile: (profileId: string | null) => void;
+  setProfilePreview: (changes: ProfileChange[] | null) => void;
+  setProfilePreviewLoading: (loading: boolean) => void;
+  setBiosApplying: (applying: boolean) => void;
+  setBiosApplyResult: (result: ApplyProfileResult | null) => void;
+  setScewinProvisionProgress: (progress: ScewinProvisionProgress | null) => void;
+  setBiosActiveTab: (tab: AppState['biosActiveTab']) => void;
+  setBiosHasAutoScanned: (v: boolean) => void;
+  setCheckedBiosSetting: (id: string, value: boolean) => void;
+  toggleBiosCategoryExpanded: (categoryId: string) => void;
+  toggleBiosSettingExpanded: (settingId: string) => void;
 }
 
 // User-namespaced localStorage key
@@ -131,8 +175,8 @@ const DEFAULT_TOGGLES: Record<string, boolean> = {
   'win-timer-res': true,
   'win-power-throttle': true,
   'win-priority-sep': true,
-  'win-dynamic-tick': true,
-  'win-hpet': true,
+  'win-dynamic-tick': false,   // bcdedit change -- hardware-dependent, opt-in only
+  'win-hpet': false,           // bcdedit change -- hardware-dependent, opt-in only
   ...gameToggles,
 };
 
@@ -205,6 +249,28 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   closeToBackground: true,
   passwordResetTokens: null,
+  subscription: { plan: 'free', status: 'free' },
+  isPro: () => {
+    const sub = get().subscription;
+    return sub.plan === 'pro' || sub.plan === 'dev' || isProActive(sub.status);
+  },
+  setSubscription: (sub) => set({ subscription: sub }),
+  biosDetection: null,
+  biosScanLoading: false,
+  biosScanError: null,
+  scewinStatus: null,
+  biosBackups: [],
+  selectedBiosProfile: null,
+  profilePreview: null,
+  profilePreviewLoading: false,
+  biosApplying: false,
+  biosApplyResult: null,
+  scewinProvisionProgress: null,
+  biosActiveTab: 'overview',
+  biosHasAutoScanned: false,
+  checkedBiosSettings: {},
+  biosExpandedCategories: {},
+  biosExpandedSettings: {},
 
   // Auth actions
   setAuthUser: (user) => {
@@ -239,6 +305,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       detectedGames: [],
       progressLog: [],
       currentPage: 'dashboard',
+      subscription: { plan: 'free', status: 'free' },
     });
   },
 
@@ -291,6 +358,28 @@ export const useAppStore = create<AppState>((set, get) => ({
   dismissUpdate: () => set({ updateDismissed: true }),
   setCloseToBackground: (enabled) => set({ closeToBackground: enabled }),
   setPasswordResetTokens: (tokens) => set({ passwordResetTokens: tokens }),
+  setBiosDetection: (data) => set({ biosDetection: data }),
+  setBiosScanLoading: (loading) => set({ biosScanLoading: loading }),
+  setBiosScanError: (error) => set({ biosScanError: error }),
+  setScewinStatus: (status) => set({ scewinStatus: status }),
+  setBiosBackups: (backups) => set({ biosBackups: backups }),
+  setSelectedBiosProfile: (profileId) => set({ selectedBiosProfile: profileId, profilePreview: null, biosApplyResult: null }),
+  setProfilePreview: (changes) => set({ profilePreview: changes }),
+  setProfilePreviewLoading: (loading) => set({ profilePreviewLoading: loading }),
+  setBiosApplying: (applying) => set({ biosApplying: applying }),
+  setBiosApplyResult: (result) => set({ biosApplyResult: result }),
+  setScewinProvisionProgress: (progress) => set({ scewinProvisionProgress: progress }),
+  setBiosActiveTab: (tab) => set({ biosActiveTab: tab }),
+  setBiosHasAutoScanned: (v) => set({ biosHasAutoScanned: v }),
+  setCheckedBiosSetting: (id, value) => set((s) => ({
+    checkedBiosSettings: { ...s.checkedBiosSettings, [id]: value },
+  })),
+  toggleBiosCategoryExpanded: (categoryId) => set((s) => ({
+    biosExpandedCategories: { ...s.biosExpandedCategories, [categoryId]: !s.biosExpandedCategories[categoryId] },
+  })),
+  toggleBiosSettingExpanded: (settingId) => set((s) => ({
+    biosExpandedSettings: { ...s.biosExpandedSettings, [settingId]: !s.biosExpandedSettings[settingId] },
+  })),
 }));
 
 function persistConfig(

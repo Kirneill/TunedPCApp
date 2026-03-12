@@ -1,7 +1,14 @@
 import { useAppStore } from '../../store/appStore';
+import { requiresPro } from '../../data/feature-tiers';
 import appLogo from '../../assets/app-logo.ico';
 
 type Page = 'dashboard' | 'advanced' | 'network' | 'bios-guide' | 'gpu-guide' | 'memory' | 'backups';
+
+const LockIcon = () => (
+  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+  </svg>
+);
 
 const GamepadIcon = () => (
   <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -71,7 +78,7 @@ const sections = [
 ];
 
 export default function Sidebar() {
-  const { currentPage, setCurrentPage, isRunning, authUser } = useAppStore();
+  const { currentPage, setCurrentPage, isRunning, authUser, isPro } = useAppStore();
 
   return (
     <aside className="w-60 sq-panel border-r sq-subtle-divider flex flex-col shrink-0 sq-aurora">
@@ -97,38 +104,55 @@ export default function Sidebar() {
               {section.label}
             </div>
             <div className="space-y-1">
-              {section.items.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setCurrentPage(item.id)}
-                  disabled={isRunning}
-                  className={`
-                    relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
-                    ${currentPage === item.id
-                      ? 'bg-gradient-to-r from-sq-accent/18 via-sq-accent/8 to-transparent text-sq-text border border-sq-accent/30 shadow-[inset_0_0_12px_rgba(225,29,47,0.06)]'
-                      : 'text-sq-text-muted hover:text-sq-text hover:bg-white/[0.03] border border-transparent'
-                    }
-                    ${isRunning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                  `}
-                >
-                  {currentPage === item.id && (
-                    <span className="absolute left-0 top-2 bottom-2 w-[3px] bg-sq-accent rounded-r" />
-                  )}
-                  <span className={`
-                    w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors
-                    ${currentPage === item.id
-                      ? 'bg-sq-accent/18 text-sq-accent-hover'
-                      : 'bg-sq-bg/60 text-sq-text-dim'
-                    }
-                  `}>
-                    {item.icon}
-                  </span>
-                  <span className="flex flex-col items-start min-w-0">
-                    <span className="truncate leading-snug">{item.label}</span>
-                    <span className="text-[10px] text-sq-text-dim font-normal truncate">{item.hint}</span>
-                  </span>
-                </button>
-              ))}
+              {section.items.map((item) => {
+                const isProPage = requiresPro(item.id);
+                const isLocked = isProPage && !isPro();
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setCurrentPage(item.id)}
+                    disabled={isRunning}
+                    className={`
+                      relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+                      ${currentPage === item.id
+                        ? 'bg-gradient-to-r from-sq-accent/18 via-sq-accent/8 to-transparent text-sq-text border border-sq-accent/30 shadow-[inset_0_0_12px_rgba(225,29,47,0.06)]'
+                        : 'text-sq-text-muted hover:text-sq-text hover:bg-white/[0.03] border border-transparent'
+                      }
+                      ${isRunning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                    `}
+                  >
+                    {currentPage === item.id && (
+                      <span className="absolute left-0 top-2 bottom-2 w-[3px] bg-sq-accent rounded-r" />
+                    )}
+                    <span className={`
+                      w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors
+                      ${currentPage === item.id
+                        ? 'bg-sq-accent/18 text-sq-accent-hover'
+                        : 'bg-sq-bg/60 text-sq-text-dim'
+                      }
+                    `}>
+                      {item.icon}
+                    </span>
+                    <span className="flex flex-col items-start min-w-0 flex-1">
+                      <span className="truncate leading-snug flex items-center gap-1.5">
+                        {item.label}
+                        {isLocked && (
+                          <span className="text-sq-text-dim/60"><LockIcon /></span>
+                        )}
+                      </span>
+                      <span className="text-[10px] text-sq-text-dim font-normal truncate">
+                        {isLocked ? 'Pro feature' : item.hint}
+                      </span>
+                    </span>
+                    {isLocked && (
+                      <span className="text-[8px] font-bold uppercase tracking-wider text-sq-accent/70 bg-sq-accent/10 px-1.5 py-0.5 rounded shrink-0">
+                        PRO
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         ))}
@@ -147,7 +171,9 @@ export default function Sidebar() {
             <span className="text-[11px] text-sq-text font-medium truncate">
               {authUser?.email || 'Not signed in'}
             </span>
-            <span className="text-[9px] text-sq-accent/70 font-semibold uppercase tracking-wider">Pro</span>
+            <span className={`text-[9px] font-semibold uppercase tracking-wider ${isPro() ? 'text-sq-accent/70' : 'text-sq-text-dim/50'}`}>
+              {isPro() ? 'Pro' : 'Free'}
+            </span>
           </div>
         </div>
       </div>

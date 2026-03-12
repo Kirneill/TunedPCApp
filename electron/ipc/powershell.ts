@@ -13,7 +13,7 @@ function getScriptsPath(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'scripts');
   }
-  return path.join(__dirname, '../../scripts');
+  return path.join(app.getAppPath(), 'scripts');
 }
 
 export function getScriptPath(scriptName: string): string {

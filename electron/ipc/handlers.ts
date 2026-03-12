@@ -186,7 +186,7 @@ function getBundledGpuToolsPath(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'tools');
   }
-  return path.join(__dirname, '../../resources/tools');
+  return path.join(app.getAppPath(), 'resources/tools');
 }
 
 function createRunLogger(win: BrowserWindow | null, runId: string): { runId: string; filePath: string; log: RunLogFn } {
