@@ -369,6 +369,16 @@ export function registerBiosHandlers(ipcMain: IpcMain, getWindow?: () => Browser
       const changes = matchProfile(nvram, safeSettings);
       const appliedCount = changes.filter(c => c.applied).length;
 
+      // Log matched tokens for diagnostics
+      for (const c of changes) {
+        if (c.found) {
+          const nvramEntry = nvram.find(ns => ns.name === c.nvramName);
+          console.log(`[bios] ${c.name}: token=${nvramEntry?.token ?? '?'} current=${c.currentValue} → resolved=${c.resolvedValue} (${c.applied ? 'WILL CHANGE' : 'already correct'})`);
+        } else {
+          console.log(`[bios] ${c.name}: NOT FOUND in NVRAM`);
+        }
+      }
+
       if (appliedCount === 0) {
         return { success: true, changes, backupPath: backupDst, error: 'All settings already at target values' };
       }
@@ -376,6 +386,8 @@ export function registerBiosHandlers(ipcMain: IpcMain, getWindow?: () => Browser
       const patchedText = patchNvramText(originalText, nvram, changes);
       const patchedPath = path.join(scewinDir, 'nvram_patched.txt');
       await fsp.writeFile(patchedPath, patchedText, 'utf-8');
+
+      console.log(`[bios] Patching ${appliedCount} settings, importing via SCEWIN...`);
 
       // 4. Import patched settings
       await clearScewinLog(scewinDir);

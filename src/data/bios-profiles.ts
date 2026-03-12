@@ -72,7 +72,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Auto',
         riskLevel: 'low',
         description: 'Auto boost duration for balanced performance',
-        matchPattern: 'pbo\\s*scalar',
+        matchPattern: '(pbo|precision\\s*boost\\s*overdrive)\\s*scalar',
       },
       {
         name: 'CPU Turbo Boost',
@@ -86,7 +86,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Enabled',
         riskLevel: 'safe',
         description: 'CPU-to-OS frequency communication for optimal scheduling',
-        matchPattern: 'cppc$',
+        matchPattern: 'cppc(?!\\s*preferred)',
       },
       {
         name: 'Smart Core Selection',
@@ -114,7 +114,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Enabled',
         riskLevel: 'safe',
         description: 'Let GPU access its full VRAM for better performance',
-        matchPattern: 're.?sizable\\s*bar|smart\\s*access\\s*memory',
+        matchPattern: 're.?siz(e|able)\\s*bar|smart\\s*access\\s*memory',
       },
       {
         name: 'Legacy Boot Mode',
@@ -155,7 +155,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Profile 1',
         riskLevel: 'low',
         description: 'Unlock your DDR5 RAM to run at its rated speed',
-        matchPattern: '(xmp|expo|extreme\\s*memory\\s*profile)',
+        matchPattern: '(xmp|expo|extreme\\s*memory\\s*profile|dram\\s*profile)',
       },
       {
         name: 'Memory Bus Speed',
@@ -211,7 +211,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Auto',
         riskLevel: 'low',
         description: 'Auto boost duration for balanced performance',
-        matchPattern: 'pbo\\s*scalar',
+        matchPattern: '(pbo|precision\\s*boost\\s*overdrive)\\s*scalar',
       },
       {
         name: 'CPU Turbo Boost',
@@ -225,7 +225,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Enabled',
         riskLevel: 'safe',
         description: 'CPU-to-OS frequency communication for optimal scheduling',
-        matchPattern: 'cppc$',
+        matchPattern: 'cppc(?!\\s*preferred)',
       },
       {
         name: 'Smart Core Selection',
@@ -253,7 +253,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Enabled',
         riskLevel: 'safe',
         description: 'Let GPU access its full VRAM for better performance',
-        matchPattern: 're.?sizable\\s*bar|smart\\s*access\\s*memory',
+        matchPattern: 're.?siz(e|able)\\s*bar|smart\\s*access\\s*memory',
       },
       {
         name: 'Legacy Boot Mode',
@@ -294,7 +294,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Profile 1',
         riskLevel: 'low',
         description: 'Unlock your DDR5 RAM to run at its rated speed',
-        matchPattern: '(xmp|expo|extreme\\s*memory\\s*profile)',
+        matchPattern: '(xmp|expo|extreme\\s*memory\\s*profile|dram\\s*profile)',
       },
       {
         name: 'Memory Bus Speed',
@@ -350,7 +350,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Auto',
         riskLevel: 'low',
         description: 'Auto boost duration for balanced performance',
-        matchPattern: 'pbo\\s*scalar',
+        matchPattern: '(pbo|precision\\s*boost\\s*overdrive)\\s*scalar',
       },
       {
         name: 'CPU Turbo Boost',
@@ -371,7 +371,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Enabled',
         riskLevel: 'safe',
         description: 'CPU-to-OS frequency communication for optimal scheduling',
-        matchPattern: 'cppc$',
+        matchPattern: 'cppc(?!\\s*preferred)',
       },
       {
         name: 'Smart Core Selection',
@@ -399,7 +399,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Enabled',
         riskLevel: 'safe',
         description: 'Let GPU access its full VRAM for better performance',
-        matchPattern: 're.?sizable\\s*bar|smart\\s*access\\s*memory',
+        matchPattern: 're.?siz(e|able)\\s*bar|smart\\s*access\\s*memory',
       },
       {
         name: 'Legacy Boot Mode',
@@ -441,7 +441,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Profile 1',
         riskLevel: 'low',
         description: 'Unlock your RAM to run at its rated speed',
-        matchPattern: '(xmp|extreme\\s*memory\\s*profile)',
+        matchPattern: '(xmp|extreme\\s*memory\\s*profile|dram\\s*profile)',
       },
       {
         name: 'Sustained Power Limit',
@@ -497,7 +497,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Enabled',
         riskLevel: 'safe',
         description: 'Let GPU access its full VRAM for better performance',
-        matchPattern: 're.?sizable\\s*bar',
+        matchPattern: 're.?siz(e|able)\\s*bar',
       },
       {
         name: 'Legacy Boot Mode',
@@ -535,7 +535,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Profile 1',
         riskLevel: 'low',
         description: 'Unlock your RAM to run at its rated speed',
-        matchPattern: '(xmp|extreme\\s*memory\\s*profile)',
+        matchPattern: '(xmp|extreme\\s*memory\\s*profile|dram\\s*profile)',
       },
       {
         name: 'Sustained Power Limit',
@@ -654,7 +654,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Enabled',
         riskLevel: 'safe',
         description: 'Let GPU access its full VRAM for better performance',
-        matchPattern: 're.?sizable\\s*bar',
+        matchPattern: 're.?siz(e|able)\\s*bar',
       },
       {
         name: 'Legacy Boot Mode',
@@ -689,7 +689,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Profile 1',
         riskLevel: 'low',
         description: 'Unlock your DDR5 RAM to run at its rated speed',
-        matchPattern: '(xmp|extreme\\s*memory\\s*profile)',
+        matchPattern: '(xmp|extreme\\s*memory\\s*profile|dram\\s*profile)',
       },
       {
         name: '200S Performance Boost',
@@ -738,7 +738,7 @@ export const BIOS_PROFILES: BiosProfile[] = [
         targetValue: 'Enabled',
         riskLevel: 'safe',
         description: 'Let GPU access its full VRAM for better performance',
-        matchPattern: 're.?sizable\\s*bar',
+        matchPattern: 're.?siz(e|able)\\s*bar',
       },
       {
         name: 'Legacy Boot Mode',

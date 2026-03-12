@@ -116,10 +116,20 @@ export function matchProfile(
       });
       continue;
     }
-    const match = nvram.find(ns => re.test(ns.name));
+    // Prefer the LAST (deepest) match in the NVRAM dump. AMD CBS tokens appear
+    // after main Setup tokens, and the CBS copies are the authoritative values
+    // that persist through boot. Using the first match can target a "shadow" copy
+    // in the main section that the BIOS firmware overwrites on every POST.
+    let match: NvramSetting | undefined;
+    for (let i = nvram.length - 1; i >= 0; i--) {
+      if (re.test(nvram[i].name)) { match = nvram[i]; break; }
+    }
 
     if (match) {
       const resolved = resolveValue(ps, match);
+      // Compare case-insensitively: NVRAM hex values may be lowercase (0x1e) or uppercase (0x1E)
+      const alreadyAtTarget = resolved === null ||
+        resolved.toLowerCase() === match.currentValue.toLowerCase();
       changes.push({
         name: ps.name,
         nvramName: match.name,
@@ -128,7 +138,7 @@ export function matchProfile(
         resolvedValue: resolved ?? ps.targetValue,
         riskLevel: ps.riskLevel,
         description: ps.description,
-        applied: resolved !== null && resolved !== match.currentValue,
+        applied: !alreadyAtTarget,
         found: true,
       });
     } else {
@@ -150,7 +160,17 @@ export function matchProfile(
 
 /** Resolve a profile target value to an NVRAM option value. */
 function resolveValue(ps: ProfileSetting, ns: NvramSetting): string | null {
-  if (ns.isNumeric) return ps.targetValue;
+  if (ns.isNumeric) {
+    // Profile targets are decimal (e.g., "30", "200").
+    // SCEWIN export format uses hex (e.g., "0x1E", "0xC8").
+    // We must convert to hex so SCEWIN writes the correct value.
+    const num = parseInt(ps.targetValue, 10);
+    if (isNaN(num)) return ps.targetValue;
+    // Pad hex digits to match NVRAM field width: Width=0x01→2 digits, 0x02→4, 0x04→8
+    const width = parseInt(ns.width.replace(/^0x/i, ''), 16);
+    const hexDigits = isNaN(width) || width < 1 ? 2 : width * 2;
+    return `0x${num.toString(16).toUpperCase().padStart(hexDigits, '0')}`;
+  }
   const target = ps.targetValue.toLowerCase();
   // Exact match first
   for (const [label, val] of Object.entries(ns.options)) {
@@ -177,7 +197,11 @@ export function patchNvramText(
   for (const change of changes) {
     if (!change.applied || !change.found) continue;
 
-    const setting = nvram.find(ns => ns.name === change.nvramName);
+    // Use reverse lookup to match the same deep token that matchProfile selected
+    let setting: NvramSetting | undefined;
+    for (let i = nvram.length - 1; i >= 0; i--) {
+      if (nvram[i].name === change.nvramName) { setting = nvram[i]; break; }
+    }
     if (!setting) continue;
 
     // Use token for unique identification — setting names can be duplicated across subsections
