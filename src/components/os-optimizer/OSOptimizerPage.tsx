@@ -54,6 +54,8 @@ export default function OSOptimizerPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
   const [expertOpen, setExpertOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'success' | 'error'>('idle');
 
   useEffect(() => {
     let cancelled = false;
@@ -75,13 +77,15 @@ export default function OSOptimizerPage() {
     try {
       const result = await window.sensequality.checkDebloatManifest();
       setManifest(result);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('Failed to refresh debloat manifest:', err);
+      // Don't update state -- keep current data rather than showing stale/wrong info
     }
   };
 
   const runScript = async (scriptId: string, label: string) => {
     if (isRunning) return;
+    setError(null);
     setIsRunning(true);
     clearLog();
     try {
@@ -89,6 +93,7 @@ export default function OSOptimizerPage() {
       await refreshManifest();
     } catch (err) {
       console.error(`${label} failed:`, err);
+      setError(`${label} failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsRunning(false);
     }
@@ -102,6 +107,25 @@ export default function OSOptimizerPage() {
   const handleUndo = async () => {
     setShowUndoConfirm(false);
     await runScript('win-undo-debloat', 'Undo run');
+  };
+
+  const handleExportPlaybook = async () => {
+    setExportStatus('exporting');
+    try {
+      const result = await window.sensequality.exportPlaybook();
+      if (result.success) {
+        setExportStatus('success');
+        setTimeout(() => setExportStatus('idle'), 3000);
+      } else {
+        setExportStatus('error');
+        console.error('Export failed:', result.error);
+        setTimeout(() => setExportStatus('idle'), 5000);
+      }
+    } catch (err) {
+      setExportStatus('error');
+      console.error('Export failed:', err);
+      setTimeout(() => setExportStatus('idle'), 5000);
+    }
   };
 
   const manifestTimestamp = manifest?.timestamp
@@ -239,6 +263,16 @@ export default function OSOptimizerPage() {
             </button>
           )}
 
+          {/* Error Display */}
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">
+              <svg className="w-4 h-4 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              </svg>
+              <p className="text-xs text-red-400">{error}</p>
+            </div>
+          )}
+
           {/* Log Output */}
           {progressLog.length > 0 && (
             <LogViewer entries={progressLog} maxHeight="200px" />
@@ -296,6 +330,16 @@ export default function OSOptimizerPage() {
                 )}
               </button>
 
+              {/* Error Display */}
+              {error && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">
+                  <svg className="w-4 h-4 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                  </svg>
+                  <p className="text-xs text-red-400">{error}</p>
+                </div>
+              )}
+
               {/* Log Output (undo tab) */}
               {progressLog.length > 0 && (
                 <LogViewer entries={progressLog} maxHeight="200px" />
@@ -340,11 +384,39 @@ export default function OSOptimizerPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleExportPlaybook}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-sq-accent/10 text-sq-accent border border-sq-accent/20 hover:bg-sq-accent/20 transition-colors"
+                disabled={exportStatus === 'exporting'}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  exportStatus === 'success'
+                    ? 'bg-sq-success/10 text-sq-success border-sq-success/20'
+                    : exportStatus === 'error'
+                      ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                      : exportStatus === 'exporting'
+                        ? 'bg-sq-accent/10 text-sq-accent/60 border-sq-accent/20 cursor-wait'
+                        : 'bg-sq-accent/10 text-sq-accent border-sq-accent/20 hover:bg-sq-accent/20 cursor-pointer'
+                }`}
               >
                 <span className="flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  Export Playbook to Downloads
+                  {exportStatus === 'exporting' ? (
+                    <>
+                      <Spinner />
+                      Exporting...
+                    </>
+                  ) : exportStatus === 'success' ? (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                      Exported!
+                    </>
+                  ) : exportStatus === 'error' ? (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+                      Export Failed
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                      Export Playbook to Downloads
+                    </>
+                  )}
                 </span>
               </button>
               <button
@@ -409,13 +481,3 @@ function ManifestRow({ label, value }: { label: string; value: string | number }
   );
 }
 
-async function handleExportPlaybook(): Promise<void> {
-  try {
-    const result = await window.sensequality.exportPlaybook();
-    if (!result.success) {
-      console.error('Export failed:', result.error);
-    }
-  } catch (err) {
-    console.error('Export failed:', err);
-  }
-}
