@@ -15,6 +15,10 @@ const api = {
   createRestorePoint: (): Promise<{ success: boolean; errors: string[] }> =>
     ipcRenderer.invoke('safety:createRestorePoint'),
 
+  // Network revert
+  revertNetwork: (): Promise<{ success: boolean; errors: string[] }> =>
+    ipcRenderer.invoke('network:revert'),
+
   // Progress/Log streaming
   onProgressLog: (callback: (entry: LogEntry) => void): (() => void) => {
     const handler = (_: Electron.IpcRendererEvent, entry: LogEntry) => callback(entry);

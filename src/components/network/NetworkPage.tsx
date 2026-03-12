@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useAppStore } from '../../store/appStore';
 import { windowsOptimizations } from '../../data/optimizations';
 import TweakCard from '../ui/TweakCard';
@@ -11,18 +12,22 @@ export default function NetworkPage() {
     toggles,
     userConfig,
     isRunning,
+    isReverting,
     setIsRunning,
+    setIsReverting,
     clearLog,
     progressLog,
     setToggle,
   } = useAppStore();
+
+  const [showRevertConfirm, setShowRevertConfirm] = useState(false);
 
   const enabledIds = networkOptimizations
     .filter((o) => toggles[o.id])
     .map((o) => o.id);
 
   const handleRun = async () => {
-    if (isRunning || enabledIds.length === 0) return;
+    if (isRunning || isReverting || enabledIds.length === 0) return;
     setIsRunning(true);
     clearLog();
     try {
@@ -31,6 +36,20 @@ export default function NetworkPage() {
       console.error('Run failed:', err);
     } finally {
       setIsRunning(false);
+    }
+  };
+
+  const handleRevert = async () => {
+    if (isRunning || isReverting) return;
+    setIsReverting(true);
+    clearLog();
+    setShowRevertConfirm(false);
+    try {
+      await window.sensequality.revertNetwork();
+    } catch (err) {
+      console.error('Revert failed:', err);
+    } finally {
+      setIsReverting(false);
     }
   };
 
@@ -69,7 +88,7 @@ export default function NetworkPage() {
             description={item.description}
             enabled={toggles[item.id] ?? false}
             onToggle={(val) => setToggle(item.id, val)}
-            disabled={isRunning}
+            disabled={isRunning || isReverting}
             risk={item.risk}
             warning={item.requiresReboot ? 'Requires reboot' : undefined}
             icon={
@@ -84,10 +103,10 @@ export default function NetworkPage() {
       {/* Run button */}
       <button
         onClick={handleRun}
-        disabled={isRunning || enabledIds.length === 0}
+        disabled={isRunning || isReverting || enabledIds.length === 0}
         className={`
           w-full py-3.5 rounded-xl font-bold text-sm tracking-[0.08em] transition-all border uppercase
-          ${isRunning
+          ${isRunning || isReverting
             ? 'bg-sq-accent/50 border-sq-accent/40 text-white/70 cursor-wait'
             : enabledIds.length === 0
               ? 'bg-sq-border border-sq-border text-sq-text-dim cursor-not-allowed'
@@ -107,6 +126,59 @@ export default function NetworkPage() {
           `RUN SELECTED (${enabledIds.length})`
         )}
       </button>
+
+      {/* Revert to defaults */}
+      <div className="space-y-2">
+        {!showRevertConfirm ? (
+          <button
+            onClick={() => setShowRevertConfirm(true)}
+            disabled={isRunning || isReverting}
+            className="w-full py-2.5 rounded-xl font-semibold text-xs tracking-[0.05em] transition-all border uppercase
+              border-amber-500/40 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isReverting ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                REVERTING...
+              </span>
+            ) : (
+              'REVERT NETWORK TO DEFAULTS'
+            )}
+          </button>
+        ) : (
+          <div className="sq-glass rounded-xl p-4 border border-amber-500/30 space-y-3">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
+              </svg>
+              <div>
+                <h3 className="text-xs font-semibold text-amber-400">Revert Network Settings?</h3>
+                <p className="text-[10px] text-sq-text-muted mt-1 leading-relaxed">
+                  This will restore all network settings to Windows defaults: adapter properties, DNS (back to automatic),
+                  registry tweaks, and TCP/IP stack settings. A reboot is required for some changes to take effect.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleRevert}
+                className="flex-1 py-2 rounded-lg font-semibold text-xs bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30 transition-colors"
+              >
+                Yes, Revert
+              </button>
+              <button
+                onClick={() => setShowRevertConfirm(false)}
+                className="flex-1 py-2 rounded-lg font-semibold text-xs text-sq-text-muted border border-sq-border hover:bg-sq-surface-hover transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {progressLog.length > 0 && (
         <LogViewer entries={progressLog} maxHeight="200px" />

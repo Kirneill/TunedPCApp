@@ -32,6 +32,7 @@ interface AppState {
 
   // Execution state
   isRunning: boolean;
+  isReverting: boolean;
   progressLog: LogEntry[];
   progress: { completed: number; total: number };
 
@@ -97,6 +98,7 @@ interface AppState {
   setWindowsUpdateMode: (mode: 'on' | 'off') => void;
   setUserConfig: (config: Partial<UserConfig>) => void;
   setIsRunning: (running: boolean) => void;
+  setIsReverting: (reverting: boolean) => void;
   addLogEntry: (entry: LogEntry) => void;
   clearLog: () => void;
   setProgress: (completed: number, total: number) => void;
@@ -236,6 +238,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   userConfig: normalizePersistedUserConfig(persisted.userConfig),
 
   isRunning: false,
+  isReverting: false,
   progressLog: [],
   progress: { completed: 0, total: 0 },
   showConsentModal: false,
@@ -344,6 +347,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setIsRunning: (running) => set({ isRunning: running }),
+  setIsReverting: (reverting) => set({ isReverting: reverting }),
   addLogEntry: (entry) => set((s) => ({ progressLog: [...s.progressLog, entry] })),
   clearLog: () => set({ progressLog: [] }),
   setProgress: (completed, total) => set({ progress: { completed, total } }),
