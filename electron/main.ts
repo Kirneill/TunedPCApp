@@ -476,6 +476,14 @@ if (!gotLock) {
     ipcMain.handle('shell:openExternal', (_event, url: string) => {
       if (url.startsWith('https://')) shell.openExternal(url);
     });
+    ipcMain.handle('system:restart', () => {
+      try {
+        execFileSync('shutdown', ['/r', '/t', '5'], { windowsHide: true });
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    });
     ipcMain.handle('updater:check', () => checkForUpdate());
     ipcMain.handle('updater:getState', () => getUpdaterState());
     ipcMain.handle('updater:download', () => downloadUpdate());

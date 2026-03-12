@@ -45,6 +45,9 @@ const api = {
   // External links
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
 
+  // System actions
+  restartComputer: (): Promise<{ success: boolean; error?: string }> => ipcRenderer.invoke('system:restart'),
+
   // Telemetry
   hasConsentDecision: (): Promise<boolean> => ipcRenderer.invoke('telemetry:hasConsentDecision'),
   getTelemetryConsent: (): Promise<boolean> => ipcRenderer.invoke('telemetry:getConsent'),

@@ -301,6 +301,7 @@ declare global {
       getLaunchOnStartup: () => Promise<boolean>;
       setLaunchOnStartup: (enabled: boolean) => Promise<boolean>;
       openExternal: (url: string) => Promise<void>;
+      restartComputer: () => Promise<{ success: boolean; error?: string }>;
       hasConsentDecision: () => Promise<boolean>;
       getTelemetryConsent: () => Promise<boolean>;
       setTelemetryConsent: (granted: boolean) => Promise<void>;
