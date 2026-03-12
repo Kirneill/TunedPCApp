@@ -1141,6 +1141,54 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
     return { success: result.success, errors: result.errors };
   });
 
+  // Network revert
+  ipcMain.handle('network:revert', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const runId = `run-${Date.now()}-${randomUUID().slice(0, 8)}`;
+    const runLogger = createRunLogger(win, runId);
+    const log = runLogger.log;
+
+    const scriptPath = getScriptPath('25_Network_Restore_Defaults.ps1');
+    const envVars: Record<string, string> = { SENSEQUALITY_HEADLESS: '1' };
+
+    log('start', 'Reverting network optimizations to Windows defaults...', {
+      component: 'NetworkRevert',
+      action: 'revert-start',
+      script: '25_Network_Restore_Defaults.ps1',
+    });
+
+    const scriptChecks: Record<string, ScriptCheck> = {};
+    const result = await runPowerShellScript(scriptPath, envVars, (line) => {
+      const check = parseScriptCheck(line);
+      if (check) {
+        mergeScriptCheck(scriptChecks, check);
+        return;
+      }
+      const type: LogType = line.includes('[FAIL]') ? 'error'
+        : line.includes('[WARN]') ? 'warning'
+        : line.includes('[OK]') ? 'success'
+        : 'info';
+      log(type, line, {
+        component: 'NetworkRevert',
+        action: 'revert-output',
+        script: '25_Network_Restore_Defaults.ps1',
+      });
+    });
+
+    const { hasFailures } = summarizeScriptChecks(log, scriptChecks, '25_Network_Restore_Defaults.ps1');
+    const success = result.success && !hasFailures;
+
+    log(success ? 'complete' : 'error',
+      success ? 'Network settings reverted to Windows defaults.' : 'Network revert completed with errors.', {
+      component: 'NetworkRevert',
+      action: 'revert-complete',
+      script: '25_Network_Restore_Defaults.ps1',
+      success,
+    });
+
+    return { success, errors: result.errors };
+  });
+
   // Diagnostics
   ipcMain.handle('diagnostics:export', () => exportDiagnosticsBundle());
 }

@@ -288,6 +288,7 @@ declare global {
       runOptimization: (id: string, config: UserConfig) => Promise<{ success: boolean; errors: string[] }>;
       runSelected: (ids: string[], config: UserConfig) => Promise<{ success: boolean; results: Record<string, boolean> }>;
       createRestorePoint: () => Promise<{ success: boolean; errors: string[] }>;
+      revertNetwork: () => Promise<{ success: boolean; errors: string[] }>;
       onProgressLog: (callback: (entry: LogEntry) => void) => () => void;
       listRestorePoints: () => Promise<{ points: RestorePointInfo[]; error?: string }>;
       launchSystemRestore: () => Promise<{ success: boolean; error?: string }>;
