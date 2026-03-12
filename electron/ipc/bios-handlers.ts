@@ -9,7 +9,7 @@ import { parseNvram, matchProfile, patchNvramText } from './scewin-parser';
 import { provisionScewin, cancelProvision } from './scewin-provisioner';
 import { BIOS_PROFILES } from '../../src/data/bios-profiles';
 import { checkRamSafety, filterProfileSettings } from '../../src/data/ram-safety';
-import { getSession } from '../auth/auth';
+import { requireBiosOptimizerAccess } from '../billing/entitlements';
 import type { BiosDetectionResult } from '../../src/types/index';
 
 const execFileAsync = promisify(execFile);
@@ -86,30 +86,6 @@ function timestamp(): string {
   return new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 }
 
-/** Verify the current user has a 'pro' tier. Returns error string if not authorized.
- *  Bypasses check in dev mode. Allows offline usage only for network errors. */
-async function requirePro(): Promise<string | null> {
-  // Skip tier check in dev mode so developers can test the full flow
-  if (!app.isPackaged) return null;
-
-  try {
-    const session = await getSession();
-    if (!session || session.user.tier !== 'pro') {
-      return 'Pro subscription required for BIOS automation';
-    }
-    return null;
-  } catch (err) {
-    // Only allow offline access for network-related errors
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes('fetch') || msg.includes('network') || msg.includes('ENOTFOUND') || msg.includes('ETIMEDOUT')) {
-      console.warn('[bios] Network error during tier check, allowing offline access:', msg);
-      return null;
-    }
-    console.error('[bios] Unexpected error in requirePro:', err);
-    return 'Unable to verify subscription status. Please restart the app.';
-  }
-}
-
 /** Cached detection result for RAM safety checks in preview/apply handlers. */
 let lastDetection: BiosDetectionResult | null = null;
 
@@ -177,7 +153,7 @@ export function registerBiosHandlers(ipcMain: IpcMain, getWindow?: () => Browser
 
   ipcMain.handle('bios:export', async () => {
     try {
-      const tierError = await requirePro();
+      const tierError = await requireBiosOptimizerAccess();
       if (tierError) return { success: false, error: tierError };
       const scewinDir = getScewinDir();
       if (!scewinDir) return { success: false, error: 'SCEWIN not found. Place binaries in: ' + getUserScewinDir() };
@@ -210,7 +186,7 @@ export function registerBiosHandlers(ipcMain: IpcMain, getWindow?: () => Browser
 
   ipcMain.handle('bios:backup', async () => {
     try {
-      const tierError = await requirePro();
+      const tierError = await requireBiosOptimizerAccess();
       if (tierError) return { success: false, error: tierError };
       const scewinDir = getScewinDir();
       if (!scewinDir) return { success: false, error: 'SCEWIN not found' };
@@ -267,7 +243,7 @@ export function registerBiosHandlers(ipcMain: IpcMain, getWindow?: () => Browser
 
   ipcMain.handle('bios:previewProfile', async (_, profileId: string) => {
     try {
-      const tierError = await requirePro();
+      const tierError = await requireBiosOptimizerAccess();
       if (tierError) return { success: false, error: tierError };
       const profile = BIOS_PROFILES.find(p => p.id === profileId);
       if (!profile) return { success: false, error: `Unknown profile: ${profileId}` };
@@ -309,7 +285,7 @@ export function registerBiosHandlers(ipcMain: IpcMain, getWindow?: () => Browser
 
   ipcMain.handle('bios:applyProfile', async (_, profileId: string) => {
     try {
-      const tierError = await requirePro();
+      const tierError = await requireBiosOptimizerAccess();
       if (tierError) return { success: false, changes: [], error: tierError };
       const profile = BIOS_PROFILES.find(p => p.id === profileId);
       if (!profile) return { success: false, changes: [], error: `Unknown profile: ${profileId}` };
@@ -410,7 +386,7 @@ export function registerBiosHandlers(ipcMain: IpcMain, getWindow?: () => Browser
 
   ipcMain.handle('bios:restore', async (_, backupFilename: string) => {
     try {
-      const tierError = await requirePro();
+      const tierError = await requireBiosOptimizerAccess();
       if (tierError) return { success: false, error: tierError };
       // Sanitize: strip path separators, allow only expected pattern
       const sanitized = path.basename(backupFilename);
@@ -449,7 +425,7 @@ export function registerBiosHandlers(ipcMain: IpcMain, getWindow?: () => Browser
 
   ipcMain.handle('bios:provisionScewin', async (event) => {
     try {
-      const tierError = await requirePro();
+      const tierError = await requireBiosOptimizerAccess();
       if (tierError) return { success: false, error: tierError };
       const outputDir = getUserScewinDir();
       await provisionScewin(outputDir, (progress) => {

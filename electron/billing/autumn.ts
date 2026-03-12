@@ -1,8 +1,11 @@
 import { IpcMain, shell } from 'electron';
-import { BILLING_PROXY_URL, AUTUMN_PRODUCTS, AUTUMN_FEATURES, BILLING_CONFIGURED } from './config';
+import { BILLING_PROXY_URL, AUTUMN_PRODUCTS, BILLING_CONFIGURED } from './config';
 import { SUPABASE_ANON_KEY } from '../telemetry/config';
 import { getSession, getAccessToken } from '../auth/auth';
 import type { Subscription, BillingAccessResult } from '../../src/types/index';
+import { checkBiosOptimizerAccess, invalidateEntitlementCache } from './entitlements';
+
+export { invalidateEntitlementCache } from './entitlements';
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -40,22 +43,6 @@ async function billingFetch(
   return { data, ok: res.ok, status: res.status };
 }
 
-// ─── Entitlement Cache ───────────────────────────────────
-// Cache /check results for 5 minutes to avoid API calls on every tab switch
-
-interface EntitlementCache {
-  customerId: string;
-  allowed: boolean;
-  checkedAt: number;
-}
-
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-let entitlementCache: EntitlementCache | null = null;
-
-export function invalidateEntitlementCache(): void {
-  entitlementCache = null;
-}
-
 // ─── Init (no-op, kept for call-site compatibility) ──────
 
 export function initBilling(): void {
@@ -73,52 +60,7 @@ export function initBilling(): void {
  * Returns { allowed, plan } -- used by renderer to show/hide content.
  */
 export async function checkBiosAccess(): Promise<BillingAccessResult> {
-  // Dev mode bypass -- always allow
-  if (!BILLING_CONFIGURED) {
-    return { allowed: true, plan: 'dev' };
-  }
-
-  const customerId = await getCustomerId();
-  if (!customerId) {
-    return { allowed: false, plan: 'free' };
-  }
-
-  // Check cache first (scoped per user)
-  if (
-    entitlementCache &&
-    entitlementCache.customerId === customerId &&
-    Date.now() - entitlementCache.checkedAt < CACHE_TTL_MS
-  ) {
-    return { allowed: entitlementCache.allowed, plan: entitlementCache.allowed ? 'pro' : 'free' };
-  }
-
-  try {
-    const { data, ok } = await billingFetch('check', {
-      feature_id: AUTUMN_FEATURES.biosOptimizer,
-    });
-
-    if (!ok || !data) throw new Error('Check request failed');
-
-    const allowed = (data as { allowed?: boolean }).allowed ?? false;
-    entitlementCache = { customerId, allowed, checkedAt: Date.now() };
-
-    return { allowed, plan: allowed ? 'pro' : 'free' };
-  } catch (err) {
-    console.error('[billing] checkBiosAccess failed:', err instanceof Error ? err.message : err);
-    // If cache exists for this user (even expired), use it as fallback during network errors
-    if (entitlementCache && entitlementCache.customerId === customerId) {
-      return { allowed: entitlementCache.allowed, plan: entitlementCache.allowed ? 'pro' : 'free' };
-    }
-    // Fall back to Supabase Auth tier (covers beta testers with app_metadata.tier='pro')
-    try {
-      const session = await getSession();
-      if (session?.user?.tier === 'pro') {
-        entitlementCache = { customerId, allowed: true, checkedAt: Date.now() };
-        return { allowed: true, plan: 'pro' };
-      }
-    } catch { /* ignore secondary check failure */ }
-    return { allowed: false, plan: 'free' };
-  }
+  return checkBiosOptimizerAccess();
 }
 
 /**
