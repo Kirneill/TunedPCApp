@@ -274,10 +274,20 @@ async function runInnoextract(innoPath: string, target: string, outDir: string):
 
 async function extractZip(zipPath: string, destDir: string): Promise<void> {
   await fsp.mkdir(destDir, { recursive: true });
+  // Expand-Archive only accepts .zip -- rename non-.zip archives (e.g. .appxbundle, .appx)
+  let pathToExtract = zipPath;
+  if (!zipPath.toLowerCase().endsWith('.zip')) {
+    pathToExtract = zipPath + '.zip';
+    await fsp.copyFile(zipPath, pathToExtract);
+  }
   await execFileAsync('powershell.exe', [
     '-NoProfile', '-Command',
-    `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${destDir.replace(/'/g, "''")}' -Force`,
+    `Expand-Archive -LiteralPath '${pathToExtract.replace(/'/g, "''")}' -DestinationPath '${destDir.replace(/'/g, "''")}' -Force`,
   ], { timeout: 300000, windowsHide: true });
+  // Clean up the renamed copy
+  if (pathToExtract !== zipPath) {
+    await fsp.rm(pathToExtract, { force: true }).catch(() => {});
+  }
 }
 
 /** Recursively find a file by exact name. */
