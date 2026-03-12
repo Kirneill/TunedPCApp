@@ -52,7 +52,6 @@ const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   'win-net-adapter': { script: '21_Network_Optimization.ps1', envPrefix: 'NET_ADAPTER_TUNE' },
   'win-tcp-stack': { script: '21_Network_Optimization.ps1', envPrefix: 'TCP_STACK' },
   'win-net-throttle': { script: '21_Network_Optimization.ps1', envPrefix: 'NET_THROTTLE' },
-  'win-memory': { script: '22_Memory_Optimization.ps1' },
   'win-timer-res': { script: '23_Latency_Reduction.ps1', envPrefix: 'TIMER_RES' },
   'win-power-throttle': { script: '23_Latency_Reduction.ps1', envPrefix: 'POWER_THROTTLE' },
   'win-priority-sep': { script: '23_Latency_Reduction.ps1', envPrefix: 'PRIORITY_SEP' },
@@ -769,7 +768,13 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
     const windowsStandaloneIds: string[] = [];
     for (const id of windowsIds) {
       const mapping = SCRIPT_MAP[id];
-      if (!mapping) continue;
+      if (!mapping) {
+        log('warning', `Skipping unknown optimization: ${id}`, {
+          component: 'Optimization',
+          action: 'unknown-id-skipped',
+        });
+        continue;
+      }
       if (mapping.envPrefix) {
         (groupedScripts[mapping.script] ??= []).push(id);
       } else {
@@ -920,7 +925,13 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
     // Run standalone Windows scripts sequentially
     for (const id of windowsStandaloneIds) {
       const mapping = SCRIPT_MAP[id];
-      if (!mapping) continue;
+      if (!mapping) {
+        log('warning', `Skipping unknown optimization: ${id}`, {
+          component: 'Optimization',
+          action: 'unknown-id-skipped',
+        });
+        continue;
+      }
 
       log('start', `Running ${id}...`, {
         component: 'Windows',
@@ -987,7 +998,13 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
     // Run each game script sequentially
     for (const id of gameIds) {
       const mapping = SCRIPT_MAP[id];
-      if (!mapping) continue;
+      if (!mapping) {
+        log('warning', `Skipping unknown optimization: ${id}`, {
+          component: 'Optimization',
+          action: 'unknown-id-skipped',
+        });
+        continue;
+      }
 
       log('start', `Optimizing ${id.replace('game-', '')}...`, {
         component: 'Game',

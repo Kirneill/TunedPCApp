@@ -8,7 +8,6 @@ import BiosGuidePage from './components/guides/BiosGuidePage';
 import ProGate from './components/ui/ProGate';
 import NvidiaGuidePage from './components/guides/NvidiaGuidePage';
 import BackupPage from './components/backups/BackupPage';
-import MemoryPage from './components/memory/MemoryPage';
 import OSOptimizerPage from './components/os-optimizer/OSOptimizerPage';
 import ConsentModal from './components/ui/ConsentModal';
 import AuthGate from './components/auth/AuthGate';
@@ -315,7 +314,6 @@ export default function App() {
       case 'network': return <NetworkPage />;
       case 'bios-guide': return <ProGate feature="bios-guide"><BiosGuidePage /></ProGate>;
       case 'gpu-guide': return <NvidiaGuidePage />;
-      case 'memory': return <MemoryPage />;
       case 'backups': return <BackupPage />;
       case 'os-optimizer': return <OSOptimizerPage />;
       default: return <HomePage />;

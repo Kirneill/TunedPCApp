@@ -21,7 +21,7 @@ interface AppState {
   isLoading: boolean;
 
   // Navigation
-  currentPage: 'dashboard' | 'advanced' | 'network' | 'bios-guide' | 'gpu-guide' | 'memory' | 'backups' | 'os-optimizer';
+  currentPage: 'dashboard' | 'advanced' | 'network' | 'bios-guide' | 'gpu-guide' | 'backups' | 'os-optimizer';
 
   // Optimization toggles
   toggles: Record<string, boolean>;
@@ -194,7 +194,14 @@ const DEFAULT_USER_CONFIG: UserConfig = {
 };
 
 function normalizePersistedToggles(toggles?: Record<string, boolean>): Record<string, boolean> {
-  return { ...DEFAULT_TOGGLES, ...(toggles || {}) };
+  const merged = { ...DEFAULT_TOGGLES, ...(toggles || {}) };
+  // Remove stale keys from previous versions that no longer exist
+  for (const key of Object.keys(merged)) {
+    if (!(key in DEFAULT_TOGGLES)) {
+      delete merged[key];
+    }
+  }
+  return merged;
 }
 
 function normalizePersistedUserConfig(userConfig?: Partial<UserConfig>): UserConfig {
