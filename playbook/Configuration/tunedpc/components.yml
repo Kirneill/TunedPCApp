@@ -1,0 +1,200 @@
+---
+title: WinSxS Component and Windows Capability Removal
+description: Remove unused Windows capabilities and clean the component store -- the key differentiator over PowerShell-only debloating
+actions:
+  # =====================================================================
+  # COMPONENTS: WinSxS component store manipulation
+  #
+  # THIS IS THE KEY DIFFERENTIATOR -- TrustedInstaller-level operations
+  # that PowerShell alone cannot perform. AME Wizard runs with
+  # TrustedInstaller privileges, allowing deep component removal.
+  #
+  # Gated behind "remove-capabilities" checkbox option
+  # =====================================================================
+
+  # --- Remove Windows Capabilities via DISM ---
+  # These use DISM /Remove-Capability which requires TrustedInstaller context
+
+  # Internet Explorer Mode
+  - !cmd:
+      command: 'DISM /Online /Remove-Capability /CapabilityName:Browser.InternetExplorer~~~~0.0.11.0 /NoRestart'
+      wait: true
+      weight: 5
+      option: 'remove-capabilities'
+
+  # Math Recognizer (handwriting math input)
+  - !cmd:
+      command: 'DISM /Online /Remove-Capability /CapabilityName:MathRecognizer~~~~0.0.1.0 /NoRestart'
+      wait: true
+      weight: 3
+      option: 'remove-capabilities'
+
+  # PowerShell ISE (legacy editor, not needed with Terminal/VS Code)
+  - !cmd:
+      command: 'DISM /Online /Remove-Capability /CapabilityName:Microsoft.Windows.PowerShell.ISE~~~~0.0.1.0 /NoRestart'
+      wait: true
+      weight: 3
+      option: 'remove-capabilities'
+
+  # Steps Recorder (screen recording for support)
+  - !cmd:
+      command: 'DISM /Online /Remove-Capability /CapabilityName:App.StepsRecorder~~~~0.0.1.0 /NoRestart'
+      wait: true
+      weight: 3
+      option: 'remove-capabilities'
+
+  # Windows Media Player (legacy)
+  - !cmd:
+      command: 'DISM /Online /Remove-Capability /CapabilityName:Media.WindowsMediaPlayer~~~~0.0.12.0 /NoRestart'
+      wait: true
+      weight: 5
+      option: 'remove-capabilities'
+
+  # WordPad
+  - !cmd:
+      command: 'DISM /Online /Remove-Capability /CapabilityName:Microsoft.Windows.WordPad~~~~0.0.1.0 /NoRestart'
+      wait: true
+      weight: 3
+      option: 'remove-capabilities'
+
+  # Fax and Scan
+  - !cmd:
+      command: 'DISM /Online /Remove-Capability /CapabilityName:Print.Fax.Scan~~~~0.0.1.0 /NoRestart'
+      wait: true
+      weight: 3
+      option: 'remove-capabilities'
+
+  # Windows Hello Face recognition (requires camera hardware)
+  - !cmd:
+      command: 'DISM /Online /Remove-Capability /CapabilityName:Hello.Face~~~~0.0.1.0 /NoRestart'
+      wait: true
+      weight: 3
+      option: 'remove-capabilities'
+
+  # Quick Assist (remote support)
+  - !cmd:
+      command: 'DISM /Online /Remove-Capability /CapabilityName:App.Support.QuickAssist~~~~0.0.1.0 /NoRestart'
+      wait: true
+      weight: 3
+      option: 'remove-capabilities'
+
+  # Print Management Console
+  - !cmd:
+      command: 'DISM /Online /Remove-Capability /CapabilityName:Print.Management.Console~~~~0.0.1.0 /NoRestart'
+      wait: true
+      weight: 3
+      option: 'remove-capabilities'
+
+  # SNMP Protocol (legacy network monitoring)
+  - !cmd:
+      command: 'DISM /Online /Remove-Capability /CapabilityName:SNMP.Client~~~~0.0.1.0 /NoRestart'
+      wait: true
+      weight: 2
+      option: 'remove-capabilities'
+
+  # WMIC (deprecated command-line WMI -- PowerShell has Get-CimInstance)
+  - !cmd:
+      command: 'DISM /Online /Remove-Capability /CapabilityName:WMIC~~~~0.0.1.0 /NoRestart'
+      wait: true
+      weight: 2
+      option: 'remove-capabilities'
+
+  # --- Disable Optional Features via DISM ---
+
+  # Work Folders Client
+  - !cmd:
+      command: 'DISM /Online /Disable-Feature /FeatureName:WorkFolders-Client /NoRestart'
+      wait: true
+      weight: 2
+      option: 'remove-capabilities'
+
+  # Windows Fax and Scan
+  - !cmd:
+      command: 'DISM /Online /Disable-Feature /FeatureName:FaxServicesClientPackage /NoRestart'
+      wait: true
+      weight: 2
+      option: 'remove-capabilities'
+
+  # Printing -- XPS Document Writer
+  - !cmd:
+      command: 'DISM /Online /Disable-Feature /FeatureName:Printing-XPSServices-Features /NoRestart'
+      wait: true
+      weight: 2
+      option: 'remove-capabilities'
+
+  # Windows Media Player (optional feature)
+  - !cmd:
+      command: 'DISM /Online /Disable-Feature /FeatureName:WindowsMediaPlayer /NoRestart'
+      wait: true
+      weight: 2
+      option: 'remove-capabilities'
+
+  # Internet Printing Client
+  - !cmd:
+      command: 'DISM /Online /Disable-Feature /FeatureName:Printing-Foundation-InternetPrinting-Client /NoRestart'
+      wait: true
+      weight: 2
+      option: 'remove-capabilities'
+
+  # --- Enable Useful Features ---
+
+  # DirectPlay for legacy game compatibility
+  - !cmd:
+      command: 'DISM /Online /Enable-Feature /FeatureName:DirectPlay /All /NoRestart'
+      wait: true
+      weight: 3
+
+  # .NET Framework 3.5 (required by some games and tools)
+  - !cmd:
+      command: 'DISM /Online /Enable-Feature /FeatureName:NetFx3 /All /NoRestart'
+      wait: true
+      weight: 5
+
+  # --- Component Store Cleanup (the deep clean) ---
+  # This is the most aggressive cleanup -- supersedes replaced components
+  # and permanently removes old component versions from WinSxS
+
+  # Run component store analysis first
+  - !cmd:
+      command: 'DISM /Online /Cleanup-Image /AnalyzeComponentStore'
+      wait: true
+      weight: 3
+      option: 'remove-capabilities'
+
+  # Remove superseded components with /ResetBase
+  # This makes the cleanup PERMANENT -- old component versions cannot be restored
+  - !cmd:
+      command: 'DISM /Online /Cleanup-Image /StartComponentCleanup /ResetBase'
+      wait: true
+      weight: 10
+      option: 'remove-capabilities'
+
+  # --- Maximum mode: Remove additional Windows Optional Features ---
+
+  # SMB 1.0/CIFS (legacy file sharing -- security risk)
+  - !cmd:
+      command: 'DISM /Online /Disable-Feature /FeatureName:SMB1Protocol /NoRestart'
+      wait: true
+      weight: 2
+      option: 'maximum'
+
+  # Telnet Client
+  - !cmd:
+      command: 'DISM /Online /Disable-Feature /FeatureName:TelnetClient /NoRestart'
+      wait: true
+      weight: 1
+      option: 'maximum'
+
+  # TFTP Client
+  - !cmd:
+      command: 'DISM /Online /Disable-Feature /FeatureName:TFTP /NoRestart'
+      wait: true
+      weight: 1
+      option: 'maximum'
+
+  # Windows Subsystem for Linux (if not needed)
+  - !cmd:
+      command: 'DISM /Online /Disable-Feature /FeatureName:Microsoft-Windows-Subsystem-Linux /NoRestart'
+      wait: true
+      weight: 2
+      option: 'maximum'

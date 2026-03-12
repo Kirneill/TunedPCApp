@@ -1,0 +1,310 @@
+---
+title: Gaming Performance Optimization
+description: CPU scheduling, GPU priority, memory, network, and power optimizations for competitive gaming
+actions:
+  # =====================================================================
+  # PERFORMANCE: Gaming-specific tweaks
+  # Gated behind "gaming-perf" checkbox option
+  # =====================================================================
+
+  # --- Win32PrioritySeparation: Foreground process priority ---
+  # 0x26 = 38 decimal = short quantum, variable, high foreground boost
+  # This is the single most impactful scheduling tweak for gaming
+  - !registryValue:
+      path: 'HKLM\SYSTEM\CurrentControlSet\Control\PriorityControl'
+      value: 'Win32PrioritySeparation'
+      type: REG_DWORD
+      data: '38'
+      option: 'gaming-perf'
+
+  # --- MMCSS (Multimedia Class Scheduler Service) ---
+  # Reserve only 10% CPU for background multimedia tasks (default 20%)
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile'
+      value: 'SystemResponsiveness'
+      type: REG_DWORD
+      data: '10'
+      option: 'gaming-perf'
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile'
+      value: 'NetworkThrottlingIndex'
+      type: REG_DWORD
+      data: '4294967295'
+      option: 'gaming-perf'
+
+  # --- MMCSS Game Task Priority ---
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games'
+      value: 'GPU Priority'
+      type: REG_DWORD
+      data: '8'
+      option: 'gaming-perf'
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games'
+      value: 'Priority'
+      type: REG_DWORD
+      data: '6'
+      option: 'gaming-perf'
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games'
+      value: 'Scheduling Category'
+      type: REG_SZ
+      data: 'High'
+      option: 'gaming-perf'
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games'
+      value: 'SFIO Priority'
+      type: REG_SZ
+      data: 'High'
+      option: 'gaming-perf'
+
+  # --- Hardware-Accelerated GPU Scheduling ---
+  - !registryValue:
+      path: 'HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'
+      value: 'HwSchMode'
+      type: REG_DWORD
+      data: '2'
+      option: 'gaming-perf'
+
+  # --- Disable Fullscreen Optimizations (globally) ---
+  - !registryValue:
+      path: 'HKCU\System\GameConfigStore'
+      value: 'GameDVR_FSEBehavior'
+      type: REG_DWORD
+      data: '2'
+      option: 'gaming-perf'
+  - !registryValue:
+      path: 'HKCU\System\GameConfigStore'
+      value: 'GameDVR_FSEBehaviorMode'
+      type: REG_DWORD
+      data: '2'
+      option: 'gaming-perf'
+  - !registryValue:
+      path: 'HKCU\System\GameConfigStore'
+      value: 'GameDVR_HonorUserFSEBehaviorMode'
+      type: REG_DWORD
+      data: '1'
+      option: 'gaming-perf'
+
+  # --- Disable Game Bar / Game DVR ---
+  - !registryValue:
+      path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR'
+      value: 'AppCaptureEnabled'
+      type: REG_DWORD
+      data: '0'
+      option: 'gaming-perf'
+  - !registryValue:
+      path: 'HKCU\System\GameConfigStore'
+      value: 'GameDVR_Enabled'
+      type: REG_DWORD
+      data: '0'
+      option: 'gaming-perf'
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\GameDVR'
+      value: 'AllowGameDVR'
+      type: REG_DWORD
+      data: '0'
+      option: 'gaming-perf'
+
+  # --- Disable Mouse Acceleration ---
+  - !registryValue:
+      path: 'HKCU\Control Panel\Mouse'
+      value: 'MouseSpeed'
+      type: REG_SZ
+      data: '0'
+      option: 'gaming-perf'
+  - !registryValue:
+      path: 'HKCU\Control Panel\Mouse'
+      value: 'MouseThreshold1'
+      type: REG_SZ
+      data: '0'
+      option: 'gaming-perf'
+  - !registryValue:
+      path: 'HKCU\Control Panel\Mouse'
+      value: 'MouseThreshold2'
+      type: REG_SZ
+      data: '0'
+      option: 'gaming-perf'
+
+  # --- Disable Visual Animations (snappier UI) ---
+  - !registryValue:
+      path: 'HKCU\Control Panel\Desktop\WindowMetrics'
+      value: 'MinAnimate'
+      type: REG_SZ
+      data: '0'
+      option: 'gaming-perf'
+  - !registryValue:
+      path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
+      value: 'TaskbarAnimations'
+      type: REG_DWORD
+      data: '0'
+      option: 'gaming-perf'
+  - !registryValue:
+      path: 'HKCU\SOFTWARE\Microsoft\Windows\DWM'
+      value: 'EnableAeroPeek'
+      type: REG_DWORD
+      data: '0'
+      option: 'gaming-perf'
+  - !registryValue:
+      path: 'HKCU\SOFTWARE\Microsoft\Windows\DWM'
+      value: 'AlwaysHibernateThumbnails'
+      type: REG_DWORD
+      data: '0'
+      option: 'gaming-perf'
+
+  # --- Disable Background Apps ---
+  - !registryValue:
+      path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications'
+      value: 'GlobalUserDisabled'
+      type: REG_DWORD
+      data: '1'
+      option: 'gaming-perf'
+
+  # --- NTFS Optimizations ---
+  # Disable 8.3 short name creation (reduces NTFS overhead)
+  - !cmd:
+      command: 'fsutil behavior set disable8dot3 1'
+      option: 'gaming-perf'
+      weight: 1
+  # Disable last-access timestamp updates (reduces disk writes)
+  - !cmd:
+      command: 'fsutil behavior set disablelastaccess 1'
+      option: 'gaming-perf'
+      weight: 1
+  # Increase NTFS memory allocation (improves caching)
+  - !cmd:
+      command: 'fsutil behavior set memoryusage 2'
+      option: 'gaming-perf'
+      weight: 1
+
+  # --- Disable Memory Compression ---
+  - !powerShell:
+      command: 'Disable-MMAgent -MemoryCompression -ErrorAction SilentlyContinue'
+      option: 'gaming-perf'
+      weight: 1
+
+  # --- Disable Prefetch (SSD optimization) ---
+  - !registryValue:
+      path: 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters'
+      value: 'EnablePrefetcher'
+      type: REG_DWORD
+      data: '0'
+      option: 'gaming-perf'
+  - !registryValue:
+      path: 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters'
+      value: 'EnableSuperfetch'
+      type: REG_DWORD
+      data: '0'
+      option: 'gaming-perf'
+
+  # --- Ultimate Performance Power Plan ---
+  - !powerShell:
+      command: |
+        # Unhide and activate Ultimate Performance power plan
+        $ultimateGuid = 'e9a42b02-d5df-448d-aa00-03f14749eb61'
+        powercfg /duplicatescheme $ultimateGuid 2>$null
+        powercfg /setactive $ultimateGuid 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            # Fall back to High Performance if Ultimate Performance is unavailable
+            powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null
+            Write-Host '[TUNEDPC] High Performance power plan activated (Ultimate Performance unavailable).'
+        } else {
+            Write-Host '[TUNEDPC] Ultimate Performance power plan activated.'
+        }
+      option: 'gaming-perf'
+      weight: 2
+
+  # --- Disable USB Selective Suspend ---
+  - !powerShell:
+      command: |
+        powercfg /SETACVALUEINDEX SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
+        powercfg /SETDCVALUEINDEX SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
+        powercfg /SETACTIVE SCHEME_CURRENT
+      option: 'gaming-perf'
+      weight: 1
+
+  # --- Disable Hibernation (reclaims disk space) ---
+  - !cmd:
+      command: 'powercfg /hibernate off'
+      option: 'gaming-perf'
+      weight: 1
+
+  # --- Disable Nagle's Algorithm (lower network latency) ---
+  - !powerShell:
+      command: |
+        # Disable Nagle for all active network interfaces
+        $adapters = Get-NetAdapter | Where-Object { $_.Status -eq 'Up' }
+        foreach ($adapter in $adapters) {
+            $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\$($adapter.InterfaceGuid)"
+            if (Test-Path $regPath) {
+                Set-ItemProperty -Path $regPath -Name 'TcpAckFrequency' -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+                Set-ItemProperty -Path $regPath -Name 'TCPNoDelay' -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+            }
+        }
+        Write-Host "[TUNEDPC] Nagle's algorithm disabled on $($adapters.Count) adapter(s)."
+      option: 'gaming-perf'
+      weight: 2
+
+  # --- Disable Network Throttling ---
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile'
+      value: 'NetworkThrottlingIndex'
+      type: REG_DWORD
+      data: '4294967295'
+      option: 'gaming-perf'
+
+  # --- Disable SMB Bandwidth Throttling ---
+  - !registryValue:
+      path: 'HKLM\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters'
+      value: 'DisableBandwidthThrottling'
+      type: REG_DWORD
+      data: '1'
+      option: 'gaming-perf'
+
+  # --- Increase IRPStackSize (better network performance) ---
+  - !registryValue:
+      path: 'HKLM\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters'
+      value: 'IRPStackSize'
+      type: REG_DWORD
+      data: '32'
+      option: 'gaming-perf'
+
+  # --- Timer Resolution (lower latency) ---
+  # Set global timer resolution to 0.5ms
+  - !registryValue:
+      path: 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel'
+      value: 'GlobalTimerResolutionRequests'
+      type: REG_DWORD
+      data: '1'
+      option: 'gaming-perf'
+
+  # --- Large System Cache (better file I/O) ---
+  - !registryValue:
+      path: 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management'
+      value: 'LargeSystemCache'
+      type: REG_DWORD
+      data: '1'
+      option: 'gaming-perf'
+
+  # --- Disable Paging Executive (keep kernel in RAM) ---
+  - !registryValue:
+      path: 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management'
+      value: 'DisablePagingExecutive'
+      type: REG_DWORD
+      data: '1'
+      option: 'gaming-perf'
+
+  # --- Maximum mode: Disable CPU mitigations (Spectre/Meltdown) ---
+  # WARNING: This reduces security but can improve performance 2-5%
+  - !registryValue:
+      path: 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management'
+      value: 'FeatureSettingsOverride'
+      type: REG_DWORD
+      data: '3'
+      option: 'maximum'
+  - !registryValue:
+      path: 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management'
+      value: 'FeatureSettingsOverrideMask'
+      type: REG_DWORD
+      data: '3'
+      option: 'maximum'

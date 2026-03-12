@@ -1,0 +1,168 @@
+---
+title: Service Configuration
+description: Disable unnecessary services to reduce background CPU, RAM, and I/O usage
+actions:
+  # =====================================================================
+  # SERVICES: Disable or set to Manual
+  #
+  # Startup types: 0=Boot, 1=System, 2=Automatic, 3=Manual, 4=Disabled
+  #
+  # NEVER DISABLED (anti-cheat requirements):
+  #   CryptSvc, EventLog, BFE, mpssvc, WinDefend, Winmgmt,
+  #   AudioSrv, AudioEndpointBuilder, Dhcp, Dnscache, nsi, NlaSvc,
+  #   LanmanWorkstation, RpcSs, RpcEptMapper, DcomLaunch,
+  #   CoreMessagingRegistrar, StateRepository, TokenBroker, UserManager,
+  #   Themes, wscsvc (Security Center)
+  # =====================================================================
+
+  # --- Telemetry and Diagnostics ---
+  - !service: {name: 'DiagTrack', operation: change, startup: 4}
+  - !service: {name: 'dmwappushservice', operation: change, startup: 4}
+  - !service: {name: 'DusmSvc', operation: change, startup: 4}
+  - !service: {name: 'WdiServiceHost', operation: change, startup: 4}
+  - !service: {name: 'WdiSystemHost', operation: change, startup: 4}
+  - !service: {name: 'diagnosticshub.standardcollector.service', operation: change, startup: 4}
+  - !service: {name: 'WerSvc', operation: change, startup: 4}
+  - !service: {name: 'wercplsupport', operation: change, startup: 4}
+  - !service: {name: 'DPS', operation: change, startup: 4}
+  - !service: {name: 'UCPD', operation: change, startup: 4}
+
+  # --- Compatibility and Legacy ---
+  - !service: {name: 'PcaSvc', operation: change, startup: 4}
+  - !service: {name: 'TrkWks', operation: change, startup: 4}
+  - !service: {name: 'MapsBroker', operation: change, startup: 4}
+  - !service: {name: 'lfsvc', operation: change, startup: 4}
+  - !service: {name: 'RetailDemo', operation: change, startup: 4}
+
+  # --- Performance Drains ---
+  - !service: {name: 'SysMain', operation: change, startup: 4}
+  - !service: {name: 'WSearch', operation: change, startup: 4}
+
+  # --- Unused Hardware and Features ---
+  - !service: {name: 'Fax', operation: change, startup: 4}
+  - !service: {name: 'WMPNetworkSvc', operation: change, startup: 4}
+  - !service: {name: 'TabletInputService', operation: change, startup: 4}
+  - !service: {name: 'PhoneSvc', operation: change, startup: 4}
+  - !service: {name: 'SEMgrSvc', operation: change, startup: 4}
+  - !service: {name: 'AJRouter', operation: change, startup: 4}
+  - !service: {name: 'ALG', operation: change, startup: 4}
+  - !service: {name: 'SCardSvr', operation: change, startup: 4}
+  - !service: {name: 'ScDeviceEnum', operation: change, startup: 4}
+  - !service: {name: 'SCPolicySvc', operation: change, startup: 4}
+  - !service: {name: 'SharedAccess', operation: change, startup: 4}
+  - !service: {name: 'SSDPSRV', operation: change, startup: 4}
+  - !service: {name: 'upnphost', operation: change, startup: 4}
+
+  # --- Sync and Cloud ---
+  - !service: {name: 'OneSyncSvc', operation: change, startup: 4}
+
+  # --- Xbox Background Services (games do not need these running) ---
+  - !service: {name: 'XblAuthManager', operation: change, startup: 4}
+  - !service: {name: 'XblGameSave', operation: change, startup: 4}
+  - !service: {name: 'XboxNetApiSvc', operation: change, startup: 4}
+  - !service: {name: 'XboxGipSvc', operation: change, startup: 4}
+
+  # --- Additional Services (beyond 30_Deep_Debloat.ps1) ---
+  # These require TrustedInstaller-level access that AME Wizard provides
+
+  # Biometric -- not needed for gaming
+  - !service: {name: 'WbioSrvc', operation: change, startup: 4}
+
+  # Mobile Hotspot -- not needed for desktop gaming
+  - !service: {name: 'icssvc', operation: change, startup: 4}
+
+  # Parental Controls -- not needed
+  - !service: {name: 'WpcMonSvc', operation: change, startup: 4}
+
+  # Windows Insider -- not needed
+  - !service: {name: 'wisvc', operation: change, startup: 4}
+
+  # Windows Event Collector -- not needed locally
+  - !service: {name: 'Wecsvc', operation: change, startup: 4}
+
+  # Telephony -- not needed
+  - !service: {name: 'TapiSrv', operation: change, startup: 4}
+
+  # Remote Registry -- security risk and not needed
+  - !service: {name: 'RemoteRegistry', operation: change, startup: 4}
+
+  # Routing and Remote Access -- not needed
+  - !service: {name: 'RemoteAccess', operation: change, startup: 4}
+
+  # Wallet Service -- not needed
+  - !service: {name: 'WalletService', operation: change, startup: 4}
+
+  # Mixed Reality -- not needed for most gamers
+  - !service: {name: 'SharedRealitySvc', operation: change, startup: 4}
+
+  # Print Spooler -- disabled for gaming PCs (no printing)
+  - !service: {name: 'Spooler', operation: change, startup: 4}
+
+  # Printer Extensions
+  - !service: {name: 'PrintNotify', operation: change, startup: 4}
+
+  # Camera Frame Server -- not needed for FPS gaming
+  - !service: {name: 'FrameServer', operation: change, startup: 4}
+  - !service: {name: 'FrameServerMonitor', operation: change, startup: 4}
+
+  # Delivery Optimization -- P2P update delivery
+  - !service: {name: 'DoSvc', operation: change, startup: 4}
+
+  # Connected Devices Platform -- Bluetooth/device pairing
+  - !service: {name: 'CDPSvc', operation: change, startup: 4}
+  - !service: {name: 'CDPUserSvc', operation: change, startup: 4}
+
+  # Geolocation
+  - !service: {name: 'lfsvc', operation: change, startup: 4}
+
+  # Windows Push Notifications User Service
+  # NOTE: Keep WpnService (system) running for game notifications
+  # Disable user-level push for reduced overhead
+  - !service: {name: 'WpnUserService', operation: change, startup: 4}
+
+  # IP Helper -- IPv6 transition; not needed on most gaming setups
+  - !service: {name: 'iphlpsvc', operation: change, startup: 4}
+
+  # --- Drivers (performance monitoring overhead) ---
+  # GPU Energy Driver -- power monitoring overhead
+  - !registryValue:
+      path: 'HKLM\SYSTEM\CurrentControlSet\Services\GpuEnergyDrv'
+      value: 'Start'
+      type: REG_DWORD
+      data: '4'
+
+  # NetBIOS over TCP/IP -- legacy protocol
+  - !registryValue:
+      path: 'HKLM\SYSTEM\CurrentControlSet\Services\NetBT'
+      value: 'Start'
+      type: REG_DWORD
+      data: '4'
+
+  # Telemetry driver
+  - !registryValue:
+      path: 'HKLM\SYSTEM\CurrentControlSet\Services\Telemetry'
+      value: 'Start'
+      type: REG_DWORD
+      data: '4'
+
+  # --- Set to Manual (keep available but not auto-starting) ---
+  - !service: {name: 'BITS', operation: change, startup: 3}
+  - !service: {name: 'wuauserv', operation: change, startup: 3}
+  - !service: {name: 'CertPropSvc', operation: change, startup: 3}
+
+  # --- Maximum Performance mode: additional aggressive disables ---
+  # These may affect some anti-cheat; only apply if user chose "maximum"
+
+  # Windows Update Medic -- protected service, AME can handle it
+  - !service:
+      name: 'WaaSMedicSvc'
+      operation: change
+      startup: 4
+      option: 'maximum'
+
+  # Update Orchestrator -- delays updates further
+  - !service:
+      name: 'UsoSvc'
+      operation: change
+      startup: 4
+      option: 'maximum'

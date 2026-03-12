@@ -1,0 +1,144 @@
+---
+title: Scheduled Task Disabling
+description: Disable telemetry, diagnostics, and background scheduled tasks
+actions:
+  # =====================================================================
+  # SCHEDULED TASKS: Disable telemetry and background overhead
+  #
+  # These tasks run periodically and consume CPU/disk for data collection,
+  # compatibility checking, and reporting that gaming PCs do not need.
+  # =====================================================================
+
+  # --- Application Experience ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser'
+      operation: disable
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Application Experience\ProgramDataUpdater'
+      operation: disable
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Application Experience\PcaPatchDbTask'
+      operation: disable
+
+  # --- Autochk ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Autochk\Proxy'
+      operation: disable
+
+  # --- Customer Experience Improvement Program ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Customer Experience Improvement Program\Consolidator'
+      operation: disable
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip'
+      operation: disable
+
+  # --- Disk Diagnostics ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector'
+      operation: disable
+
+  # --- Feedback ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Feedback\Siuf\DmClient'
+      operation: disable
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Feedback\Siuf\DmClientOnScenarioDownload'
+      operation: disable
+
+  # --- Windows Error Reporting ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Windows Error Reporting\QueueReporting'
+      operation: disable
+
+  # --- Maps ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Maps\MapsToastTask'
+      operation: disable
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Maps\MapsUpdateTask'
+      operation: disable
+
+  # --- Network ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\NlaSvc\WiFiTask'
+      operation: disable
+
+  # --- SQM/Telemetry ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\PI\Sqm-Tasks'
+      operation: disable
+
+  # --- Xbox ---
+  - !scheduledTask:
+      path: '\Microsoft\XblGameSave\XblGameSaveTask'
+      operation: disable
+
+  # =====================================================================
+  # ADDITIONAL TASKS (beyond 30_Deep_Debloat.ps1)
+  # AME Wizard can handle these with TrustedInstaller privileges
+  # =====================================================================
+
+  # --- Flighting / A-B Testing ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Flighting\FeatureConfig\UsageDataReporting'
+      operation: disable
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Flighting\FeatureConfig\UsageDataFlushing'
+      operation: disable
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Flighting\OneSettings\RefreshCache'
+      operation: disable
+
+  # --- Cloud Experience Host ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\CloudExperienceHost\CreateObjectTask'
+      operation: disable
+
+  # --- Device Information ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Device Information\Device'
+      operation: disable
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Device Information\Device User'
+      operation: disable
+
+  # --- AppxDeploymentClient ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\AppxDeploymentClient\UCPD velocity'
+      operation: disable
+
+  # --- Maintenance ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Diagnosis\Scheduled'
+      operation: disable
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Diagnosis\RecommendedTroubleshootingScanner'
+      operation: disable
+
+  # --- Shell Tasks ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Shell\FamilySafetyMonitor'
+      operation: disable
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Shell\FamilySafetyRefreshTask'
+      operation: disable
+
+  # --- Power Efficiency Diagnostics ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Power Efficiency Diagnostics\AnalyzeSystem'
+      operation: disable
+
+  # --- Subscription (nag to upgrade Windows edition) ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Subscription\LicenseAcquisition'
+      operation: disable
+  - !scheduledTask:
+      path: '\Microsoft\Windows\Subscription\EnableLicenseAcquisition'
+      operation: disable
+
+  # --- Windows Update tasks (Maximum mode only) ---
+  - !scheduledTask:
+      path: '\Microsoft\Windows\WindowsUpdate\Scheduled Start'
+      operation: disable
+      option: 'maximum'

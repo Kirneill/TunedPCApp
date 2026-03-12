@@ -194,6 +194,22 @@ export const windowsOptimizations: OptimizationItem[] = [
     risk: 'moderate',
     requiresReboot: true,
   },
+  {
+    id: 'win-deep-debloat',
+    label: 'Lightweight OS Mode',
+    description: 'Aggressively debloats Windows — removes bloatware apps, disables telemetry services and scheduled tasks, removes unused features. Makes Windows as lean as AtlasOS. Creates full backup for one-click undo.',
+    category: 'windows',
+    risk: 'moderate',
+    requiresReboot: true,
+  },
+  {
+    id: 'win-undo-debloat',
+    label: 'Undo Lightweight Mode',
+    description: 'Reverses all changes made by Lightweight OS Mode — restores services, re-enables tasks, restores registry values. Requires a previous debloat manifest.',
+    category: 'windows',
+    risk: 'moderate',
+    requiresReboot: true,
+  },
 ];
 
 // Derived from the unified game registry -- no manual sync needed

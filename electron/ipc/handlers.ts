@@ -57,6 +57,9 @@ const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   'win-priority-sep': { script: '23_Latency_Reduction.ps1', envPrefix: 'PRIORITY_SEP' },
   'win-dynamic-tick': { script: '23_Latency_Reduction.ps1', envPrefix: 'DYNAMIC_TICK' },
   'win-hpet': { script: '23_Latency_Reduction.ps1', envPrefix: 'HPET' },
+  // Deep debloat (Lightweight OS Mode)
+  'win-deep-debloat': { script: '30_Deep_Debloat.ps1' },
+  'win-undo-debloat': { script: '31_Undo_Deep_Debloat.ps1' },
   // Windows Update mode actions
   'updates-off': { script: '09_Windows_Update_Off.ps1' },
   'updates-on': { script: '10_Windows_Update_On.ps1' },

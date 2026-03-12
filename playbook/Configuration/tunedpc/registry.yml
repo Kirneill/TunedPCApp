@@ -1,0 +1,110 @@
+---
+title: Registry Optimizations
+description: Core registry tweaks for a cleaner, faster Windows experience
+actions:
+  # =====================================================================
+  # REGISTRY: Core UI, shell, and anti-bloat tweaks
+  # NOT gaming-specific -- those go in performance.yml
+  # =====================================================================
+
+  # --- Disable Windows Tips and Suggestions ---
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SoftLandingEnabled', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SubscribedContent-338388Enabled', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SubscribedContent-338389Enabled', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SubscribedContent-310093Enabled', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SubscribedContent-338393Enabled', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SubscribedContent-353694Enabled', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SubscribedContent-353696Enabled', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'SystemPaneSuggestionsEnabled', type: REG_DWORD, data: '0'}
+
+  # --- Disable "Suggest ways to finish setup" nag ---
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement', value: 'ScoobeSystemSettingEnabled', type: REG_DWORD, data: '0'}
+
+  # --- Disable Start Menu web search (Bing) ---
+  - !registryValue: {path: 'HKCU\SOFTWARE\Policies\Microsoft\Windows\Explorer', value: 'DisableSearchBoxSuggestions', type: REG_DWORD, data: '1'}
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search', value: 'DisableWebSearch', type: REG_DWORD, data: '1'}
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search', value: 'ConnectedSearchUseWeb', type: REG_DWORD, data: '0'}
+
+  # --- Disable Cloud Content (consumer features, app suggestions) ---
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent', value: 'DisableWindowsConsumerFeatures', type: REG_DWORD, data: '1'}
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent', value: 'DisableSoftLanding', type: REG_DWORD, data: '1'}
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent', value: 'DisableCloudOptimizedContent', type: REG_DWORD, data: '1'}
+
+  # --- Disable Advertising ID ---
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo', value: 'Enabled', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo', value: 'DisabledByGroupPolicy', type: REG_DWORD, data: '1'}
+
+  # --- Disable Activity History ---
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\System', value: 'EnableActivityFeed', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\System', value: 'PublishUserActivities', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\System', value: 'UploadUserActivities', type: REG_DWORD, data: '0'}
+
+  # --- Disable Clipboard History ---
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\System', value: 'AllowClipboardHistory', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\System', value: 'AllowCrossDeviceClipboard', type: REG_DWORD, data: '0'}
+
+  # --- Disable Lock Screen Tips and Spotlight ---
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'RotatingLockScreenEnabled', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager', value: 'RotatingLockScreenOverlayEnabled', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Personalization', value: 'NoLockScreen', type: REG_DWORD, data: '0'}
+
+  # --- Disable Settings Sync ---
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\SettingsSync', value: 'SyncPolicy', type: REG_DWORD, data: '5'}
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\SettingSync', value: 'DisableSettingSync', type: REG_DWORD, data: '2'}
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\SettingSync', value: 'DisableSettingSyncUserOverride', type: REG_DWORD, data: '1'}
+
+  # --- Disable App Launch Tracking ---
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'Start_TrackProgs', type: REG_DWORD, data: '0'}
+
+  # --- Disable Taskbar Widgets (Win11) ---
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Dsh', value: 'AllowNewsAndInterests', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'TaskbarDa', type: REG_DWORD, data: '0'}
+
+  # --- Disable Copilot in Taskbar ---
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'ShowCopilotButton', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot', value: 'TurnOffWindowsCopilot', type: REG_DWORD, data: '1'}
+
+  # --- Disable "Show recently opened items" in Start ---
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'Start_TrackDocs', type: REG_DWORD, data: '0'}
+
+  # --- Remove shutdown/restart time (faster shutdown) ---
+  - !registryValue: {path: 'HKCU\Control Panel\Desktop', value: 'WaitToKillAppTimeout', type: REG_SZ, data: '2000'}
+  - !registryValue: {path: 'HKLM\SYSTEM\CurrentControlSet\Control', value: 'WaitToKillServiceTimeout', type: REG_SZ, data: '2000'}
+  - !registryValue: {path: 'HKCU\Control Panel\Desktop', value: 'HungAppTimeout', type: REG_SZ, data: '1000'}
+
+  # --- Disable startup delay ---
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Serialize', value: 'StartupDelayInMSec', type: REG_DWORD, data: '0'}
+
+  # --- Remove menu show delay ---
+  - !registryValue: {path: 'HKCU\Control Panel\Desktop', value: 'MenuShowDelay', type: REG_SZ, data: '0'}
+
+  # --- Restore old right-click context menu (Win11) ---
+  - !registryValue: {path: 'HKCU\SOFTWARE\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32', value: '', type: REG_SZ, data: ''}
+
+  # --- Explorer opens to "This PC" ---
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'LaunchTo', type: REG_DWORD, data: '1'}
+
+  # --- Enable long file paths ---
+  - !registryValue: {path: 'HKLM\SYSTEM\CurrentControlSet\Control\FileSystem', value: 'LongPathsEnabled', type: REG_DWORD, data: '1'}
+
+  # --- Disable auto app archiving ---
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Appx', value: 'AllowAutomaticAppArchiving', type: REG_DWORD, data: '0'}
+
+  # --- Disable Aero Shake ---
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'DisallowShaking', type: REG_DWORD, data: '1'}
+
+  # --- Enable "End Task" in taskbar right-click (Win11) ---
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings', value: 'TaskbarEndTask', type: REG_DWORD, data: '1'}
+
+  # --- Disable Windows Update automatic restart ---
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU', value: 'NoAutoRebootWithLoggedOnUsers', type: REG_DWORD, data: '1'}
+
+  # --- Defer feature updates by 365 days (security updates still flow) ---
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate', value: 'DeferFeatureUpdatesPeriodInDays', type: REG_DWORD, data: '365'}
+
+  # --- Disable Store auto-updates (prevents bloatware reinstall) ---
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\WindowsStore', value: 'AutoDownload', type: REG_DWORD, data: '2'}
+
+  # --- Disable Recall/Snap suggestions (Win11 24H2+) ---
+  - !registryValue: {path: 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced', value: 'EnableSnapAssistFlyout', type: REG_DWORD, data: '0'}
+  - !registryValue: {path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI', value: 'DisableAIDataAnalysis', type: REG_DWORD, data: '1'}
