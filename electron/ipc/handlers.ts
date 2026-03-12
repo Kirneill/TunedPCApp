@@ -333,6 +333,92 @@ function escapePowerShellSingleQuoted(value: string): string {
   return value.replace(/'/g, "''");
 }
 
+/** Get the path to the bundled wallpaper image. */
+function getWallpaperSource(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'wallpaper.png');
+  }
+  return path.join(app.getAppPath(), 'resources', 'wallpaper.png');
+}
+
+/** Marker file so the wallpaper is only set once (first successful optimization). */
+function getWallpaperMarkerPath(): string {
+  return path.join(app.getPath('userData'), 'wallpaper', '.wallpaper-set');
+}
+
+/** Copy bundled wallpaper to a persistent location and set it as the Windows desktop background.
+ *  Only runs once (first successful optimization). Never throws -- errors are logged as warnings. */
+async function setTunedPCWallpaper(log: RunLogFn): Promise<void> {
+  try {
+    // Only set wallpaper once -- skip if already done
+    const markerPath = getWallpaperMarkerPath();
+    if (fs.existsSync(markerPath)) return;
+
+    const source = getWallpaperSource();
+    if (!fs.existsSync(source)) {
+      log('warning', 'Wallpaper image not found, skipping.', {
+        component: 'Wallpaper',
+        action: 'wallpaper-missing',
+      });
+      return;
+    }
+
+    // Copy to a persistent path so Windows can always reference it
+    const destDir = path.join(app.getPath('userData'), 'wallpaper');
+    fs.mkdirSync(destDir, { recursive: true });
+    const destPath = path.join(destDir, 'TunedPC_Wallpaper.png');
+    fs.copyFileSync(source, destPath);
+
+    // Use PowerShell + P/Invoke to set the wallpaper via SystemParametersInfo
+    const escapedPath = escapePowerShellSingleQuoted(destPath);
+    const psScript = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class Wallpaper {
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+}
+"@
+
+# Set wallpaper style to Fill (10) -- best for gaming wallpapers
+Set-ItemProperty -Path 'HKCU:\\Control Panel\\Desktop' -Name WallpaperStyle -Value '10'
+Set-ItemProperty -Path 'HKCU:\\Control Panel\\Desktop' -Name TileWallpaper -Value '0'
+
+# SPI_SETDESKWALLPAPER = 0x0014, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE = 0x03
+[Wallpaper]::SystemParametersInfo(0x0014, 0, '${escapedPath}', 0x03) | Out-Null
+Write-Output 'Wallpaper set successfully'
+`;
+
+    const result = await runPowerShellCommand(psScript, (line) => {
+      log('info', line, {
+        component: 'Wallpaper',
+        action: 'wallpaper-output',
+      });
+    });
+
+    if (result.success) {
+      // Write marker so we don't overwrite the user's wallpaper on future runs
+      fs.writeFileSync(markerPath, new Date().toISOString(), 'utf-8');
+      log('success', 'TunedPC wallpaper applied!', {
+        component: 'Wallpaper',
+        action: 'wallpaper-set',
+        success: true,
+      });
+    } else {
+      log('warning', 'Could not set wallpaper. ' + (result.errors[0] || ''), {
+        component: 'Wallpaper',
+        action: 'wallpaper-failed',
+      });
+    }
+  } catch (err) {
+    log('warning', 'Could not set wallpaper: ' + (err instanceof Error ? err.message : String(err)), {
+      component: 'Wallpaper',
+      action: 'wallpaper-error',
+    });
+  }
+}
+
 /**
  * Detects installed games and populates envVars with paths for any games
  * in `requestedIds` that need path env vars (per GAME_PATH_ENV_VARS).
@@ -965,6 +1051,12 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
 
     const allSuccess = Object.values(results).every(Boolean);
     const errorCount = Object.values(results).filter(v => !v).length;
+
+    // Set TunedPC wallpaper after a successful optimization run
+    if (allSuccess) {
+      await setTunedPCWallpaper(log);
+    }
+
     if (!allSuccess) {
       const failedIds = Object.keys(results).filter((id) => !results[id]);
       log('error', `Failed optimizations (${failedIds.length}):`, {
