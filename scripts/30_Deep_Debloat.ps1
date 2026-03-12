@@ -64,6 +64,17 @@ function Save-Manifest {
     [System.IO.File]::WriteAllText($Path, $json, [System.Text.UTF8Encoding]::new($false))
 }
 
+# -- Diagnostic log function (defined early, $LogFile set once BackupDir is known) --
+$script:LogFile = $null
+
+function Write-Log {
+    param([string]$Message, [string]$Level = 'INFO')
+    if (-not $script:LogFile) { return }
+    $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff'
+    $line = "[$ts] [$Level] $Message"
+    Add-Content -Path $script:LogFile -Value $line -ErrorAction SilentlyContinue
+}
+
 if (-not $Headless) { Clear-Host }
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "  SENSEQUALITY Deep Debloat -- Lightweight OS Mode" -ForegroundColor Cyan
@@ -84,8 +95,21 @@ try {
     New-Item -ItemType Directory -Path $BackupDir -Force | Out-Null
     $Manifest.BackupDir = $BackupDir
 
+    # Initialize diagnostic log file
+    $script:LogFile = Join-Path $BackupDir "debloat-run.log"
+    Write-Log "SENSEQUALITY Deep Debloat started"
+    Write-Log "OS: $([System.Environment]::OSVersion.VersionString)"
+    Write-Log "PS Version: $($PSVersionTable.PSVersion)"
+    Write-Log "User: $env:USERNAME"
+    Write-Log "Admin: $(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))"
+    Write-Log "Headless: $Headless"
+    Write-Log "Backup dir: $BackupDir"
+    Write-Log "Manifest path: $ManifestPath"
+    Write-Log ("=" * 60)
+
     # Create system restore point
     Write-Host "  [INFO] Creating system restore point..." -ForegroundColor DarkCyan
+    Write-Log "Creating system restore point..."
     try {
         # Allow restore point creation even if one was recently made
         $SrpFreqPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore'
@@ -95,9 +119,11 @@ try {
         Enable-ComputerRestore -Drive $env:SystemDrive -ErrorAction SilentlyContinue
         Checkpoint-Computer -Description "SENSEQUALITY Deep Debloat (pre-debloat)" -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
         Write-Host "  [OK] System restore point created." -ForegroundColor Green
+        Write-Log "Restore point created" "OK"
     } catch {
         Write-Host "  [WARN] Could not create restore point: $_" -ForegroundColor Yellow
         Write-Host "  [INFO] Continuing with file-based backup only." -ForegroundColor DarkCyan
+        Write-Log "Failed to create restore point: $_" "WARN"
     }
 
     # Export full registry backup of key areas
@@ -117,8 +143,10 @@ try {
         reg export $item.Key $outFile /y 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-Host "  [OK] Backed up: $($item.Name)" -ForegroundColor Green
+            Write-Log "Registry backup: $($item.Name) exported to $outFile" "OK"
         } else {
             Write-Host "  [SKIP] Key not present: $($item.Name)" -ForegroundColor DarkGray
+            Write-Log "Registry backup: $($item.Name) not present, skipped" "SKIP"
         }
     }
 
@@ -133,6 +161,7 @@ try {
         [System.Text.UTF8Encoding]::new($false)
     )
     Write-Host "  [OK] Service snapshot saved ($($AllServices.Count) services)." -ForegroundColor Green
+    Write-Log "Service snapshot saved ($($AllServices.Count) services)" "OK"
 
     # Snapshot installed AppX packages
     Write-Host "  [INFO] Snapshotting AppX packages..." -ForegroundColor DarkCyan
@@ -146,15 +175,18 @@ try {
         [System.Text.UTF8Encoding]::new($false)
     )
     Write-Host "  [OK] AppX snapshot saved ($($AllAppx.Count) packages)." -ForegroundColor Green
+    Write-Log "AppX snapshot saved ($($AllAppx.Count) packages)" "OK"
 
     # Ensure manifest directory exists
     if (-not (Test-Path $ManifestDir)) { New-Item -ItemType Directory -Path $ManifestDir -Force | Out-Null }
 
     Write-Host "  [INFO] Backup directory: $BackupDir" -ForegroundColor DarkCyan
+    Write-Log "Pre-flight safety complete"
     Write-Host "[SQ_CHECK_OK:DEBLOAT_BACKUP]"
 } catch {
     Write-Host "  [FAIL] Pre-flight safety: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_BACKUP:$_]"
+    Write-Log "ERROR in Section 1 (Pre-flight): $_" "ERROR"
     Write-Host ""
     Write-Host "Aborting debloat -- cannot proceed without backup." -ForegroundColor Red
     exit 1
@@ -245,20 +277,24 @@ try {
             }
             $disabledCount++
             Write-Host "  [OK] $($svc.Name): $originalStartType -> $($svc.Target)" -ForegroundColor Green
+            Write-Log "Service $($svc.Name): $originalStartType -> $($svc.Target)" "OK"
         } catch {
             # Service may not exist on all Windows editions
             $skippedCount++
             Write-Host "  [SKIP] $($svc.Name): not found or access denied" -ForegroundColor DarkGray
+            Write-Log "Service $($svc.Name): not found or access denied" "SKIP"
         }
     }
 
     Write-Host ""
     Write-Host "  [INFO] Services changed: $disabledCount, skipped: $skippedCount" -ForegroundColor DarkCyan
+    Write-Log "Services: $disabledCount changed, $skippedCount skipped"
     Write-Host "[SQ_CHECK_OK:DEBLOAT_SERVICES:$disabledCount changed]"
     Save-Manifest -Path $ManifestPath -Data $Manifest
 } catch {
     Write-Host "  [FAIL] Service disabling: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_SERVICES:$_]"
+    Write-Log "ERROR in Section 2 (Services): $_" "ERROR"
 }
 
 
@@ -336,6 +372,7 @@ try {
                 $removedCount++
                 $Manifest.AppxRemoved += $appName
                 Write-Host "  [OK] Removed: $appName" -ForegroundColor Green
+                Write-Log "AppX removed: $appName" "OK"
             }
         }
 
@@ -350,6 +387,7 @@ try {
                     if (-not $found) {
                         $Manifest.AppxRemoved += $appName
                         Write-Host "  [OK] Deprovisioned: $appName" -ForegroundColor Green
+                        Write-Log "AppX deprovisioned: $appName" "OK"
                     }
                 } catch {
                     Write-Host "  [WARN] Could not deprovision $appName : $_" -ForegroundColor Yellow
@@ -360,16 +398,19 @@ try {
         if (-not $found -and -not $provisioned) {
             $notFoundCount++
             Write-Host "  [SKIP] Not installed: $appName" -ForegroundColor DarkGray
+            Write-Log "AppX skip: $appName not found" "SKIP"
         }
     }
 
     Write-Host ""
     Write-Host "  [INFO] Removed: $removedCount, deprovisioned: $deprovisionCount, not found: $notFoundCount" -ForegroundColor DarkCyan
+    Write-Log "AppX: $removedCount removed, $deprovisionCount deprovisioned, $notFoundCount not found"
     Write-Host "[SQ_CHECK_OK:DEBLOAT_APPX:$removedCount removed]"
     Save-Manifest -Path $ManifestPath -Data $Manifest
 } catch {
     Write-Host "  [FAIL] AppX removal: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_APPX:$_]"
+    Write-Log "ERROR in Section 3 (AppX): $_" "ERROR"
 }
 
 
@@ -423,23 +464,28 @@ try {
                 }
                 $disabledTaskCount++
                 Write-Host "  [OK] Disabled: $taskName" -ForegroundColor Green
+                Write-Log "Task disabled: $taskName" "OK"
             } else {
                 # Already disabled -- skip recording in manifest (nothing to undo)
                 Write-Host "  [OK] Already disabled: $taskName" -ForegroundColor Green
+                Write-Log "Task skip: $taskName (already disabled)" "SKIP"
             }
         } catch {
             $skippedTaskCount++
             Write-Host "  [SKIP] Not found: $(Split-Path $taskPath -Leaf)" -ForegroundColor DarkGray
+            Write-Log "Task skip: $(Split-Path $taskPath -Leaf) (not found)" "SKIP"
         }
     }
 
     Write-Host ""
     Write-Host "  [INFO] Tasks disabled: $disabledTaskCount, skipped: $skippedTaskCount" -ForegroundColor DarkCyan
+    Write-Log "Tasks: $disabledTaskCount disabled, $skippedTaskCount skipped"
     Write-Host "[SQ_CHECK_OK:DEBLOAT_TASKS:$disabledTaskCount disabled]"
     Save-Manifest -Path $ManifestPath -Data $Manifest
 } catch {
     Write-Host "  [FAIL] Scheduled task disabling: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_TASKS:$_]"
+    Write-Log "ERROR in Section 4 (Tasks): $_" "ERROR"
 }
 
 
@@ -479,13 +525,16 @@ try {
                 $removedCapCount++
                 $Manifest.DismRemoved += $capName
                 Write-Host "  [OK] Removed: $capName" -ForegroundColor Green
+                Write-Log "DISM removed: $capName" "OK"
             } catch {
                 $skippedCapCount++
                 Write-Host "  [WARN] Could not remove $capName : $_" -ForegroundColor Yellow
+                Write-Log "DISM failed to remove: $capName -- $_" "WARN"
             }
         } else {
             $skippedCapCount++
             Write-Host "  [SKIP] Not installed: $capName" -ForegroundColor DarkGray
+            Write-Log "DISM skip: $capName not present" "SKIP"
         }
     }
 
@@ -497,20 +546,25 @@ try {
             Enable-WindowsOptionalFeature -Online -FeatureName 'DirectPlay' -NoRestart -ErrorAction Stop | Out-Null
             $Manifest.DirectPlayEnabled = $true
             Write-Host "  [OK] DirectPlay enabled." -ForegroundColor Green
+            Write-Log "DISM enabled: DirectPlay" "OK"
         } else {
             Write-Host "  [OK] DirectPlay already enabled." -ForegroundColor Green
+            Write-Log "DISM: DirectPlay already enabled" "SKIP"
         }
     } catch {
         Write-Host "  [WARN] Could not enable DirectPlay: $_" -ForegroundColor Yellow
+        Write-Log "DISM failed to enable DirectPlay: $_" "WARN"
     }
 
     Write-Host ""
     Write-Host "  [INFO] Capabilities removed: $removedCapCount, skipped: $skippedCapCount" -ForegroundColor DarkCyan
+    Write-Log "DISM: $removedCapCount removed, $skippedCapCount skipped"
     Write-Host "[SQ_CHECK_OK:DEBLOAT_DISM:$removedCapCount removed]"
     Save-Manifest -Path $ManifestPath -Data $Manifest
 } catch {
     Write-Host "  [FAIL] DISM capability removal: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_DISM:$_]"
+    Write-Log "ERROR in Section 5 (DISM): $_" "ERROR"
 }
 
 
@@ -543,24 +597,30 @@ try {
     fsutil behavior set disable8dot3 1 | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  [WARN] fsutil disable8dot3 returned exit code $LASTEXITCODE" -ForegroundColor Yellow
+        Write-Log "NTFS disable8dot3: fsutil returned $LASTEXITCODE" "WARN"
     } else {
         Write-Host "  [OK] 8.3 short name creation disabled (reduces NTFS overhead)." -ForegroundColor Green
+        Write-Log "NTFS disable8dot3: original=$origDisable8dot3, set=1" "OK"
     }
 
     # Disable last-access timestamp updates -- reduces disk writes
     fsutil behavior set disablelastaccess 1 | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  [WARN] fsutil disablelastaccess returned exit code $LASTEXITCODE" -ForegroundColor Yellow
+        Write-Log "NTFS disablelastaccess: fsutil returned $LASTEXITCODE" "WARN"
     } else {
         Write-Host "  [OK] Last-access timestamp updates disabled (reduces disk writes)." -ForegroundColor Green
+        Write-Log "NTFS disablelastaccess: original=$origLastAccess, set=1" "OK"
     }
 
     # Increase NTFS memory allocation -- improves file system caching
     fsutil behavior set memoryusage 2 | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  [WARN] fsutil memoryusage returned exit code $LASTEXITCODE" -ForegroundColor Yellow
+        Write-Log "NTFS memoryusage: fsutil returned $LASTEXITCODE" "WARN"
     } else {
         Write-Host "  [OK] NTFS memory allocation increased (improves caching)." -ForegroundColor Green
+        Write-Log "NTFS memoryusage: original=$origMemoryUsage, set=2" "OK"
     }
 
     Write-Host "[SQ_CHECK_OK:DEBLOAT_NTFS]"
@@ -568,6 +628,7 @@ try {
 } catch {
     Write-Host "  [FAIL] NTFS optimization: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_NTFS:$_]"
+    Write-Log "ERROR in Section 6 (NTFS): $_" "ERROR"
 }
 
 
@@ -603,7 +664,10 @@ try {
         }
 
         # Ensure path exists
-        if (-not (Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
+        if (-not (Test-Path $Path)) {
+            New-Item -Path $Path -Force | Out-Null
+            Write-Log "Registry created key: $Path"
+        }
 
         Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type -Force
 
@@ -615,6 +679,7 @@ try {
             Type     = $Type
         }
 
+        Write-Log "Registry set: $Path\$Name = $Value (original: $original)"
         if ($Label) {
             Write-Host "  [OK] $Label" -ForegroundColor Green
         }
@@ -669,11 +734,13 @@ try {
 
     Write-Host ""
     Write-Host "  [INFO] $($Manifest.Registry.Count) registry values set." -ForegroundColor DarkCyan
+    Write-Log "Registry: $($Manifest.Registry.Count) values set"
     Write-Host "[SQ_CHECK_OK:DEBLOAT_REGISTRY]"
     Save-Manifest -Path $ManifestPath -Data $Manifest
 } catch {
     Write-Host "  [FAIL] Registry tweaks: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_REGISTRY:$_]"
+    Write-Log "ERROR in Section 7 (Registry): $_" "ERROR"
 }
 
 
@@ -716,11 +783,13 @@ try {
     Write-Host "  [OK] Feature updates deferred by 365 days." -ForegroundColor Green
     Write-Host "  [INFO] Security updates will continue to install normally." -ForegroundColor DarkCyan
     Write-Host "  [INFO] This prevents Windows from reverting your optimizations." -ForegroundColor DarkCyan
+    Write-Log "Update deferral: DeferFeatureUpdatesPeriodInDays=365 (original: $originalDeferDays)"
     Write-Host "[SQ_CHECK_OK:DEBLOAT_UPDATES]"
     Save-Manifest -Path $ManifestPath -Data $Manifest
 } catch {
     Write-Host "  [FAIL] Update deferral: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_UPDATES:$_]"
+    Write-Log "ERROR in Section 8 (Updates): $_" "ERROR"
 }
 
 
@@ -765,8 +834,16 @@ try {
     Write-Host "  REBOOT REQUIRED for all changes to take full effect." -ForegroundColor Yellow
     Write-Host ""
 
+    Write-Log "COMPLETE: Services=$($Manifest.Services.Count), AppX=$($Manifest.AppxRemoved.Count), Tasks=$($Manifest.Tasks.Count), DISM=$($Manifest.DismRemoved.Count), Registry=$($Manifest.Registry.Count)"
+    Write-Log "Manifest saved to: $ManifestPath"
+
     Write-Host "[SQ_CHECK_OK:DEBLOAT_COMPLETE]"
+
+    Write-Host ""
+    Write-Host "  Diagnostic log saved to:" -ForegroundColor DarkCyan
+    Write-Host "    $LogFile" -ForegroundColor DarkCyan
 } catch {
     Write-Host "  [FAIL] Could not save manifest: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_COMPLETE:$_]"
+    Write-Log "ERROR in Section 9 (Summary): $_" "ERROR"
 }

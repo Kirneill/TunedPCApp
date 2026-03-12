@@ -31,6 +31,27 @@ $script:totalFailures = 0
 $ManifestDir  = Join-Path $env:APPDATA 'SENSEQUALITY'
 $ManifestPath = Join-Path $ManifestDir 'debloat-manifest.json'
 
+# -- Diagnostic log file --
+$LogDir = Join-Path $env:APPDATA 'SENSEQUALITY'
+if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir -Force | Out-Null }
+$LogFile = Join-Path $LogDir ("undo-run-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + ".log")
+
+function Write-Log {
+    param([string]$Message, [string]$Level = 'INFO')
+    $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff'
+    $line = "[$ts] [$Level] $Message"
+    Add-Content -Path $LogFile -Value $line -ErrorAction SilentlyContinue
+}
+
+Write-Log "SENSEQUALITY Undo Deep Debloat started"
+Write-Log "OS: $([System.Environment]::OSVersion.VersionString)"
+Write-Log "PS Version: $($PSVersionTable.PSVersion)"
+Write-Log "User: $env:USERNAME"
+Write-Log "Admin: $(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))"
+Write-Log "Headless: $Headless"
+Write-Log "Manifest path: $ManifestPath"
+Write-Log ("=" * 60)
+
 if (-not $Headless) { Clear-Host }
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "  SENSEQUALITY Undo Deep Debloat" -ForegroundColor Cyan
@@ -49,6 +70,7 @@ if (-not (Test-Path $ManifestPath)) {
     Write-Host "  [FAIL] No debloat manifest found at: $ManifestPath" -ForegroundColor Red
     Write-Host "  [INFO] Run 30_Deep_Debloat.ps1 first, or the manifest may have been deleted." -ForegroundColor DarkCyan
     Write-Host "[SQ_CHECK_FAIL:UNDO_MANIFEST:No debloat manifest found]"
+    Write-Log "No debloat manifest found at: $ManifestPath" "ERROR"
     exit 1
 }
 
@@ -57,10 +79,12 @@ try {
     $Manifest = $manifestContent | ConvertFrom-Json
     Write-Host "  [OK] Manifest loaded. Created: $($Manifest.CreatedAt)" -ForegroundColor Green
     Write-Host "  [INFO] Backup directory: $($Manifest.BackupDir)" -ForegroundColor DarkCyan
+    Write-Log "Manifest loaded. Created: $($Manifest.CreatedAt), BackupDir: $($Manifest.BackupDir)"
     Write-Host "[SQ_CHECK_OK:UNDO_MANIFEST]"
 } catch {
     Write-Host "  [FAIL] Could not parse manifest: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:UNDO_MANIFEST:$_]"
+    Write-Log "Failed to parse manifest: $_" "ERROR"
     exit 1
 }
 
