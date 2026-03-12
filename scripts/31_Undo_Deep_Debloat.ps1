@@ -24,16 +24,9 @@
 # HEADLESS MODE: When run from SENSEQUALITY app, skip interactive prompts
 # -----------------------------------------------------------------------------
 $Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
-if ($Headless -and $env:MONITOR_WIDTH) {
-    $MonitorWidth   = [int]$env:MONITOR_WIDTH
-    $MonitorHeight  = [int]$env:MONITOR_HEIGHT
-    $MonitorRefresh = [int]$env:MONITOR_REFRESH
-    $NvidiaGPU      = $env:NVIDIA_GPU -eq '1'
-} else {
-    $MonitorWidth = 1920; $MonitorHeight = 1080; $MonitorRefresh = 240; $NvidiaGPU = $true
-}
 
 $ErrorActionPreference = 'Stop'
+$script:totalFailures = 0
 
 $ManifestDir  = Join-Path $env:APPDATA 'SENSEQUALITY'
 $ManifestPath = Join-Path $ManifestDir 'debloat-manifest.json'

@@ -245,14 +245,6 @@ actions:
       option: 'gaming-perf'
       weight: 2
 
-  # --- Disable Network Throttling ---
-  - !registryValue:
-      path: 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile'
-      value: 'NetworkThrottlingIndex'
-      type: REG_DWORD
-      data: '4294967295'
-      option: 'gaming-perf'
-
   # --- Disable SMB Bandwidth Throttling ---
   - !registryValue:
       path: 'HKLM\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters'
@@ -270,7 +262,7 @@ actions:
       option: 'gaming-perf'
 
   # --- Timer Resolution (lower latency) ---
-  # Set global timer resolution to 0.5ms
+  # Allow applications to request higher timer resolution (reduces default 15.6ms interval)
   - !registryValue:
       path: 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel'
       value: 'GlobalTimerResolutionRequests'

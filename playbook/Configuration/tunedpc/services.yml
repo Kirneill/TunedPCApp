@@ -56,11 +56,11 @@ actions:
   # --- Sync and Cloud ---
   - !service: {name: 'OneSyncSvc', operation: change, startup: 4}
 
-  # --- Xbox Background Services (games do not need these running) ---
-  - !service: {name: 'XblAuthManager', operation: change, startup: 4}
-  - !service: {name: 'XblGameSave', operation: change, startup: 4}
-  - !service: {name: 'XboxNetApiSvc', operation: change, startup: 4}
-  - !service: {name: 'XboxGipSvc', operation: change, startup: 4}
+  # --- Xbox Background Services (Manual -- Game Pass games start these on demand) ---
+  - !service: {name: 'XblAuthManager', operation: change, startup: 3}
+  - !service: {name: 'XblGameSave', operation: change, startup: 3}
+  - !service: {name: 'XboxNetApiSvc', operation: change, startup: 3}
+  - !service: {name: 'XboxGipSvc', operation: change, startup: 3}
 
   # --- Additional Services (beyond 30_Deep_Debloat.ps1) ---
   # These require TrustedInstaller-level access that AME Wizard provides
@@ -111,9 +111,6 @@ actions:
   # Connected Devices Platform -- Bluetooth/device pairing
   - !service: {name: 'CDPSvc', operation: change, startup: 4}
   - !service: {name: 'CDPUserSvc', operation: change, startup: 4}
-
-  # Geolocation
-  - !service: {name: 'lfsvc', operation: change, startup: 4}
 
   # Windows Push Notifications User Service
   # NOTE: Keep WpnService (system) running for game notifications

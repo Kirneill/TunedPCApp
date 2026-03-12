@@ -37,14 +37,6 @@
 # and read config from environment variables
 # -----------------------------------------------------------------------------
 $Headless = $env:SENSEQUALITY_HEADLESS -eq "1"
-if ($Headless -and $env:MONITOR_WIDTH) {
-    $MonitorWidth   = [int]$env:MONITOR_WIDTH
-    $MonitorHeight  = [int]$env:MONITOR_HEIGHT
-    $MonitorRefresh = [int]$env:MONITOR_REFRESH
-    $NvidiaGPU      = $env:NVIDIA_GPU -eq '1'
-} else {
-    $MonitorWidth = 1920; $MonitorHeight = 1080; $MonitorRefresh = 240; $NvidiaGPU = $true
-}
 
 $ErrorActionPreference = 'Stop'
 
@@ -64,6 +56,13 @@ $Manifest = [ordered]@{
 
 $ManifestDir  = Join-Path $env:APPDATA 'SENSEQUALITY'
 $ManifestPath = Join-Path $ManifestDir 'debloat-manifest.json'
+
+# Helper: save manifest to disk incrementally so mid-script crashes do not lose the undo trail
+function Save-Manifest {
+    param([string]$Path, [object]$Data)
+    $json = $Data | ConvertTo-Json -Depth 10
+    [System.IO.File]::WriteAllText($Path, $json, [System.Text.UTF8Encoding]::new($false))
+}
 
 if (-not $Headless) { Clear-Host }
 Write-Host "======================================================" -ForegroundColor Cyan
@@ -192,12 +191,12 @@ try {
 
         # -- Performance drains --
         @{ Name = 'SysMain';         Target = 'Disabled' }   # Superfetch -- hurts SSD gaming rigs
-        @{ Name = 'WSearch';         Target = 'Disabled' }   # Windows Search Indexing -- heavy I/O
+        @{ Name = 'WSearch';         Target = 'Manual' }     # Windows Search Indexing -- heavy I/O, Manual keeps search working
 
         # -- Unused hardware and features --
         @{ Name = 'Fax';             Target = 'Disabled' }   # Fax service
         @{ Name = 'WMPNetworkSvc';   Target = 'Disabled' }   # WMP Network Sharing
-        @{ Name = 'TabletInputService'; Target = 'Disabled' } # Touch Keyboard and Handwriting
+        @{ Name = 'TabletInputService'; Target = 'Manual' }   # Touch Keyboard and Handwriting -- Manual keeps emoji picker working
         @{ Name = 'PhoneSvc';        Target = 'Disabled' }   # Phone Service
         @{ Name = 'SEMgrSvc';        Target = 'Disabled' }   # Payments and NFC
         @{ Name = 'AJRouter';        Target = 'Disabled' }   # AllJoyn Router
@@ -211,11 +210,11 @@ try {
         # -- Sync and cloud --
         @{ Name = 'OneSyncSvc';      Target = 'Disabled' }   # Sync Host
 
-        # -- Xbox services (games do not need these background services) --
-        @{ Name = 'XblAuthManager';  Target = 'Disabled' }   # Xbox Live Auth Manager
-        @{ Name = 'XblGameSave';     Target = 'Disabled' }   # Xbox Live Game Save
-        @{ Name = 'XboxNetApiSvc';   Target = 'Disabled' }   # Xbox Live Networking
-        @{ Name = 'XboxGipSvc';      Target = 'Disabled' }   # Xbox Accessory Management
+        # -- Xbox services (Manual keeps Xbox and Game Pass games working on demand) --
+        @{ Name = 'XblAuthManager';  Target = 'Manual' }     # Xbox Live Auth Manager
+        @{ Name = 'XblGameSave';     Target = 'Manual' }     # Xbox Live Game Save
+        @{ Name = 'XboxNetApiSvc';   Target = 'Manual' }     # Xbox Live Networking
+        @{ Name = 'XboxGipSvc';      Target = 'Manual' }     # Xbox Accessory Management
 
         # -- Set to Manual (keep available but not auto-starting) --
         @{ Name = 'BITS';            Target = 'Manual' }     # Background Intelligent Transfer
@@ -231,19 +230,19 @@ try {
             $existing = Get-Service -Name $svc.Name -ErrorAction Stop
             $originalStartType = $existing.StartType.ToString()
 
-            # Record original state in manifest
-            $Manifest.Services += [ordered]@{
-                Name          = $svc.Name
-                OriginalStart = $originalStartType
-                NewStart      = $svc.Target
-            }
-
             # Stop the service if it is running and we are disabling it
             if ($svc.Target -eq 'Disabled' -and $existing.Status -eq 'Running') {
                 Stop-Service -Name $svc.Name -Force -ErrorAction SilentlyContinue
             }
 
             Set-Service -Name $svc.Name -StartupType $svc.Target -ErrorAction Stop
+
+            # Record original state in manifest AFTER successful change
+            $Manifest.Services += [ordered]@{
+                Name          = $svc.Name
+                OriginalStart = $originalStartType
+                NewStart      = $svc.Target
+            }
             $disabledCount++
             Write-Host "  [OK] $($svc.Name): $originalStartType -> $($svc.Target)" -ForegroundColor Green
         } catch {
@@ -256,6 +255,7 @@ try {
     Write-Host ""
     Write-Host "  [INFO] Services changed: $disabledCount, skipped: $skippedCount" -ForegroundColor DarkCyan
     Write-Host "[SQ_CHECK_OK:DEBLOAT_SERVICES:$disabledCount changed]"
+    Save-Manifest -Path $ManifestPath -Data $Manifest
 } catch {
     Write-Host "  [FAIL] Service disabling: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_SERVICES:$_]"
@@ -325,7 +325,7 @@ try {
                 } catch {
                     # Some packages resist removal -- try without -AllUsers
                     try {
-                        Remove-AppxPackage -Package $pkg.PackageFullName -ErrorAction SilentlyContinue
+                        Remove-AppxPackage -Package $pkg.PackageFullName -ErrorAction Stop
                         $found = $true
                     } catch {
                         Write-Host "  [WARN] Could not remove $appName : $_" -ForegroundColor Yellow
@@ -366,6 +366,7 @@ try {
     Write-Host ""
     Write-Host "  [INFO] Removed: $removedCount, deprovisioned: $deprovisionCount, not found: $notFoundCount" -ForegroundColor DarkCyan
     Write-Host "[SQ_CHECK_OK:DEBLOAT_APPX:$removedCount removed]"
+    Save-Manifest -Path $ManifestPath -Data $Manifest
 } catch {
     Write-Host "  [FAIL] AppX removal: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_APPX:$_]"
@@ -411,17 +412,19 @@ try {
 
             # Record original state
             $originalState = $task.State.ToString()
-            $Manifest.Tasks += [ordered]@{
-                TaskPath      = $taskPath
-                OriginalState = $originalState
-            }
 
             if ($originalState -ne 'Disabled') {
                 Disable-ScheduledTask -TaskPath "$taskFolder\" -TaskName $taskName -ErrorAction Stop | Out-Null
+
+                # Record in manifest AFTER successful disable
+                $Manifest.Tasks += [ordered]@{
+                    TaskPath      = $taskPath
+                    OriginalState = $originalState
+                }
                 $disabledTaskCount++
                 Write-Host "  [OK] Disabled: $taskName" -ForegroundColor Green
             } else {
-                $disabledTaskCount++
+                # Already disabled -- skip recording in manifest (nothing to undo)
                 Write-Host "  [OK] Already disabled: $taskName" -ForegroundColor Green
             }
         } catch {
@@ -433,6 +436,7 @@ try {
     Write-Host ""
     Write-Host "  [INFO] Tasks disabled: $disabledTaskCount, skipped: $skippedTaskCount" -ForegroundColor DarkCyan
     Write-Host "[SQ_CHECK_OK:DEBLOAT_TASKS:$disabledTaskCount disabled]"
+    Save-Manifest -Path $ManifestPath -Data $Manifest
 } catch {
     Write-Host "  [FAIL] Scheduled task disabling: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_TASKS:$_]"
@@ -491,6 +495,7 @@ try {
         $dpFeature = Get-WindowsOptionalFeature -Online -FeatureName 'DirectPlay' -ErrorAction SilentlyContinue
         if ($dpFeature -and $dpFeature.State -ne 'Enabled') {
             Enable-WindowsOptionalFeature -Online -FeatureName 'DirectPlay' -NoRestart -ErrorAction Stop | Out-Null
+            $Manifest.DirectPlayEnabled = $true
             Write-Host "  [OK] DirectPlay enabled." -ForegroundColor Green
         } else {
             Write-Host "  [OK] DirectPlay already enabled." -ForegroundColor Green
@@ -502,6 +507,7 @@ try {
     Write-Host ""
     Write-Host "  [INFO] Capabilities removed: $removedCapCount, skipped: $skippedCapCount" -ForegroundColor DarkCyan
     Write-Host "[SQ_CHECK_OK:DEBLOAT_DISM:$removedCapCount removed]"
+    Save-Manifest -Path $ManifestPath -Data $Manifest
 } catch {
     Write-Host "  [FAIL] DISM capability removal: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_DISM:$_]"
@@ -517,10 +523,15 @@ Write-Host "[6/9] NTFS AND FILESYSTEM OPTIMIZATIONS" -ForegroundColor White
 Write-Host "------------------------------------------" -ForegroundColor DarkGray
 
 try {
-    # Capture original values before changing
-    $origDisable8dot3 = (fsutil behavior query disable8dot3 2>$null) -replace '[^0-9]', ''
-    $origLastAccess   = (fsutil behavior query disablelastaccess 2>$null) -replace '[^0-9]', ''
-    $origMemoryUsage  = (fsutil behavior query memoryusage 2>$null) -replace '[^0-9]', ''
+    # Capture original values before changing -- extract only the first number from fsutil output
+    $rawOutput = (fsutil behavior query disable8dot3 2>$null) | Select-Object -First 1
+    $origDisable8dot3 = if ($rawOutput -match '\b(\d+)\b') { $Matches[1] } else { '0' }
+
+    $rawOutput = (fsutil behavior query disablelastaccess 2>$null) | Select-Object -First 1
+    $origLastAccess = if ($rawOutput -match '\b(\d+)\b') { $Matches[1] } else { '0' }
+
+    $rawOutput = (fsutil behavior query memoryusage 2>$null) | Select-Object -First 1
+    $origMemoryUsage = if ($rawOutput -match '\b(\d+)\b') { $Matches[1] } else { '0' }
 
     $Manifest.NtfsOriginal = [ordered]@{
         disable8dot3     = $origDisable8dot3
@@ -530,17 +541,30 @@ try {
 
     # Disable 8.3 short name creation -- reduces NTFS overhead
     fsutil behavior set disable8dot3 1 | Out-Null
-    Write-Host "  [OK] 8.3 short name creation disabled (reduces NTFS overhead)." -ForegroundColor Green
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  [WARN] fsutil disable8dot3 returned exit code $LASTEXITCODE" -ForegroundColor Yellow
+    } else {
+        Write-Host "  [OK] 8.3 short name creation disabled (reduces NTFS overhead)." -ForegroundColor Green
+    }
 
     # Disable last-access timestamp updates -- reduces disk writes
     fsutil behavior set disablelastaccess 1 | Out-Null
-    Write-Host "  [OK] Last-access timestamp updates disabled (reduces disk writes)." -ForegroundColor Green
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  [WARN] fsutil disablelastaccess returned exit code $LASTEXITCODE" -ForegroundColor Yellow
+    } else {
+        Write-Host "  [OK] Last-access timestamp updates disabled (reduces disk writes)." -ForegroundColor Green
+    }
 
     # Increase NTFS memory allocation -- improves file system caching
     fsutil behavior set memoryusage 2 | Out-Null
-    Write-Host "  [OK] NTFS memory allocation increased (improves caching)." -ForegroundColor Green
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  [WARN] fsutil memoryusage returned exit code $LASTEXITCODE" -ForegroundColor Yellow
+    } else {
+        Write-Host "  [OK] NTFS memory allocation increased (improves caching)." -ForegroundColor Green
+    }
 
     Write-Host "[SQ_CHECK_OK:DEBLOAT_NTFS]"
+    Save-Manifest -Path $ManifestPath -Data $Manifest
 } catch {
     Write-Host "  [FAIL] NTFS optimization: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_NTFS:$_]"
@@ -574,7 +598,9 @@ try {
                     $original = $prop.$Name
                 }
             }
-        } catch { }
+        } catch {
+            Write-Host "  [WARN] Could not read original value for $Name at ${Path}: $_" -ForegroundColor Yellow
+        }
 
         # Ensure path exists
         if (-not (Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
@@ -644,6 +670,7 @@ try {
     Write-Host ""
     Write-Host "  [INFO] $($Manifest.Registry.Count) registry values set." -ForegroundColor DarkCyan
     Write-Host "[SQ_CHECK_OK:DEBLOAT_REGISTRY]"
+    Save-Manifest -Path $ManifestPath -Data $Manifest
 } catch {
     Write-Host "  [FAIL] Registry tweaks: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_REGISTRY:$_]"
@@ -670,7 +697,9 @@ try {
                 $originalDeferDays = $prop.DeferFeatureUpdatesPeriodInDays
             }
         }
-    } catch { }
+    } catch {
+        Write-Host "  [WARN] Could not read original update deferral value: $_" -ForegroundColor Yellow
+    }
 
     if (-not (Test-Path $wuPolicyPath)) { New-Item -Path $wuPolicyPath -Force | Out-Null }
     Set-ItemProperty -Path $wuPolicyPath -Name 'DeferFeatureUpdatesPeriodInDays' -Value 365 -Type DWord -Force
@@ -688,6 +717,7 @@ try {
     Write-Host "  [INFO] Security updates will continue to install normally." -ForegroundColor DarkCyan
     Write-Host "  [INFO] This prevents Windows from reverting your optimizations." -ForegroundColor DarkCyan
     Write-Host "[SQ_CHECK_OK:DEBLOAT_UPDATES]"
+    Save-Manifest -Path $ManifestPath -Data $Manifest
 } catch {
     Write-Host "  [FAIL] Update deferral: $_" -ForegroundColor Red
     Write-Host "[SQ_CHECK_FAIL:DEBLOAT_UPDATES:$_]"
@@ -705,7 +735,7 @@ Write-Host "------------------------------------------" -ForegroundColor DarkGra
 try {
     # Save the manifest JSON
     $Manifest.CompletedAt = (Get-Date -Format 'o')
-    $manifestJson = $Manifest | ConvertTo-Json -Depth 5
+    $manifestJson = $Manifest | ConvertTo-Json -Depth 10
     [System.IO.File]::WriteAllText($ManifestPath, $manifestJson, [System.Text.UTF8Encoding]::new($false))
 
     Write-Host ""

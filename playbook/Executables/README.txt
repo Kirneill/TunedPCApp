@@ -9,7 +9,7 @@ Requirements:
 - AME Wizard (download from ameliorated.io)
 - Internet connection (for component cleanup)
 - Plugged in (laptop users)
-- Windows Defender toggled off (AME Wizard will prompt you)
+- Windows Defender temporarily disabled (AME Wizard will prompt you -- re-enabled after unless you opt to remove it)
 - No pending Windows updates
 
 Instructions:
@@ -21,7 +21,7 @@ Instructions:
    - Recommended: Anti-cheat safe, best for online competitive games
    - Maximum Performance: More aggressive, may affect some anti-cheat
 6. Select additional options (bloatware removal, telemetry, etc.)
-7. Wait for the process to complete (approximately 15 minutes)
+7. Wait for the process to complete (15-45 minutes depending on hardware and selected options)
 8. Reboot when prompted
 
 WARNING: This playbook makes significant changes to Windows.
@@ -30,9 +30,9 @@ to reverse without a clean reinstall. Create a full system backup
 or system image before proceeding.
 
 What This Playbook Does:
-- Disables 50+ unnecessary Windows services
-- Removes 30+ bloatware AppX packages
-- Disables 25+ telemetry and diagnostic scheduled tasks
+- Configures 55+ unnecessary Windows services (disabled or set to Manual)
+- Removes 40+ bloatware AppX packages
+- Disables 30 telemetry and diagnostic scheduled tasks
 - Removes unused Windows capabilities (IE, Fax, WordPad, etc.)
 - Applies gaming performance registry tweaks (MMCSS, scheduling, GPU)
 - Hardens privacy settings and blocks telemetry hosts
@@ -50,6 +50,10 @@ Anti-Cheat Compatibility (Recommended mode):
 - CS2 (VAC):              SAFE
 - Tarkov (BattlEye):      SAFE
 - Rainbow Six Siege:       SAFE
+
+Note: The above applies to Recommended mode. Maximum Performance mode
+disables CPU security mitigations which may trigger anti-cheat in
+Valorant (Vanguard).
 
 What is NOT touched (anti-cheat requirements):
 - Secure Boot
