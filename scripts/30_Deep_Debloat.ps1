@@ -140,11 +140,24 @@ try {
 
     foreach ($item in $RegKeysToBackup) {
         $outFile = Join-Path $BackupDir "$($item.Name).reg"
-        reg export $item.Key $outFile /y 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "  [OK] Backed up: $($item.Name)" -ForegroundColor Green
-            Write-Log "Registry backup: $($item.Name) exported to $outFile" "OK"
-        } else {
+        try {
+            # Temporarily lower ErrorActionPreference so stderr from native
+            # commands (reg.exe) does not become a terminating error.
+            $oldEAP = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            reg export $item.Key $outFile /y 2>$null | Out-Null
+            $regExitCode = $LASTEXITCODE
+            $ErrorActionPreference = $oldEAP
+
+            if ($regExitCode -eq 0) {
+                Write-Host "  [OK] Backed up: $($item.Name)" -ForegroundColor Green
+                Write-Log "Registry backup: $($item.Name) exported to $outFile" "OK"
+            } else {
+                Write-Host "  [SKIP] Key not present: $($item.Name)" -ForegroundColor DarkGray
+                Write-Log "Registry backup: $($item.Name) not present, skipped" "SKIP"
+            }
+        } catch {
+            $ErrorActionPreference = $oldEAP
             Write-Host "  [SKIP] Key not present: $($item.Name)" -ForegroundColor DarkGray
             Write-Log "Registry backup: $($item.Name) not present, skipped" "SKIP"
         }
