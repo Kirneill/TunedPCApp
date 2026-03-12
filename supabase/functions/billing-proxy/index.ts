@@ -3,6 +3,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 const AUTUMN_SECRET_KEY = Deno.env.get("AUTUMN_SECRET_KEY");
 const AUTUMN_API_URL = "https://api.useautumn.com/v1";
 
+// Beta tester whitelist — comma-separated emails in env var
+// Set via: npx supabase secrets set BETA_TESTERS="email1@x.com,email2@x.com"
+const BETA_TESTERS = new Set(
+  (Deno.env.get("BETA_TESTERS") || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean),
+);
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
@@ -26,8 +32,8 @@ function errorResponse(message: string, status = 400): Response {
   return jsonResponse({ error: message }, status);
 }
 
-/** Verify the caller's JWT and return their Supabase user ID + metadata. */
-async function getAuthUserId(authHeader: string | null): Promise<{ userId: string; email: string; tier: string } | Response> {
+/** Verify the caller's JWT and return their Supabase user ID. */
+async function getAuthUserId(authHeader: string | null): Promise<{ userId: string; email: string } | Response> {
   if (!authHeader?.startsWith("Bearer ")) {
     return errorResponse("Missing or invalid Authorization header", 401);
   }
@@ -42,9 +48,7 @@ async function getAuthUserId(authHeader: string | null): Promise<{ userId: strin
     return errorResponse("Invalid or expired token", 401);
   }
 
-  const tier = (user.app_metadata as Record<string, unknown>)?.tier;
-
-  return { userId: user.id, email: user.email || "", tier: typeof tier === "string" ? tier : "free" };
+  return { userId: user.id, email: user.email || "" };
 }
 
 /** Forward a request to the Autumn API. */
@@ -68,15 +72,10 @@ async function autumnFetch(
 
 // ─── Action Handlers ─────────────────────────────────────
 
-async function handleCheck(userId: string, tier: string, params: Record<string, unknown>): Promise<Response> {
+async function handleCheck(userId: string, params: Record<string, unknown>): Promise<Response> {
   const featureId = params.feature_id;
   if (typeof featureId !== "string") {
     return errorResponse("feature_id is required");
-  }
-
-  // Users with tier='pro' in Supabase Auth metadata (e.g. beta testers) bypass Autumn
-  if (tier === "pro") {
-    return jsonResponse({ allowed: true });
   }
 
   const { data, status } = await autumnFetch("POST", "/check", {
@@ -87,6 +86,11 @@ async function handleCheck(userId: string, tier: string, params: Record<string, 
 }
 
 async function handleAttach(userId: string, email: string, params: Record<string, unknown>): Promise<Response> {
+  // Beta gate: only whitelisted users can subscribe (remove after public launch)
+  if (BETA_TESTERS.size > 0 && !BETA_TESTERS.has(email.toLowerCase())) {
+    return errorResponse("Pro is launching soon! You'll be notified when it's available.", 403);
+  }
+
   const productId = params.product_id;
   if (typeof productId !== "string") {
     return errorResponse("product_id is required");
@@ -152,7 +156,7 @@ Deno.serve(async (req) => {
   // Authenticate
   const authResult = await getAuthUserId(req.headers.get("authorization"));
   if (authResult instanceof Response) return authResult;
-  const { userId, email, tier } = authResult;
+  const { userId, email } = authResult;
 
   // Parse body
   let body: Record<string, unknown>;
@@ -170,7 +174,7 @@ Deno.serve(async (req) => {
   try {
     switch (action) {
       case "check":
-        return await handleCheck(userId, tier, body);
+        return await handleCheck(userId, body);
       case "attach":
         return await handleAttach(userId, email, body);
       case "cancel":

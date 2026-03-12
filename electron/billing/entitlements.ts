@@ -7,7 +7,6 @@ type EntitlementReason =
   | 'billing_disabled'
   | 'not_authenticated'
   | 'autumn_allowed'
-  | 'auth_tier'
   | 'cached'
   | 'not_entitled';
 
@@ -109,16 +108,6 @@ export async function getFeatureAccess(featureId: string): Promise<FeatureEntitl
         plan: toPlan(entitlementCache.allowed),
         reason: 'cached',
       };
-    }
-
-    try {
-      const session = await getSession();
-      if (session?.user?.tier === 'pro') {
-        entitlementCache = { customerId, featureId, allowed: true, checkedAt: Date.now() };
-        return { allowed: true, plan: 'pro', reason: 'auth_tier' };
-      }
-    } catch {
-      // Ignore secondary auth lookup failures.
     }
 
     return { allowed: false, plan: 'free', reason: 'not_entitled' };

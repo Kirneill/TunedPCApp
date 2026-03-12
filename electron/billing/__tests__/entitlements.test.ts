@@ -31,9 +31,8 @@ import {
 function mockSession(
   id = 'user-123',
   email = 'test@example.com',
-  tier: 'free' | 'pro' = 'free',
 ) {
-  mockGetSession.mockResolvedValue({ user: { id, email, tier } });
+  mockGetSession.mockResolvedValue({ user: { id, email } });
   mockGetAccessToken.mockResolvedValue('jwt-token-abc');
 }
 
@@ -71,7 +70,7 @@ describe('checkBiosOptimizerAccess', () => {
   });
 
   it('uses Autumn as the primary entitlement source', async () => {
-    mockSession('user-123', 'test@example.com', 'free');
+    mockSession('user-123', 'test@example.com');
     mockFetchResponse({ allowed: true });
     const result = await checkBiosOptimizerAccess();
     expect(result).toEqual({ allowed: true, plan: 'pro' });
@@ -87,17 +86,17 @@ describe('checkBiosOptimizerAccess', () => {
     expect(result).toEqual({ allowed: true, plan: 'pro' });
   });
 
-  it('falls back to auth tier for beta testers when Autumn is unavailable', async () => {
-    mockSession('user-123', 'test@example.com', 'pro');
+  it('denies access when Autumn is unavailable and no cache exists', async () => {
+    mockSession();
     mockFetch.mockResolvedValue({ ok: false, status: 500, json: () => Promise.resolve(null) });
     const result = await checkBiosOptimizerAccess();
-    expect(result).toEqual({ allowed: true, plan: 'pro' });
+    expect(result).toEqual({ allowed: false, plan: 'free' });
   });
 });
 
 describe('requireBiosOptimizerAccess', () => {
-  it('allows BIOS automation for Autumn-entitled users without mirrored auth tier', async () => {
-    mockSession('user-123', 'test@example.com', 'free');
+  it('allows BIOS automation for Autumn-entitled users', async () => {
+    mockSession('user-123', 'test@example.com');
     mockFetchResponse({ allowed: true });
     await expect(requireBiosOptimizerAccess()).resolves.toBeNull();
   });
