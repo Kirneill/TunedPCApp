@@ -1252,10 +1252,12 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
 
       if (sevenZipExe) {
         // 7-Zip: create password-encrypted ZIP (required by AME Wizard)
+        // Uses ZipCrypto (default) — NOT AES256 which AME Wizard cannot read
+        // cwd is playbookDir so items are added at archive root (flat structure)
         const args = [
-          'a', '-tzip', '-pmalte', '-mem=AES256',
+          'a', '-tzip', '-pmalte', '-mx1', '-y',
           outputFile,
-          ...itemsToZip.map(name => path.join(playbookDir, name)),
+          ...itemsToZip,
         ];
         await execFileAsync(sevenZipExe, args, { cwd: playbookDir });
 
