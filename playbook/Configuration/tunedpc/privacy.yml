@@ -1,0 +1,282 @@
+---
+title: Privacy and Telemetry Hardening
+description: Disable data collection, telemetry, and tracking
+actions:
+  # =====================================================================
+  # PRIVACY: Aggressive telemetry and data collection disabling
+  # Gated behind "disable-telemetry" checkbox option
+  # =====================================================================
+
+  # --- DiagTrack / Connected User Experiences ---
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection'
+      value: 'AllowTelemetry'
+      type: REG_DWORD
+      data: '0'
+      option: 'disable-telemetry'
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection'
+      value: 'MaxTelemetryAllowed'
+      type: REG_DWORD
+      data: '0'
+      option: 'disable-telemetry'
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection'
+      value: 'AllowTelemetry'
+      type: REG_DWORD
+      data: '0'
+      option: 'disable-telemetry'
+
+  # --- Disable Diagnostic Data Viewer ---
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection'
+      value: 'DisableDiagnosticDataViewer'
+      type: REG_DWORD
+      data: '1'
+      option: 'disable-telemetry'
+
+  # --- Disable telemetry error reporting ---
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection'
+      value: 'DoNotShowFeedbackNotifications'
+      type: REG_DWORD
+      data: '1'
+      option: 'disable-telemetry'
+
+  # --- Feedback Frequency: Never ---
+  - !registryValue:
+      path: 'HKCU\SOFTWARE\Microsoft\Siuf\Rules'
+      value: 'NumberOfSIUFInPeriod'
+      type: REG_DWORD
+      data: '0'
+      option: 'disable-telemetry'
+  - !registryValue:
+      path: 'HKCU\SOFTWARE\Microsoft\Siuf\Rules'
+      value: 'PeriodInNanoSeconds'
+      type: REG_DWORD
+      data: '0'
+      option: 'disable-telemetry'
+
+  # --- Disable Tailored Experiences ---
+  - !registryValue:
+      path: 'HKCU\SOFTWARE\Policies\Microsoft\Windows\CloudContent'
+      value: 'DisableTailoredExperiencesWithDiagnosticData'
+      type: REG_DWORD
+      data: '1'
+      option: 'disable-telemetry'
+
+  # --- Disable Online Speech Recognition ---
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\InputPersonalization'
+      value: 'AllowInputPersonalization'
+      type: REG_DWORD
+      data: '0'
+      option: 'disable-telemetry'
+
+  # --- Disable Input Telemetry ---
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\TabletPC'
+      value: 'PreventHandwritingDataSharing'
+      type: REG_DWORD
+      data: '1'
+      option: 'disable-telemetry'
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\HandwritingErrorReports'
+      value: 'PreventHandwritingErrorReports'
+      type: REG_DWORD
+      data: '1'
+      option: 'disable-telemetry'
+
+  # --- Disable Location ---
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors'
+      value: 'DisableLocation'
+      type: REG_DWORD
+      data: '1'
+      option: 'disable-telemetry'
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors'
+      value: 'DisableLocationScripting'
+      type: REG_DWORD
+      data: '1'
+      option: 'disable-telemetry'
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors'
+      value: 'DisableWindowsLocationProvider'
+      type: REG_DWORD
+      data: '1'
+      option: 'disable-telemetry'
+
+  # --- Disable App Diagnostics ---
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy'
+      value: 'LetAppsGetDiagnosticInfo'
+      type: REG_DWORD
+      data: '2'
+      option: 'disable-telemetry'
+
+  # --- Disable CEIP (Customer Experience Improvement Program) ---
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\SQMClient\Windows'
+      value: 'CEIPEnable'
+      type: REG_DWORD
+      data: '0'
+      option: 'disable-telemetry'
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\AppV\CEIP'
+      value: 'CEIPEnable'
+      type: REG_DWORD
+      data: '0'
+      option: 'disable-telemetry'
+
+  # --- Disable PerfTrack ---
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\WDI\{9c5a40da-b965-4fc3-8781-88dd50a6299d}'
+      value: 'ScenarioExecutionEnabled'
+      type: REG_DWORD
+      data: '0'
+      option: 'disable-telemetry'
+
+  # --- Disable Experimentation ---
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Microsoft\PolicyManager\current\device\System'
+      value: 'AllowExperimentation'
+      type: REG_DWORD
+      data: '0'
+      option: 'disable-telemetry'
+
+  # --- Disable Device Monitoring ---
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows\Device Metadata'
+      value: 'PreventDeviceMetadataFromNetwork'
+      type: REG_DWORD
+      data: '1'
+      option: 'disable-telemetry'
+
+  # --- Disable Activation Telemetry ---
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\Policies\Microsoft\Windows NT\CurrentVersion\Software Protection Platform'
+      value: 'NoGenTicket'
+      type: REG_DWORD
+      data: '1'
+      option: 'disable-telemetry'
+
+  # --- Disable .NET CLI Telemetry ---
+  - !cmd:
+      command: 'setx DOTNET_CLI_TELEMETRY_OPTOUT 1 /M'
+      option: 'disable-telemetry'
+      weight: 1
+
+  # --- Disable NVIDIA Telemetry (if NVIDIA GPU present) ---
+  - !registryValue:
+      path: 'HKLM\SOFTWARE\NVIDIA Corporation\NvControlPanel2\Client'
+      value: 'OptInOrOutPreference'
+      type: REG_DWORD
+      data: '0'
+      option: 'disable-telemetry'
+  - !registryValue:
+      path: 'HKLM\SYSTEM\CurrentControlSet\Services\NvTelemetryContainer'
+      value: 'Start'
+      type: REG_DWORD
+      data: '4'
+      option: 'disable-telemetry'
+
+  # --- Disable Office Telemetry ---
+  - !registryValue:
+      path: 'HKCU\SOFTWARE\Microsoft\Office\Common\ClientTelemetry'
+      value: 'DisableTelemetry'
+      type: REG_DWORD
+      data: '1'
+      option: 'disable-telemetry'
+  - !registryValue:
+      path: 'HKCU\SOFTWARE\Microsoft\Office\16.0\Common\ClientTelemetry'
+      value: 'DisableTelemetry'
+      type: REG_DWORD
+      data: '1'
+      option: 'disable-telemetry'
+
+  # --- Block telemetry hosts via hosts file ---
+  - !powerShell:
+      command: |
+        $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+        $telemetryHosts = @(
+            'vortex.data.microsoft.com',
+            'vortex-win.data.microsoft.com',
+            'telecommand.telemetry.microsoft.com',
+            'telecommand.telemetry.microsoft.com.nsatc.net',
+            'oca.telemetry.microsoft.com',
+            'oca.telemetry.microsoft.com.nsatc.net',
+            'sqm.telemetry.microsoft.com',
+            'sqm.telemetry.microsoft.com.nsatc.net',
+            'watson.telemetry.microsoft.com',
+            'watson.telemetry.microsoft.com.nsatc.net',
+            'redir.metaservices.microsoft.com',
+            'choice.microsoft.com',
+            'choice.microsoft.com.nsatc.net',
+            'df.telemetry.microsoft.com',
+            'reports.wes.df.telemetry.microsoft.com',
+            'services.wes.df.telemetry.microsoft.com',
+            'sqm.df.telemetry.microsoft.com',
+            'watson.microsoft.com',
+            'watson.ppe.telemetry.microsoft.com',
+            'telemetry.microsoft.com',
+            'telemetry.appex.bing.net',
+            'telemetry.urs.microsoft.com',
+            'settings-sandbox.data.microsoft.com',
+            'survey.watson.microsoft.com',
+            'watson.live.com',
+            'statsfe2.ws.microsoft.com',
+            'corpext.msitadfs.glbdns2.microsoft.com',
+            'compatexchange.cloudapp.net',
+            'feedback.microsoft-hohm.com',
+            'feedback.search.microsoft.com'
+        )
+        $hostsContent = Get-Content $hostsPath -ErrorAction SilentlyContinue
+        $newEntries = @()
+        $markerStart = '# TUNEDPC TELEMETRY BLOCK START'
+        $markerEnd = '# TUNEDPC TELEMETRY BLOCK END'
+        # Remove old TUNEDPC block if present
+        $inBlock = $false
+        $cleanedContent = @()
+        foreach ($line in $hostsContent) {
+            if ($line -eq $markerStart) { $inBlock = $true; continue }
+            if ($line -eq $markerEnd) { $inBlock = $false; continue }
+            if (-not $inBlock) { $cleanedContent += $line }
+        }
+        # Add new block
+        $cleanedContent += ''
+        $cleanedContent += $markerStart
+        foreach ($host in $telemetryHosts) {
+            $cleanedContent += "0.0.0.0 $host"
+        }
+        $cleanedContent += $markerEnd
+        [System.IO.File]::WriteAllLines($hostsPath, $cleanedContent, [System.Text.UTF8Encoding]::new($false))
+        Write-Host "[TUNEDPC] Blocked $($telemetryHosts.Count) telemetry hosts."
+      option: 'disable-telemetry'
+      weight: 3
+
+  # --- Disable Windows Defender (ONLY if user opted in) ---
+  - !powerShell:
+      command: |
+        # Disable real-time protection via Group Policy
+        $defenderPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender'
+        if (-not (Test-Path $defenderPath)) { New-Item -Path $defenderPath -Force | Out-Null }
+        Set-ItemProperty -Path $defenderPath -Name 'DisableAntiSpyware' -Value 1 -Type DWord -Force
+        $rtpPath = "$defenderPath\Real-Time Protection"
+        if (-not (Test-Path $rtpPath)) { New-Item -Path $rtpPath -Force | Out-Null }
+        Set-ItemProperty -Path $rtpPath -Name 'DisableRealtimeMonitoring' -Value 1 -Type DWord -Force
+        Set-ItemProperty -Path $rtpPath -Name 'DisableBehaviorMonitoring' -Value 1 -Type DWord -Force
+        Set-ItemProperty -Path $rtpPath -Name 'DisableOnAccessProtection' -Value 1 -Type DWord -Force
+        Set-ItemProperty -Path $rtpPath -Name 'DisableScanOnRealtimeEnable' -Value 1 -Type DWord -Force
+        # Disable SpyNet/MAPS reporting
+        $spynetPath = "$defenderPath\Spynet"
+        if (-not (Test-Path $spynetPath)) { New-Item -Path $spynetPath -Force | Out-Null }
+        Set-ItemProperty -Path $spynetPath -Name 'SpynetReporting' -Value 0 -Type DWord -Force
+        Set-ItemProperty -Path $spynetPath -Name 'SubmitSamplesConsent' -Value 2 -Type DWord -Force
+        # Disable Defender service
+        Set-Service -Name 'WinDefend' -StartupType Disabled -ErrorAction SilentlyContinue
+        Set-Service -Name 'SecurityHealthService' -StartupType Disabled -ErrorAction SilentlyContinue
+        Write-Host '[TUNEDPC] Windows Defender disabled via Group Policy.'
+        Write-Host '[TUNEDPC] WARNING: Your PC is now unprotected. Install a third-party antivirus.'
+      option: 'remove-defender'
+      weight: 5

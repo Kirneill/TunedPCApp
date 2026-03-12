@@ -1,0 +1,166 @@
+---
+title: AppX Package Removal
+description: Remove bloatware UWP apps and deprovision to prevent reinstallation
+actions:
+  # =====================================================================
+  # APPX REMOVAL: Remove bloatware and deprovision
+  #
+  # PRESERVED (required for gaming ecosystem):
+  #   Microsoft.WindowsStore, Microsoft.GamingApp,
+  #   Microsoft.XboxIdentityProvider, Microsoft.XboxGamingOverlay,
+  #   Microsoft.XboxSpeechToTextOverlay, Microsoft.WindowsTerminal,
+  #   Microsoft.WindowsCalculator, Microsoft.DesktopAppInstaller,
+  #   Microsoft.StorePurchaseApp, Microsoft.WindowsNotepad,
+  #   Microsoft.Paint, Microsoft.ScreenSketch
+  #
+  # Gated behind "remove-bloat" checkbox option
+  # =====================================================================
+
+  # --- Bing Suite ---
+  - !appx: {name: '*BingNews*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*BingWeather*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*BingFinance*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*BingSports*', type: family, option: 'remove-bloat'}
+
+  # --- Microsoft Bloatware ---
+  - !appx: {name: '*GetHelp*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*Getstarted*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*MicrosoftOfficeHub*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*MicrosoftSolitaireCollection*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*MixedReality.Portal*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*People*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*PowerAutomateDesktop*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*SkypeApp*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*Todos*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*MicrosoftStickyNotes*', type: family, option: 'remove-bloat'}
+
+  # --- Communication and Productivity ---
+  - !appx: {name: '*WindowsCommunicationsApps*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*OutlookForWindows*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*MicrosoftTeams*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*MSTeams*', type: family, option: 'remove-bloat'}
+
+  # --- Cortana and Copilot ---
+  - !appx: {name: '*549981C3F5F10*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*Copilot*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*Microsoft.Windows.Ai.Copilot.Provider*', type: family, option: 'remove-bloat'}
+
+  # --- Media ---
+  - !appx: {name: '*ZuneMusic*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*ZuneVideo*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*WindowsSoundRecorder*', type: family, option: 'remove-bloat'}
+
+  # --- Utilities ---
+  - !appx: {name: '*WindowsAlarms*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*WindowsFeedbackHub*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*WindowsMaps*', type: family, option: 'remove-bloat'}
+
+  # --- Phone and Connectivity ---
+  - !appx: {name: '*YourPhone*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*PhoneLink*', type: family, option: 'remove-bloat'}
+
+  # --- Third-party Bloatware (OEM and Microsoft bundled) ---
+  - !appx: {name: '*Clipchamp*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*QuickAssist*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*Windows.DevHome*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*Family*', type: family, option: 'remove-bloat'}
+
+  # --- Xbox apps (background services, NOT the identity provider) ---
+  - !appx: {name: '*Xbox.TCUI*', type: family, option: 'remove-bloat'}
+  - !appx: {name: '*XboxApp*', type: family, option: 'remove-bloat'}
+
+  # --- OneDrive (bundled, not AppX but needs cleanup) ---
+  - !powerShell:
+      command: |
+        # Stop OneDrive if running
+        Stop-Process -Name 'OneDrive' -Force -ErrorAction SilentlyContinue
+        # Uninstall OneDrive
+        $onedrive64 = "$env:SystemRoot\SysWOW64\OneDriveSetup.exe"
+        $onedrive32 = "$env:SystemRoot\System32\OneDriveSetup.exe"
+        if (Test-Path $onedrive64) {
+            Start-Process $onedrive64 -ArgumentList '/uninstall' -Wait -ErrorAction SilentlyContinue
+        } elseif (Test-Path $onedrive32) {
+            Start-Process $onedrive32 -ArgumentList '/uninstall' -Wait -ErrorAction SilentlyContinue
+        }
+        # Clean up OneDrive folders
+        Remove-Item "$env:USERPROFILE\OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item "$env:LOCALAPPDATA\Microsoft\OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item "$env:ProgramData\Microsoft OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host '[TUNEDPC] OneDrive removed.'
+      option: 'remove-bloat'
+      weight: 3
+
+  # --- Deprovision removed packages to prevent reinstallation ---
+  - !powerShell:
+      command: |
+        $deprovisionNames = @(
+            'Microsoft.BingNews',
+            'Microsoft.BingWeather',
+            'Microsoft.BingFinance',
+            'Microsoft.BingSports',
+            'Microsoft.GetHelp',
+            'Microsoft.Getstarted',
+            'Microsoft.MicrosoftOfficeHub',
+            'Microsoft.MicrosoftSolitaireCollection',
+            'Microsoft.MixedReality.Portal',
+            'Microsoft.People',
+            'Microsoft.PowerAutomateDesktop',
+            'Microsoft.SkypeApp',
+            'Microsoft.Todos',
+            'Microsoft.MicrosoftStickyNotes',
+            'Microsoft.WindowsCommunicationsApps',
+            'Microsoft.OutlookForWindows',
+            'MicrosoftTeams',
+            'Microsoft.549981C3F5F10',
+            'Microsoft.Copilot',
+            'Microsoft.ZuneMusic',
+            'Microsoft.ZuneVideo',
+            'Microsoft.WindowsSoundRecorder',
+            'Microsoft.WindowsAlarms',
+            'Microsoft.WindowsFeedbackHub',
+            'Microsoft.WindowsMaps',
+            'Microsoft.YourPhone',
+            'Clipchamp.Clipchamp',
+            'MicrosoftCorporationII.QuickAssist',
+            'Microsoft.Windows.DevHome',
+            'Microsoft.Xbox.TCUI',
+            'Microsoft.XboxApp'
+        )
+        $deprovisioned = 0
+        foreach ($name in $deprovisionNames) {
+            $prov = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue |
+                Where-Object { $_.DisplayName -eq $name }
+            if ($prov) {
+                foreach ($p in $prov) {
+                    try {
+                        Remove-AppxProvisionedPackage -Online -PackageName $p.PackageName -ErrorAction Stop | Out-Null
+                        $deprovisioned++
+                    } catch { }
+                }
+            }
+            # Also create deprovision registry key to prevent future reinstallation
+            $familyName = (Get-AppxPackage -Name $name -AllUsers -ErrorAction SilentlyContinue |
+                Select-Object -First 1).PackageFamilyName
+            if ($familyName) {
+                $deprovPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\$familyName"
+                if (-not (Test-Path $deprovPath)) {
+                    New-Item -Path $deprovPath -Force | Out-Null
+                }
+            }
+        }
+        Write-Host "[TUNEDPC] Deprovisioned $deprovisioned packages."
+      option: 'remove-bloat'
+      weight: 5
+
+  # --- Additional apps removed in Maximum mode ---
+  # Windows Camera -- not needed for FPS gaming
+  - !appx: {name: '*WindowsCamera*', type: family, option: 'maximum'}
+  # 3D Viewer
+  - !appx: {name: '*3DViewer*', type: family, option: 'maximum'}
+  # Paint 3D
+  - !appx: {name: '*Paint3D*', type: family, option: 'maximum'}
+  # OneNote
+  - !appx: {name: '*OneNote*', type: family, option: 'maximum'}
+  # Disney+ and Spotify (OEM preinstalls)
+  - !appx: {name: '*Disney*', type: family, option: 'maximum'}
+  - !appx: {name: '*SpotifyAB*', type: family, option: 'maximum'}

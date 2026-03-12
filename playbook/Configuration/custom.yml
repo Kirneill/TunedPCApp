@@ -1,0 +1,47 @@
+---
+title: TUNEDPC Lightweight OS
+description: Ultra-lean Windows for competitive gaming
+actions:
+  # =====================================================================
+  # TUNEDPC Lightweight OS -- Master Orchestrator
+  # Applies optimizations in a safe, ordered sequence.
+  # Anti-cheat safe: preserves Secure Boot, TPM, HVCI, VBS, core services.
+  # =====================================================================
+
+  # Phase 1: Safety checks and restore point
+  - !writeStatus: {status: 'Creating system restore point...'}
+  - !task: {path: 'tunedpc\start.yml'}
+
+  # Phase 2: Service configuration
+  - !writeStatus: {status: 'Disabling unnecessary services...'}
+  - !task: {path: 'tunedpc\services.yml'}
+
+  # Phase 3: AppX bloatware removal
+  - !writeStatus: {status: 'Removing bloatware apps...'}
+  - !task: {path: 'tunedpc\appx.yml'}
+
+  # Phase 4: Scheduled task disabling
+  - !writeStatus: {status: 'Disabling telemetry scheduled tasks...'}
+  - !task: {path: 'tunedpc\tasks.yml'}
+
+  # Phase 5: Registry optimizations
+  - !writeStatus: {status: 'Applying registry tweaks...'}
+  - !task: {path: 'tunedpc\registry.yml'}
+
+  # Phase 6: Privacy and telemetry
+  - !writeStatus: {status: 'Hardening privacy settings...'}
+  - !task: {path: 'tunedpc\privacy.yml'}
+
+  # Phase 7: Gaming performance
+  - !writeStatus: {status: 'Applying gaming performance tweaks...'}
+  - !task: {path: 'tunedpc\performance.yml'}
+
+  # Phase 8: WinSxS component removal (the key differentiator)
+  - !writeStatus: {status: 'Removing unused Windows components...'}
+  - !task: {path: 'tunedpc\components.yml'}
+
+  # Phase 9: Final cleanup
+  - !writeStatus: {status: 'Running final cleanup...'}
+  - !task: {path: 'tunedpc\cleanup.yml'}
+
+  - !writeStatus: {status: 'TUNEDPC Lightweight OS applied. Please reboot.'}

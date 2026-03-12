@@ -2,7 +2,7 @@ import { useAppStore } from '../../store/appStore';
 import { requiresPro } from '../../data/feature-tiers';
 import appLogo from '../../assets/app-logo.ico';
 
-type Page = 'dashboard' | 'advanced' | 'network' | 'bios-guide' | 'gpu-guide' | 'memory' | 'backups';
+type Page = 'dashboard' | 'advanced' | 'network' | 'bios-guide' | 'gpu-guide' | 'memory' | 'backups' | 'os-optimizer';
 
 const LockIcon = () => (
   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -46,6 +46,12 @@ const MemoryIcon = () => (
   </svg>
 );
 
+const RocketIcon = () => (
+  <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-6.233 0c-1.296 1.296-1.422 2.956-.28 3.791 1.088.8 2.804.408 3.791-.28a4.493 4.493 0 002.72-3.511z" />
+  </svg>
+);
+
 const ShieldIcon = () => (
   <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
@@ -64,6 +70,7 @@ const sections = [
     items: [
       { id: 'advanced' as Page, label: 'Advanced', hint: 'Fine-grained controls', icon: <SlidersIcon /> },
       { id: 'network' as Page, label: 'Network', hint: 'Latency optimization', icon: <NetworkIcon /> },
+      { id: 'os-optimizer' as Page, label: 'OS Optimizer', hint: 'Lightweight Windows mode', icon: <RocketIcon /> },
     ],
   },
   {

@@ -1,4 +1,4 @@
-import { IpcMain, BrowserWindow, app } from 'electron';
+import { IpcMain, BrowserWindow, app, shell } from 'electron';
 import { getSystemInfo } from './system-info';
 import { detectInstalledGames } from './game-detection';
 import { runPowerShellScript, runPowerShellCommand, getScriptPath } from './powershell';
@@ -10,7 +10,8 @@ import type { RestorePointInfo } from '../../src/types/index';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import { execFileSync } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
+import { promisify } from 'util';
 
 interface UserConfig {
   monitorWidth: number;
@@ -57,6 +58,9 @@ const SCRIPT_MAP: Record<string, { script: string; envPrefix?: string }> = {
   'win-priority-sep': { script: '23_Latency_Reduction.ps1', envPrefix: 'PRIORITY_SEP' },
   'win-dynamic-tick': { script: '23_Latency_Reduction.ps1', envPrefix: 'DYNAMIC_TICK' },
   'win-hpet': { script: '23_Latency_Reduction.ps1', envPrefix: 'HPET' },
+  // Deep debloat (Lightweight OS Mode)
+  'win-deep-debloat': { script: '30_Deep_Debloat.ps1' },
+  'win-undo-debloat': { script: '31_Undo_Deep_Debloat.ps1' },
   // Windows Update mode actions
   'updates-off': { script: '09_Windows_Update_Off.ps1' },
   'updates-on': { script: '10_Windows_Update_On.ps1' },
@@ -1191,4 +1195,60 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
 
   // Diagnostics
   ipcMain.handle('diagnostics:export', () => exportDiagnosticsBundle());
+
+  // Debloat manifest check
+  ipcMain.handle('debloat:exportPlaybook', async () => {
+    try {
+      const execFileAsync = promisify(execFile);
+      const downloadsDir = app.getPath('downloads');
+      const outputFile = path.join(downloadsDir, 'TUNEDPC-Lightweight-OS.apbx');
+      const zipFile = outputFile.replace('.apbx', '.zip');
+
+      const playbookDir = app.isPackaged
+        ? path.join(process.resourcesPath, 'playbook')
+        : path.join(app.getAppPath(), 'playbook');
+
+      if (!fs.existsSync(path.join(playbookDir, 'playbook.conf'))) {
+        return { success: false, error: 'Playbook files not found' };
+      }
+
+      if (fs.existsSync(outputFile)) fs.unlinkSync(outputFile);
+
+      const itemsToZip = ['playbook.conf', 'Configuration', 'Executables']
+        .map(name => `'${path.join(playbookDir, name).replace(/'/g, "''")}'`)
+        .join(',');
+
+      await execFileAsync('powershell.exe', [
+        '-NoProfile', '-NonInteractive', '-Command',
+        `Compress-Archive -Path ${itemsToZip} -DestinationPath '${zipFile}' -Force; ` +
+        `Rename-Item -Path '${zipFile}' -NewName '${path.basename(outputFile)}' -Force`
+      ]);
+
+      shell.showItemInFolder(outputFile);
+      return { success: true, path: outputFile };
+    } catch (err: unknown) {
+      return { success: false, error: String(err) };
+    }
+  });
+
+  ipcMain.handle('debloat:checkManifest', async () => {
+    const manifestPath = path.join(process.env.APPDATA || '', 'SENSEQUALITY', 'debloat-manifest.json');
+    try {
+      if (fs.existsSync(manifestPath)) {
+        const content = fs.readFileSync(manifestPath, 'utf-8');
+        const manifest = JSON.parse(content);
+        return {
+          exists: true,
+          timestamp: manifest.CompletedAt || manifest.CreatedAt || null,
+          servicesChanged: Array.isArray(manifest.Services) ? manifest.Services.length : 0,
+          appxRemoved: Array.isArray(manifest.AppxRemoved) ? manifest.AppxRemoved.length : 0,
+          tasksDisabled: Array.isArray(manifest.Tasks) ? manifest.Tasks.length : 0,
+          capabilitiesRemoved: Array.isArray(manifest.DismRemoved) ? manifest.DismRemoved.length : 0,
+        };
+      }
+      return { exists: false };
+    } catch {
+      return { exists: false };
+    }
+  });
 }
