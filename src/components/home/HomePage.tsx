@@ -182,7 +182,7 @@ export default function HomePage() {
       {/* Pro CTA banner */}
       <div className="shrink-0 px-5 pb-2">
         <button
-          onClick={() => window.sensequality.openExternal('https://sensequality.com/products/pc-optimization')}
+          onClick={() => window.sensequality.openExternal('https://tunedpc.com/products/pc-optimization')}
           className="w-full group relative overflow-hidden rounded-xl border border-sq-accent/30 hover:border-sq-accent/60 transition-all cursor-pointer"
         >
           <div className="absolute inset-0 bg-gradient-to-r from-sq-accent/12 via-sq-accent/6 to-sq-accent/12 group-hover:from-sq-accent/18 group-hover:to-sq-accent/18 transition-all" />
