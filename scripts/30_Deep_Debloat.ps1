@@ -273,7 +273,7 @@ try {
     foreach ($svc in $ServicesToChange) {
         try {
             $existing = Get-Service -Name $svc.Name -ErrorAction Stop
-            $originalStartType = $existing.StartType.ToString()
+            $originalStartType = "$($existing.StartType)"
 
             # Stop the service if it is running and we are disabling it
             if ($svc.Target -eq 'Disabled' -and $existing.Status -eq 'Running') {
@@ -465,7 +465,7 @@ try {
             $task = Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName $taskName -ErrorAction Stop
 
             # Record original state
-            $originalState = $task.State.ToString()
+            $originalState = "$($task.State)"
 
             if ($originalState -ne 'Disabled') {
                 Disable-ScheduledTask -TaskPath "$taskFolder\" -TaskName $taskName -ErrorAction Stop | Out-Null
