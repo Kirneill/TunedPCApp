@@ -91,7 +91,7 @@ export async function createCheckout(successUrl?: string): Promise<{ url?: strin
       return { error: (data as { error?: string })?.error || 'Checkout failed' };
     }
 
-    const checkoutUrl = (data as { checkout_url?: string }).checkout_url;
+    const checkoutUrl = (data as { url?: string; checkout_url?: string }).url || (data as { checkout_url?: string }).checkout_url;
     if (checkoutUrl) {
       return { url: checkoutUrl };
     }
@@ -154,14 +154,20 @@ export async function getSubscription(): Promise<Subscription> {
   try {
     const { data, ok } = await billingFetch('getCustomer');
 
-    if (!ok || !data) return FREE_SUB;
+    if (!ok || !data) {
+      console.error('[billing] getSubscription: API returned not-ok or null data');
+      return FREE_SUB;
+    }
 
     const products = (data as { products?: Array<{ id: string; status: string; canceled_at?: number | null }> }).products || [];
     const proPlan = products.find(
       (p) => p.id === AUTUMN_PRODUCTS.pro
     );
 
-    if (!proPlan) return FREE_SUB;
+    if (!proPlan) {
+      console.log('[billing] getSubscription: no pro product found for customer');
+      return FREE_SUB;
+    }
 
     // Map Autumn status to our SubscriptionStatus
     if (proPlan.status === 'active') {

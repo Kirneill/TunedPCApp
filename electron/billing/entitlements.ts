@@ -98,11 +98,14 @@ export async function getFeatureAccess(featureId: string): Promise<FeatureEntitl
   } catch (err) {
     console.error('[billing] getFeatureAccess failed:', err instanceof Error ? err.message : err);
 
+    const STALE_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes max staleness
     if (
       entitlementCache &&
       entitlementCache.customerId === customerId &&
-      entitlementCache.featureId === featureId
+      entitlementCache.featureId === featureId &&
+      Date.now() - entitlementCache.checkedAt < STALE_CACHE_TTL_MS
     ) {
+      console.warn(`[billing] Using stale cache (age=${Math.round((Date.now() - entitlementCache.checkedAt) / 1000)}s) for ${featureId}`);
       return {
         allowed: entitlementCache.allowed,
         plan: toPlan(entitlementCache.allowed),

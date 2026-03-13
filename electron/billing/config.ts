@@ -6,7 +6,7 @@ export const BILLING_PROXY_URL = `${SUPABASE_URL}/functions/v1/billing-proxy`;
 
 // Product IDs -- must match what you create in the Autumn dashboard
 export const AUTUMN_PRODUCTS = {
-  pro: 'pro', // $10/month subscription
+  pro: 'pro', // $20/month subscription
 } as const;
 
 // Feature IDs -- must match what you create in the Autumn dashboard
