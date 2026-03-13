@@ -3592,3 +3592,347 @@ Describe "EA Sports FC 26 fcsetup.ini" -Tag "eafc26" {
         }
     }
 }
+
+# ===========================================================================
+# MARATHON TESTS
+# ===========================================================================
+Describe "Marathon cvars.xml" -Tag "marathon" {
+
+    BeforeAll {
+        $ProjectRoot = (Get-Location).Path
+        $ScriptsDir = Join-Path $ProjectRoot "scripts"
+        $ReferenceDir = Join-Path $ScriptsDir "reference-configs"
+        $RefFile = Join-Path $ReferenceDir "marathon-cvars.xml"
+        $ScriptFile = Join-Path $ScriptsDir "25_Marathon_Settings.ps1"
+    }
+
+    # -----------------------------------------------------------------
+    Context "Reference config is valid" {
+        It "Reference file exists" {
+            $RefFile | Should -Exist
+        }
+
+        It "Reference file is valid XML" {
+            { [xml](Get-Content $RefFile -Raw) } | Should -Not -Throw
+        }
+
+        It "Reference has <body> root element" {
+            $xml = [xml](Get-Content $RefFile -Raw)
+            $xml.body | Should -Not -BeNullOrEmpty
+        }
+
+        It "Reference has graphics namespace" {
+            $xml = [xml](Get-Content $RefFile -Raw)
+            $graphicsNs = $xml.body.namespace | Where-Object { $_.name -eq 'graphics' }
+            $graphicsNs | Should -Not -BeNullOrEmpty
+        }
+
+        It "Reference has audio namespace" {
+            $xml = [xml](Get-Content $RefFile -Raw)
+            $audioNs = $xml.body.namespace | Where-Object { $_.name -eq 'audio' }
+            $audioNs | Should -Not -BeNullOrEmpty
+        }
+
+        It "Reference has gameplay namespace" {
+            $xml = [xml](Get-Content $RefFile -Raw)
+            $gameplayNs = $xml.body.namespace | Where-Object { $_.name -eq 'gameplay' }
+            $gameplayNs | Should -Not -BeNullOrEmpty
+        }
+
+        It "Reference graphics namespace has expected performance keys" {
+            $xml = [xml](Get-Content $RefFile -Raw)
+            $graphicsNs = $xml.body.namespace | Where-Object { $_.name -eq 'graphics' }
+            $cvarNames = @($graphicsNs.cvar | ForEach-Object { $_.name })
+
+            $expectedKeys = @(
+                'master', 'anti_aliasing_mode', 'ssao_mode', 'ssao_async_mode',
+                'shadow_quality', 'environment_detail', 'character_detail',
+                'texture_quality', 'texture_anisotropy_level', 'foliage_detail',
+                'local_light_shadows', 'foliage_shadows_mode', 'hdr_output',
+                'atmosphere_lighting_detail', 'framerate_cap_enabled',
+                'low_latency_mode', 'lighting_resolution',
+                'render_resolution_scaling_mode', 'render_resolution_percentage',
+                'framerate_cap', 'target_framerate'
+            )
+
+            foreach ($key in $expectedKeys) {
+                $cvarNames | Should -Contain $key -Because "Performance key '$key' must exist in reference config"
+            }
+        }
+
+        It "Reference graphics namespace has resolution and display keys" {
+            $xml = [xml](Get-Content $RefFile -Raw)
+            $graphicsNs = $xml.body.namespace | Where-Object { $_.name -eq 'graphics' }
+            $cvarNames = @($graphicsNs.cvar | ForEach-Object { $_.name })
+
+            $preserveKeys = @(
+                'fullscreen_resolution_width', 'fullscreen_resolution_height',
+                'fullscreen_refresh_rate_numerator', 'fullscreen_refresh_rate_denominator',
+                'windowed_resolution_width', 'windowed_resolution_height',
+                'window_mode', 'gamma_control', 'version'
+            )
+
+            foreach ($key in $preserveKeys) {
+                $cvarNames | Should -Contain $key -Because "Preserve key '$key' must exist in reference config"
+            }
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script competitive settings use valid key names" {
+        BeforeAll {
+            $ScriptContent = Get-Content $ScriptFile -Raw
+
+            # Extract competitive setting keys from the ordered hashtable
+            # Matches lines like:  master                        = '0'
+            #                      anti_aliasing_mode            = '2'
+            $ScriptKeys = [regex]::Matches($ScriptContent, "(?m)^\s+(\w+)\s+=\s+'[^']*'") |
+                ForEach-Object { $_.Groups[1].Value } |
+                Where-Object { $_ -notin @('CompetitiveSettings', 'low_latency_mode') } |
+                Select-Object -Unique
+
+            # Also capture the low_latency_mode key set conditionally
+            if ($ScriptContent -match "CompetitiveSettings\['low_latency_mode'\]") {
+                $ScriptKeys += 'low_latency_mode'
+            }
+
+            # Load reference cvar names from graphics namespace
+            $refXml = [xml](Get-Content $RefFile -Raw)
+            $refGraphicsNs = $refXml.body.namespace | Where-Object { $_.name -eq 'graphics' }
+            $RefCvarNames = @($refGraphicsNs.cvar | ForEach-Object { $_.name })
+        }
+
+        It "Script extracted competitive setting keys" {
+            $ScriptKeys.Count | Should -BeGreaterThan 15 -Because "Script should write 15+ competitive settings"
+        }
+
+        It "All competitive setting keys exist in the reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptKeys) {
+                if ($key -notin $RefCvarNames) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script output file format (read-merge-write)" {
+        BeforeAll {
+            # Create temp sandbox simulating %APPDATA%\Bungie\Marathon\prefs
+            $script:TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "sq-test-marathon-$(Get-Random)"
+            $prefsDir = Join-Path $script:TempDir "Bungie\Marathon\prefs"
+            New-Item -ItemType Directory -Path $prefsDir -Force | Out-Null
+
+            # Seed with reference config to test read-merge-write
+            Copy-Item $RefFile (Join-Path $prefsDir "cvars.xml") -Force
+
+            # Save original APPDATA
+            $script:OrigAppData = $env:APPDATA
+
+            # Run the script in headless mode with overridden APPDATA
+            $env:SENSEQUALITY_HEADLESS = "1"
+            $env:MONITOR_WIDTH = "1920"
+            $env:MONITOR_HEIGHT = "1080"
+            $env:MONITOR_REFRESH = "240"
+            $env:NVIDIA_GPU = "1"
+            $env:APPDATA = $script:TempDir
+
+            $scriptPath = Join-Path $ScriptsDir "25_Marathon_Settings.ps1"
+            $script:Output = & $scriptPath *>&1 | Out-String
+            $script:OutputFile = Join-Path $prefsDir "cvars.xml"
+        }
+
+        AfterAll {
+            # Restore APPDATA and clean up
+            $env:APPDATA = $script:OrigAppData
+            $env:SENSEQUALITY_HEADLESS = ""
+            if ($script:TempDir -and (Test-Path $script:TempDir)) {
+                Get-ChildItem $script:TempDir -Recurse -File -ErrorAction SilentlyContinue |
+                    ForEach-Object { if ($_.IsReadOnly) { $_.IsReadOnly = $false } }
+                Remove-Item $script:TempDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Output file exists" {
+            $script:OutputFile | Should -Exist
+        }
+
+        It "Output file has no UTF-8 BOM" {
+            $bytes = [System.IO.File]::ReadAllBytes($script:OutputFile)
+            $hasBom = ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+            $hasBom | Should -BeFalse -Because "XML files should not have a UTF-8 BOM"
+        }
+
+        It "Output file is valid XML" {
+            { [xml](Get-Content $script:OutputFile -Raw) } | Should -Not -Throw
+        }
+
+        It "Output file has <body> root" {
+            $xml = [xml](Get-Content $script:OutputFile -Raw)
+            $xml.body | Should -Not -BeNullOrEmpty
+        }
+
+        It "Output file has graphics namespace" {
+            $xml = [xml](Get-Content $script:OutputFile -Raw)
+            $graphicsNs = $xml.body.namespace | Where-Object { $_.name -eq 'graphics' }
+            $graphicsNs | Should -Not -BeNullOrEmpty
+        }
+
+        It "Competitive settings are applied (shadow_quality=1, ssao_mode=0)" {
+            $xml = [xml](Get-Content $script:OutputFile -Raw)
+            $graphicsNs = $xml.body.namespace | Where-Object { $_.name -eq 'graphics' }
+            $shadowQ = ($graphicsNs.cvar | Where-Object { $_.name -eq 'shadow_quality' }).value
+            $ssao = ($graphicsNs.cvar | Where-Object { $_.name -eq 'ssao_mode' }).value
+            $shadowQ | Should -Be '1'
+            $ssao | Should -Be '0'
+        }
+
+        It "FPS is uncapped (framerate_cap_enabled=0, framerate_cap=0)" {
+            $xml = [xml](Get-Content $script:OutputFile -Raw)
+            $graphicsNs = $xml.body.namespace | Where-Object { $_.name -eq 'graphics' }
+            $capEnabled = ($graphicsNs.cvar | Where-Object { $_.name -eq 'framerate_cap_enabled' }).value
+            $cap = ($graphicsNs.cvar | Where-Object { $_.name -eq 'framerate_cap' }).value
+            $capEnabled | Should -Be '0'
+            $cap | Should -Be '0'
+        }
+
+        It "NVIDIA Reflex is On+Boost (low_latency_mode=2)" {
+            $xml = [xml](Get-Content $script:OutputFile -Raw)
+            $graphicsNs = $xml.body.namespace | Where-Object { $_.name -eq 'graphics' }
+            $reflex = ($graphicsNs.cvar | Where-Object { $_.name -eq 'low_latency_mode' }).value
+            $reflex | Should -Be '2'
+        }
+
+        It "Render resolution is native (render_resolution_scaling_mode=0, percentage=100)" {
+            $xml = [xml](Get-Content $script:OutputFile -Raw)
+            $graphicsNs = $xml.body.namespace | Where-Object { $_.name -eq 'graphics' }
+            $mode = ($graphicsNs.cvar | Where-Object { $_.name -eq 'render_resolution_scaling_mode' }).value
+            $pct = ($graphicsNs.cvar | Where-Object { $_.name -eq 'render_resolution_percentage' }).value
+            $mode | Should -Be '0'
+            $pct | Should -Be '100'
+        }
+
+        It "Read-merge-write preserves resolution settings" {
+            $xml = [xml](Get-Content $script:OutputFile -Raw)
+            $graphicsNs = $xml.body.namespace | Where-Object { $_.name -eq 'graphics' }
+            $width = ($graphicsNs.cvar | Where-Object { $_.name -eq 'fullscreen_resolution_width' }).value
+            $height = ($graphicsNs.cvar | Where-Object { $_.name -eq 'fullscreen_resolution_height' }).value
+            # Should preserve the original values from the reference config
+            $width | Should -Be '1920'
+            $height | Should -Be '1080'
+        }
+
+        It "Read-merge-write preserves gamma_control" {
+            $xml = [xml](Get-Content $script:OutputFile -Raw)
+            $graphicsNs = $xml.body.namespace | Where-Object { $_.name -eq 'graphics' }
+            $gamma = ($graphicsNs.cvar | Where-Object { $_.name -eq 'gamma_control' }).value
+            $gamma | Should -Be '3'
+        }
+
+        It "Read-merge-write preserves version" {
+            $xml = [xml](Get-Content $script:OutputFile -Raw)
+            $graphicsNs = $xml.body.namespace | Where-Object { $_.name -eq 'graphics' }
+            $version = ($graphicsNs.cvar | Where-Object { $_.name -eq 'version' }).value
+            $version | Should -Be '12'
+        }
+
+        It "Read-merge-write preserves audio namespace" {
+            $xml = [xml](Get-Content $script:OutputFile -Raw)
+            $audioNs = $xml.body.namespace | Where-Object { $_.name -eq 'audio' }
+            $audioNs | Should -Not -BeNullOrEmpty
+            $musicVol = ($audioNs.cvar | Where-Object { $_.name -eq 'cached_music_volume' }).value
+            $musicVol | Should -Be '3'
+        }
+
+        It "Read-merge-write preserves gameplay namespace" {
+            $xml = [xml](Get-Content $script:OutputFile -Raw)
+            $gameplayNs = $xml.body.namespace | Where-Object { $_.name -eq 'gameplay' }
+            $gameplayNs | Should -Not -BeNullOrEmpty
+            $mouseSmoothing = ($gameplayNs.cvar | Where-Object { $_.name -eq 'mouse_smoothing_mode' }).value
+            $mouseSmoothing | Should -Be '0'
+        }
+
+        It "Output file is set to read-only" {
+            (Get-Item $script:OutputFile).IsReadOnly | Should -BeTrue
+        }
+
+        It "SQ_CHECK markers are emitted for config write" {
+            $script:Output | Should -Match '\[SQ_CHECK_(OK|WARN|FAIL):MARATHON_CONFIG_WRITTEN'
+        }
+
+        It "SQ_CHECK markers are emitted for EXE flags" {
+            $script:Output | Should -Match '\[SQ_CHECK_(OK|WARN|FAIL):MARATHON_EXE_FLAGS'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script source code correctness" {
+        BeforeAll {
+            $ScriptContent = Get-Content $ScriptFile -Raw
+        }
+
+        It "Script runs in headless mode" {
+            $ScriptContent | Should -Match 'Initialize-SQEngine'
+        }
+
+        It "Script uses SQEngine shared module" {
+            $ScriptContent | Should -Match '\. "\$PSScriptRoot\\SQEngine\.ps1"'
+        }
+
+        It "Script uses read-merge-write pattern (not blind overwrite)" {
+            $ScriptContent | Should -Match '\[xml\]' -Because "Script must parse existing XML"
+            $ScriptContent | Should -Match 'CompetitiveSettings' -Because "Script must define competitive settings to merge"
+        }
+
+        It "Script backs up existing config before writing" {
+            $ScriptContent | Should -Match 'Backup-ConfigFile'
+        }
+
+        It "Script writes UTF-8 without BOM" {
+            $ScriptContent | Should -Match 'UTF8Encoding.*\$false'
+        }
+
+        It "Script sets config to read-only" {
+            $ScriptContent | Should -Match 'Lock-ConfigFile'
+        }
+
+        It "Script sets EXE compatibility flags" {
+            $ScriptContent | Should -Match 'Set-ExeCompatFlags'
+        }
+
+        It "Script emits all expected SQ_CHECK markers" {
+            $ScriptContent | Should -Match 'MARATHON_CONFIG_WRITTEN'
+            $ScriptContent | Should -Match 'MARATHON_EXE_FLAGS'
+        }
+
+        It "Script does not cap FPS" {
+            $ScriptContent | Should -Match "framerate_cap_enabled.*=.*'0'" -Because "FPS must be uncapped"
+            $ScriptContent | Should -Match "framerate_cap\b.*=.*'0'" -Because "FPS cap must be 0 (uncapped)"
+        }
+
+        It "Script preserves non-graphics namespaces" {
+            # Script should only modify the graphics namespace, not touch audio/gameplay/key bindings
+            $ScriptContent | Should -Match "name -eq 'graphics'" -Because "Script must target only the graphics namespace"
+            $ScriptContent | Should -Not -Match "name -eq 'audio'" -Because "Script must not modify the audio namespace"
+            $ScriptContent | Should -Not -Match "name -eq 'gameplay'" -Because "Script must not modify the gameplay namespace"
+        }
+
+        It "Guide text matches config values" {
+            # SSAO Off matches ssao_mode = 0
+            $ScriptContent | Should -Match "SSAO\s+:\s+Off"
+            # Shadow Quality Low matches shadow_quality = 1
+            $ScriptContent | Should -Match "Shadow Quality\s+:\s+Low"
+            # FPS Cap Uncapped matches framerate_cap_enabled = 0
+            $ScriptContent | Should -Match "FPS Cap\s+:\s+Uncapped"
+            # Anti-Aliasing SMAA matches anti_aliasing_mode = 2
+            $ScriptContent | Should -Match "Anti-Aliasing\s+:\s+SMAA"
+        }
+
+        It "Script does not use em dashes or bare ampersands in comments" {
+            # Em dashes and bare ampersands cause Pester parse errors
+            $ScriptContent | Should -Not -Match [char]0x2014 -Because "Em dashes break Pester parsing"
+        }
+    }
+}
