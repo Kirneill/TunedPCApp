@@ -3858,12 +3858,72 @@ Describe "Marathon cvars.xml" -Tag "marathon" {
             (Get-Item $script:OutputFile).IsReadOnly | Should -BeTrue
         }
 
+        It "Output XML declaration matches original format (no encoding attribute)" {
+            $firstLine = (Get-Content $script:OutputFile)[0]
+            $firstLine | Should -Not -Match 'encoding="utf-16"'
+            $firstLine | Should -Match '<\?xml version="1\.0"\?>'
+        }
+
         It "SQ_CHECK markers are emitted for config write" {
             $script:Output | Should -Match '\[SQ_CHECK_(OK|WARN|FAIL):MARATHON_CONFIG_WRITTEN'
         }
 
         It "SQ_CHECK markers are emitted for EXE flags" {
             $script:Output | Should -Match '\[SQ_CHECK_(OK|WARN|FAIL):MARATHON_EXE_FLAGS'
+        }
+
+        It "SQ_CHECK markers are emitted for MARATHON_SETTINGS_APPLIED" {
+            $script:Output | Should -Match '\[SQ_CHECK_(OK|WARN):MARATHON_SETTINGS_APPLIED'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script output with non-NVIDIA GPU (AMD/Intel path)" {
+        BeforeAll {
+            # Create temp sandbox simulating %APPDATA%\Bungie\Marathon\prefs
+            $script:TempDirAMD = Join-Path ([System.IO.Path]::GetTempPath()) "sq-test-marathon-amd-$(Get-Random)"
+            $prefsDirAMD = Join-Path $script:TempDirAMD "Bungie\Marathon\prefs"
+            New-Item -ItemType Directory -Path $prefsDirAMD -Force | Out-Null
+
+            # Seed with reference config
+            Copy-Item $RefFile (Join-Path $prefsDirAMD "cvars.xml") -Force
+
+            # Save original APPDATA
+            $script:OrigAppDataAMD = $env:APPDATA
+
+            # Run the script with NVIDIA_GPU=0
+            $env:SENSEQUALITY_HEADLESS = "1"
+            $env:MONITOR_WIDTH = "1920"
+            $env:MONITOR_HEIGHT = "1080"
+            $env:MONITOR_REFRESH = "144"
+            $env:NVIDIA_GPU = "0"
+            $env:APPDATA = $script:TempDirAMD
+
+            $scriptPath = Join-Path $ScriptsDir "25_Marathon_Settings.ps1"
+            $script:OutputAMD = & $scriptPath *>&1 | Out-String
+            $script:OutputFileAMD = Join-Path $prefsDirAMD "cvars.xml"
+        }
+
+        AfterAll {
+            $env:APPDATA = $script:OrigAppDataAMD
+            $env:SENSEQUALITY_HEADLESS = ""
+            $env:NVIDIA_GPU = ""
+            if ($script:TempDirAMD -and (Test-Path $script:TempDirAMD)) {
+                Get-ChildItem $script:TempDirAMD -Recurse -File -ErrorAction SilentlyContinue |
+                    ForEach-Object { if ($_.IsReadOnly) { $_.IsReadOnly = $false } }
+                Remove-Item $script:TempDirAMD -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Output file exists" {
+            $script:OutputFileAMD | Should -Exist
+        }
+
+        It "low_latency_mode is 0 for non-NVIDIA GPU" {
+            $xml = [xml](Get-Content $script:OutputFileAMD -Raw)
+            $graphicsNs = $xml.body.namespace | Where-Object { $_.name -eq 'graphics' }
+            $reflex = ($graphicsNs.cvar | Where-Object { $_.name -eq 'low_latency_mode' }).value
+            $reflex | Should -Be '0'
         }
     }
 

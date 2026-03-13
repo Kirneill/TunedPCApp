@@ -299,6 +299,7 @@ export const GAMES: GameDefinition[] = [
     checkLabels: {
       MARATHON_EXE_FLAGS: 'Marathon EXE compatibility flags',
       MARATHON_CONFIG_WRITTEN: 'Marathon cvars.xml written',
+      MARATHON_SETTINGS_APPLIED: 'Marathon settings applied',
     },
     defaultEnabled: true,
   },

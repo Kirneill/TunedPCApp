@@ -744,7 +744,9 @@ async function findMarathon(): Promise<GameDetectionResult> {
   const steamResult = await runPowerShellCommand(
     `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 3065800' -ErrorAction SilentlyContinue).InstallLocation`
   );
-  if (steamResult.success && steamResult.output.length > 0 && steamResult.output[0] && fs.existsSync(steamResult.output[0])) {
+  if (!steamResult.success) {
+    console.warn(`[game-detection] Marathon registry check failed: ${steamResult.errors.join(', ')}`);
+  } else if (steamResult.output.length > 0 && steamResult.output[0] && fs.existsSync(steamResult.output[0])) {
     return { installed: true, gamePath: steamResult.output[0] };
   }
 

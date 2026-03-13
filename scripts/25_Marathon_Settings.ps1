@@ -101,7 +101,7 @@ foreach ($sp in ($SteamPaths | Select-Object -Unique)) {
             $vdfContent = Get-Content $vdfPath -Raw
             $libMatches = [regex]::Matches($vdfContent, '"path"\s+"([^"]+)"')
             foreach ($match in $libMatches) {
-                $libPath = $match.Groups[1].Value.Replace('\\\\', '\')
+                $libPath = $match.Groups[1].Value.Replace('\\', '\')
                 # Skip if drive does not exist (Join-Path throws in PS 5.1)
                 if ($libPath -match '^([A-Za-z]):' -and -not (Test-Path "$($Matches[1]):\")) { continue }
                 $altMarathonDir = Join-Path $libPath "steamapps\common\Marathon"
@@ -190,26 +190,33 @@ $PreserveKeys = @(
     'version'
 )
 
-try {
-    if (-not (Test-Path $CvarsDir)) {
-        Write-Host "[WARN] Marathon prefs directory not found: $CvarsDir" -ForegroundColor Yellow
-        Write-Host "       Marathon may not have been launched yet." -ForegroundColor Yellow
-        Write-Check -Status 'WARN' -Key 'MARATHON_CONFIG_WRITTEN' -Detail 'PREFS_DIR_NOT_FOUND'
-    } elseif (-not (Test-Path $CvarsFile)) {
-        Write-Host "[WARN] cvars.xml not found: $CvarsFile" -ForegroundColor Yellow
-        Write-Host "       Launch Marathon once to generate the config, then re-run." -ForegroundColor Yellow
-        Write-Check -Status 'WARN' -Key 'MARATHON_CONFIG_WRITTEN' -Detail 'CVARS_NOT_FOUND'
-    } else {
-        # Backup existing config
-        Backup-ConfigFile -Path $CvarsFile | Out-Null
+if (-not (Test-Path $CvarsDir)) {
+    Write-Host "[WARN] Marathon prefs directory not found: $CvarsDir" -ForegroundColor Yellow
+    Write-Host "       Marathon may not have been launched yet." -ForegroundColor Yellow
+    Write-Check -Status 'WARN' -Key 'MARATHON_CONFIG_WRITTEN' -Detail 'PREFS_DIR_NOT_FOUND'
+} elseif (-not (Test-Path $CvarsFile)) {
+    Write-Host "[WARN] cvars.xml not found: $CvarsFile" -ForegroundColor Yellow
+    Write-Host "       Launch Marathon once to generate the config, then re-run." -ForegroundColor Yellow
+    Write-Check -Status 'WARN' -Key 'MARATHON_CONFIG_WRITTEN' -Detail 'CVARS_NOT_FOUND'
+} else {
+    # Backup existing config
+    Backup-ConfigFile -Path $CvarsFile | Out-Null
 
-        # Remove read-only if previously locked
-        Unlock-ConfigFile -Path $CvarsFile
+    # Remove read-only if previously locked
+    Unlock-ConfigFile -Path $CvarsFile
 
-        # Parse existing XML
+    # Parse phase -- separate try-catch so corrupted XML gets a distinct error
+    $xml = $null
+    try {
         $xmlRaw = [System.IO.File]::ReadAllText($CvarsFile, [System.Text.UTF8Encoding]::new($false))
         $xml = [xml]$xmlRaw
+    } catch {
+        Write-Host "[FAIL] cvars.xml is corrupted: $_" -ForegroundColor Red
+        Write-Host "       Delete the file and launch Marathon once to regenerate defaults." -ForegroundColor Yellow
+        Write-Check -Status 'FAIL' -Key 'MARATHON_CONFIG_WRITTEN' -Detail "PARSE_ERROR: $($_.Exception.Message)"
+    }
 
+    if ($xml) {
         # Find the graphics namespace
         $graphicsNs = $xml.body.namespace | Where-Object { $_.name -eq 'graphics' }
 
@@ -217,111 +224,130 @@ try {
             Write-Host "[WARN] No <namespace name='graphics'> found in cvars.xml -- cannot merge settings" -ForegroundColor Yellow
             Write-Check -Status 'FAIL' -Key 'MARATHON_CONFIG_WRITTEN' -Detail 'NO_GRAPHICS_NAMESPACE'
         } else {
-            # Merge competitive settings into the graphics namespace
-            foreach ($key in $CompetitiveSettings.Keys) {
-                # Skip if this key is in the preserve list (safety check)
-                if ($key -in $PreserveKeys) { continue }
+            try {
+                # Merge competitive settings into the graphics namespace
+                foreach ($key in $CompetitiveSettings.Keys) {
+                    # Skip if this key is in the preserve list (safety check)
+                    if ($key -in $PreserveKeys) { continue }
 
-                $existingCvar = $graphicsNs.cvar | Where-Object { $_.name -eq $key }
-                if ($existingCvar) {
-                    # Update existing cvar value
-                    $existingCvar.value = $CompetitiveSettings[$key]
-                } else {
-                    # Add new cvar element (key exists in reference but not in user config)
-                    $newElement = $xml.CreateElement('cvar')
-                    $newElement.SetAttribute('name', $key)
-                    $newElement.SetAttribute('value', $CompetitiveSettings[$key])
-                    # Insert as self-closing with space before />
-                    $graphicsNs.AppendChild($newElement) | Out-Null
+                    $existingCvar = $graphicsNs.cvar | Where-Object { $_.name -eq $key }
+                    if ($existingCvar) {
+                        # Update existing cvar value
+                        $existingCvar.value = $CompetitiveSettings[$key]
+                    } else {
+                        # Add new cvar element (key exists in reference but not in user config)
+                        $newElement = $xml.CreateElement('cvar')
+                        $newElement.SetAttribute('name', $key)
+                        $newElement.SetAttribute('value', $CompetitiveSettings[$key])
+                        # Insert as self-closing with space before />
+                        $graphicsNs.AppendChild($newElement) | Out-Null
+                    }
                 }
+
+                # Write XML with UTF-8 no BOM
+                # Use XmlWriterSettings for clean output with tabs (matching original format)
+                $writerSettings = [System.Xml.XmlWriterSettings]::new()
+                $writerSettings.Indent = $true
+                $writerSettings.IndentChars = "`t"
+                $writerSettings.Encoding = [System.Text.UTF8Encoding]::new($false)
+                $writerSettings.OmitXmlDeclaration = $false
+
+                $stringWriter = $null
+                $xmlWriter = $null
+                try {
+                    $stringWriter = [System.IO.StringWriter]::new()
+                    $xmlWriter = [System.Xml.XmlWriter]::Create($stringWriter, $writerSettings)
+                    $xml.Save($xmlWriter)
+                    $xmlWriter.Flush()
+                    $xmlOutput = $stringWriter.ToString()
+                } finally {
+                    if ($xmlWriter) { $xmlWriter.Close() }
+                    if ($stringWriter) { $stringWriter.Dispose() }
+                }
+
+                # Fix XML declaration -- StringWriter forces encoding="utf-16" but Marathon
+                # uses <?xml version="1.0"?> with no encoding attribute
+                $xmlOutput = $xmlOutput -replace '<\?xml version="1\.0" encoding="utf-16"\?>', '<?xml version="1.0"?>'
+
+                [System.IO.File]::WriteAllText($CvarsFile, $xmlOutput, [System.Text.UTF8Encoding]::new($false))
+
+                Write-Host "  [OK] cvars.xml written: $CvarsFile" -ForegroundColor Green
+
+                # Lock read-only to prevent Marathon from overwriting on exit
+                Lock-ConfigFile -Path $CvarsFile
+                if ((Get-Item $CvarsFile).IsReadOnly) {
+                    Write-Host "  [OK] cvars.xml locked read-only (Marathon overwrites on exit)" -ForegroundColor Green
+                } else {
+                    Write-Host "  [WARN] Could not lock cvars.xml -- Marathon may overwrite settings on exit" -ForegroundColor Yellow
+                    Write-Host "         Run manually: attrib +R `"$CvarsFile`"" -ForegroundColor Yellow
+                }
+
+                Write-Check -Status 'OK' -Key 'MARATHON_CONFIG_WRITTEN'
+            } catch {
+                Write-Host "[FAIL] Failed to write cvars.xml: $_" -ForegroundColor Red
+                Write-Check -Status 'FAIL' -Key 'MARATHON_CONFIG_WRITTEN' -Detail $_.Exception.Message
             }
-
-            # Write XML with UTF-8 no BOM
-            # Use XmlWriterSettings for clean output with tabs (matching original format)
-            $writerSettings = [System.Xml.XmlWriterSettings]::new()
-            $writerSettings.Indent = $true
-            $writerSettings.IndentChars = "`t"
-            $writerSettings.Encoding = [System.Text.UTF8Encoding]::new($false)
-            $writerSettings.OmitXmlDeclaration = $false
-
-            $stringWriter = [System.IO.StringWriter]::new()
-            $xmlWriter = [System.Xml.XmlWriter]::Create($stringWriter, $writerSettings)
-            $xml.Save($xmlWriter)
-            $xmlWriter.Flush()
-            $xmlWriter.Close()
-
-            $xmlOutput = $stringWriter.ToString()
-            [System.IO.File]::WriteAllText($CvarsFile, $xmlOutput, [System.Text.UTF8Encoding]::new($false))
-
-            Write-Host "  [OK] cvars.xml written: $CvarsFile" -ForegroundColor Green
-
-            # Lock read-only to prevent Marathon from overwriting on exit
-            Lock-ConfigFile -Path $CvarsFile
-            Write-Host "  [OK] cvars.xml locked read-only (Marathon overwrites on exit)" -ForegroundColor Green
-
-            Write-Check -Status 'OK' -Key 'MARATHON_CONFIG_WRITTEN'
         }
     }
-} catch {
-    Write-Host "[FAIL] Failed to write cvars.xml: $_" -ForegroundColor Red
-    Write-Check -Status 'FAIL' -Key 'MARATHON_CONFIG_WRITTEN' -Detail $_.Exception.Message
 }
 
 # -----------------------------------------------------------------------------
 # SECTION 3: PRINT FULL IN-GAME SETTINGS GUIDE
 # -----------------------------------------------------------------------------
 
-Write-Host ""
-Write-Host "======================================================" -ForegroundColor Yellow
-Write-Host "  MARATHON - COMPLETE SETTINGS GUIDE" -ForegroundColor Yellow
-Write-Host "======================================================" -ForegroundColor Yellow
-
-Write-Host ""
-Write-Host "  --- DISPLAY SETTINGS (Preserved from your config) ---" -ForegroundColor Cyan
-Write-Host "  Window Mode            : Keep your current setting" -ForegroundColor White
-Write-Host "  Resolution             : Keep your current setting" -ForegroundColor White
-Write-Host "  Render Resolution      : 100% Native (no upscaling)" -ForegroundColor White
-Write-Host "  HDR                    : Off" -ForegroundColor White
-Write-Host "  FPS Cap                : Uncapped (0)" -ForegroundColor White
-
-Write-Host ""
-Write-Host "  --- GRAPHICS (Applied via cvars.xml) ---" -ForegroundColor Cyan
-Write-Host "  Master Preset          : Custom (0)" -ForegroundColor White
-Write-Host "  Anti-Aliasing          : SMAA (2)" -ForegroundColor White
-Write-Host "  SSAO                   : Off" -ForegroundColor White
-Write-Host "  Shadow Quality         : Low (player shadows visible)" -ForegroundColor White
-Write-Host "  Environment Detail     : Low" -ForegroundColor White
-Write-Host "  Character Detail       : Medium (enemy visibility)" -ForegroundColor White
-Write-Host "  Texture Quality        : Medium" -ForegroundColor White
-Write-Host "  Texture Anisotropy     : 16x (near-zero FPS cost)" -ForegroundColor White
-Write-Host "  Foliage Detail         : Lowest" -ForegroundColor White
-Write-Host "  Foliage Shadows        : Off" -ForegroundColor White
-Write-Host "  Local Light Shadows    : Off" -ForegroundColor White
-Write-Host "  Atmosphere Lighting    : Low" -ForegroundColor White
-Write-Host "  Lighting Resolution    : Lowest" -ForegroundColor White
-
-Write-Host ""
-Write-Host "  --- LATENCY ---" -ForegroundColor Cyan
-if ($NvidiaGPU) {
-    Write-Host "  NVIDIA Reflex          : On+Boost (2)" -ForegroundColor White
-} else {
-    Write-Host "  Low Latency Mode       : Off (non-NVIDIA GPU)" -ForegroundColor White
-}
-Write-Host "  Render Resolution Mode : Native (no upscaling)" -ForegroundColor White
-
-Write-Host ""
-Write-Host "  --- NOTES ---" -ForegroundColor Cyan
-Write-Host "  - cvars.xml is locked read-only to preserve settings" -ForegroundColor DarkGray
-Write-Host "  - Marathon overwrites cvars.xml on exit without this lock" -ForegroundColor DarkGray
-Write-Host "  - To change settings later, remove read-only flag first:" -ForegroundColor DarkGray
-Write-Host "    attrib -R `"$CvarsFile`"" -ForegroundColor DarkGray
-Write-Host "  - Key bindings, audio, and gameplay settings are preserved" -ForegroundColor DarkGray
-
-Write-Host ""
-Write-Host "[DONE] Marathon cvars.xml written + EXE flags applied." -ForegroundColor Green
 if (-not $script:ValidationFailed) {
+    Write-Host ""
+    Write-Host "======================================================" -ForegroundColor Yellow
+    Write-Host "  MARATHON - COMPLETE SETTINGS GUIDE" -ForegroundColor Yellow
+    Write-Host "======================================================" -ForegroundColor Yellow
+
+    Write-Host ""
+    Write-Host "  --- DISPLAY SETTINGS (Preserved from your config) ---" -ForegroundColor Cyan
+    Write-Host "  Window Mode            : Keep your current setting" -ForegroundColor White
+    Write-Host "  Resolution             : Keep your current setting" -ForegroundColor White
+    Write-Host "  Render Resolution      : 100% Native (no upscaling)" -ForegroundColor White
+    Write-Host "  HDR                    : Off" -ForegroundColor White
+    Write-Host "  FPS Cap                : Uncapped (0)" -ForegroundColor White
+
+    Write-Host ""
+    Write-Host "  --- GRAPHICS (Applied via cvars.xml) ---" -ForegroundColor Cyan
+    Write-Host "  Master Preset          : Custom (0)" -ForegroundColor White
+    Write-Host "  Anti-Aliasing          : SMAA (2)" -ForegroundColor White
+    Write-Host "  SSAO                   : Off" -ForegroundColor White
+    Write-Host "  Shadow Quality         : Low (player shadows visible)" -ForegroundColor White
+    Write-Host "  Environment Detail     : Low" -ForegroundColor White
+    Write-Host "  Character Detail       : Medium (enemy visibility)" -ForegroundColor White
+    Write-Host "  Texture Quality        : Medium" -ForegroundColor White
+    Write-Host "  Texture Anisotropy     : 16x (near-zero FPS cost)" -ForegroundColor White
+    Write-Host "  Foliage Detail         : Lowest" -ForegroundColor White
+    Write-Host "  Foliage Shadows        : Off" -ForegroundColor White
+    Write-Host "  Local Light Shadows    : Off" -ForegroundColor White
+    Write-Host "  Atmosphere Lighting    : Low" -ForegroundColor White
+    Write-Host "  Lighting Resolution    : Lowest" -ForegroundColor White
+
+    Write-Host ""
+    Write-Host "  --- LATENCY ---" -ForegroundColor Cyan
+    if ($NvidiaGPU) {
+        Write-Host "  NVIDIA Reflex          : On+Boost (2)" -ForegroundColor White
+    } else {
+        Write-Host "  Low Latency Mode       : Off (non-NVIDIA GPU)" -ForegroundColor White
+    }
+    Write-Host "  Render Resolution Mode : Native (no upscaling)" -ForegroundColor White
+
+    Write-Host ""
+    Write-Host "  --- NOTES ---" -ForegroundColor Cyan
+    Write-Host "  - cvars.xml is locked read-only to preserve settings" -ForegroundColor DarkGray
+    Write-Host "  - Marathon overwrites cvars.xml on exit without this lock" -ForegroundColor DarkGray
+    Write-Host "  - To change settings later, remove read-only flag first:" -ForegroundColor DarkGray
+    Write-Host "    attrib -R `"$CvarsFile`"" -ForegroundColor DarkGray
+    Write-Host "  - Key bindings, audio, and gameplay settings are preserved" -ForegroundColor DarkGray
+
+    Write-Host ""
+    Write-Host "[DONE] Marathon cvars.xml written + EXE flags applied." -ForegroundColor Green
     Write-Check -Status 'OK' -Key 'MARATHON_SETTINGS_APPLIED'
 } else {
+    Write-Host ""
+    Write-Host "[WARN] Settings guide skipped -- config write failed. See errors above." -ForegroundColor Yellow
     Write-Check -Status 'WARN' -Key 'MARATHON_SETTINGS_APPLIED' -Detail 'PARTIAL'
 }
 Write-Host ""
