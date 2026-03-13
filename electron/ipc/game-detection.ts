@@ -58,6 +58,7 @@ const DETECTION_FUNCTIONS: Record<string, DetectFn> = {
   dota2: findDota2,
   eafc26: findEAFC26,
   marathon: findMarathon,
+  overwatch2: findOverwatch2,
 };
 
 // Derived from the unified game registry -- no manual sync needed
@@ -756,6 +757,56 @@ async function findMarathon(): Promise<GameDetectionResult> {
     const configPath = path.join(appData, 'Bungie', 'Marathon', 'prefs', 'cvars.xml');
     if (fs.existsSync(configPath)) {
       console.log(`[game-detection] Marathon config found at ${configPath} but no install directory located. PS1 script will use its own detection.`);
+      return { installed: true, gamePath: null };
+    }
+  }
+
+  return { installed: false, gamePath: null };
+}
+
+async function findOverwatch2(): Promise<GameDetectionResult> {
+  // Battle.net registry (Overwatch 2 replaced Overwatch -- same registry path)
+  const bnetResult = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Overwatch' -ErrorAction SilentlyContinue).InstallLocation`
+  );
+  if (!bnetResult.success) {
+    console.warn(`[game-detection] Overwatch 2 Battle.net registry check failed: ${bnetResult.errors.join(', ')}`);
+  } else if (bnetResult.output.length > 0 && bnetResult.output[0] && fs.existsSync(bnetResult.output[0])) {
+    return { installed: true, gamePath: bnetResult.output[0] };
+  }
+
+  // Steam uninstall registry (App ID 2357570)
+  const steamResult = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 2357570' -ErrorAction SilentlyContinue).InstallLocation`
+  );
+  if (!steamResult.success) {
+    console.warn(`[game-detection] Overwatch 2 Steam registry check failed: ${steamResult.errors.join(', ')}`);
+  } else if (steamResult.output.length > 0 && steamResult.output[0] && fs.existsSync(steamResult.output[0])) {
+    return { installed: true, gamePath: steamResult.output[0] };
+  }
+
+  // Common Battle.net install paths
+  const commonPaths = [
+    'C:\\Program Files (x86)\\Overwatch',
+    'D:\\Overwatch',
+    'E:\\Overwatch',
+    'C:\\Games\\Overwatch',
+  ];
+  // Check for _retail_\Overwatch.exe in each
+  for (const basePath of commonPaths) {
+    const exePath = path.join(basePath, '_retail_', 'Overwatch.exe');
+    if (fs.existsSync(exePath)) {
+      return { installed: true, gamePath: basePath };
+    }
+  }
+
+  // Config folder detection (proves game has been launched)
+  // Both Battle.net and Steam share the same config location
+  const userProfile = process.env.USERPROFILE;
+  if (userProfile) {
+    const configPath = path.join(userProfile, 'Documents', 'Overwatch', 'Settings', 'Settings_v0.ini');
+    if (fs.existsSync(configPath)) {
+      console.log(`[game-detection] Overwatch 2 config found at ${configPath} but no install directory located. PS1 script will use its own detection.`);
       return { installed: true, gamePath: null };
     }
   }
