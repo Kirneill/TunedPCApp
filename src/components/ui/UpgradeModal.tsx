@@ -95,7 +95,7 @@ export default function UpgradeModal({ onClose }: UpgradeModalProps) {
         {/* Price */}
         <div className="px-6 pb-4">
           <div className="flex items-baseline gap-1.5 justify-center py-3 rounded-xl bg-sq-bg/60 border border-white/[0.04]">
-            <span className="text-3xl font-bold text-sq-text">$10</span>
+            <span className="text-3xl font-bold text-sq-text">$20</span>
             <span className="text-sm text-sq-text-dim">/ month</span>
           </div>
         </div>
@@ -116,7 +116,7 @@ export default function UpgradeModal({ onClose }: UpgradeModalProps) {
                 Opening checkout...
               </span>
             ) : (
-              'Upgrade to Pro - $10/mo'
+              'Upgrade to Pro - $20/mo'
             )}
           </button>
           <p className="text-[10px] text-sq-text-dim text-center mt-2">

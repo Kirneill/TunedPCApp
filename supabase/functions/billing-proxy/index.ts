@@ -72,10 +72,15 @@ async function autumnFetch(
 
 // ─── Action Handlers ─────────────────────────────────────
 
-async function handleCheck(userId: string, params: Record<string, unknown>): Promise<Response> {
+async function handleCheck(userId: string, email: string, params: Record<string, unknown>): Promise<Response> {
   const featureId = params.feature_id;
   if (typeof featureId !== "string") {
     return errorResponse("feature_id is required");
+  }
+
+  // Beta testers get free access without hitting Autumn
+  if (BETA_TESTERS.size > 0 && BETA_TESTERS.has(email.toLowerCase())) {
+    return jsonResponse({ allowed: true }, 200);
   }
 
   const { data, status } = await autumnFetch("POST", "/check", {
@@ -85,12 +90,7 @@ async function handleCheck(userId: string, params: Record<string, unknown>): Pro
   return jsonResponse(data, status);
 }
 
-async function handleAttach(userId: string, email: string, params: Record<string, unknown>): Promise<Response> {
-  // Beta gate: only whitelisted users can subscribe (remove after public launch)
-  if (BETA_TESTERS.size > 0 && !BETA_TESTERS.has(email.toLowerCase())) {
-    return errorResponse("Pro is launching soon! You'll be notified when it's available.", 403);
-  }
-
+async function handleCheckout(userId: string, email: string, params: Record<string, unknown>): Promise<Response> {
   const productId = params.product_id;
   if (typeof productId !== "string") {
     return errorResponse("product_id is required");
@@ -107,7 +107,7 @@ async function handleAttach(userId: string, email: string, params: Record<string
   if (successUrl) body.success_url = successUrl;
   if (email) body.customer_data = { email };
 
-  const { data, status } = await autumnFetch("POST", "/attach", body);
+  const { data, status } = await autumnFetch("POST", "/checkout", body);
   return jsonResponse(data, status);
 }
 
@@ -174,9 +174,10 @@ Deno.serve(async (req) => {
   try {
     switch (action) {
       case "check":
-        return await handleCheck(userId, body);
-      case "attach":
-        return await handleAttach(userId, email, body);
+        return await handleCheck(userId, email, body);
+      case "checkout":
+      case "attach":  // backward compat
+        return await handleCheckout(userId, email, body);
       case "cancel":
         return await handleCancel(userId, body);
       case "getCustomer":

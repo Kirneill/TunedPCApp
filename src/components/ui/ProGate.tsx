@@ -79,7 +79,7 @@ export default function ProGate({ feature, children }: ProGateProps) {
           onClick={() => setShowModal(true)}
           className="px-8 py-3 rounded-xl text-sm font-bold text-white bg-sq-accent hover:bg-sq-accent-hover transition-colors cursor-pointer shadow-lg shadow-sq-accent/20"
         >
-          Upgrade to Pro - $10/mo
+          Upgrade to Pro - $20/mo
         </button>
 
         <p className="text-[10px] text-sq-text-dim mt-3">

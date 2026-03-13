@@ -91,7 +91,7 @@ export async function createCheckout(successUrl?: string): Promise<{ url?: strin
       return { error: (data as { error?: string })?.error || 'Checkout failed' };
     }
 
-    const checkoutUrl = (data as { checkout_url?: string }).checkout_url;
+    const checkoutUrl = (data as { url?: string; checkout_url?: string }).url || (data as { checkout_url?: string }).checkout_url;
     if (checkoutUrl) {
       return { url: checkoutUrl };
     }
