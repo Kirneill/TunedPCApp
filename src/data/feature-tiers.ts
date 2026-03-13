@@ -2,7 +2,7 @@
  * Feature tier gating for SENSEQUALITY Pro.
  *
  * Free tier: All Windows optimizations + all game configs
- * Pro tier ($20/mo): BIOS Optimization (interactive guide + automated SCEWIN)
+ * Pro tier ($20/mo): BIOS Optimization (interactive guide + guided automatic tuning)
  */
 
 import type { SubscriptionStatus } from '../types';

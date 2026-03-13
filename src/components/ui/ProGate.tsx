@@ -72,7 +72,7 @@ export default function ProGate({ feature, children }: ProGateProps) {
           BIOS Optimization
         </h2>
         <p className="text-sm text-sq-text-muted mb-6 leading-relaxed">
-          Unlock the interactive BIOS guide with automated SCEWIN optimization to squeeze every last frame from your hardware.
+          Unlock the step-by-step BIOS guide and guided tuning tools built to boost FPS without the usual BIOS guesswork.
         </p>
 
         <button

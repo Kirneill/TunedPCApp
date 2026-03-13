@@ -79,7 +79,7 @@ export default function UpgradeModal({ onClose }: UpgradeModalProps) {
           </div>
           <h2 className="text-lg font-bold text-sq-text">Unlock BIOS Optimization</h2>
           <p className="text-sm text-sq-text-muted mt-1">
-            Overclock your BIOS for maximum competitive FPS performance.
+            Get the BIOS settings that matter for smoother FPS, lower input delay, and less trial and error.
           </p>
         </div>
 
@@ -87,11 +87,11 @@ export default function UpgradeModal({ onClose }: UpgradeModalProps) {
         <div className="px-6 pb-4">
           <div className="space-y-2.5">
             {[
-              'Interactive BIOS optimization checklist',
-              'Automated BIOS settings via SCEWIN',
-              'Per-CPU profiles (Ryzen, Intel)',
-              'Auto-backup and restore safety net',
-              'RAM safety rules and XMP validation',
+              'Step-by-step BIOS checklist for gamers',
+              'Guided automatic tuning',
+              'CPU-matched profiles for Ryzen and Intel',
+              'Backup and restore safety net',
+              'RAM safety checks before changes',
             ].map((feature) => (
               <div key={feature} className="flex items-start gap-2.5">
                 <svg className="w-4 h-4 text-sq-accent mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
