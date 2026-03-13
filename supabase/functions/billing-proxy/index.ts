@@ -72,15 +72,10 @@ async function autumnFetch(
 
 // ─── Action Handlers ─────────────────────────────────────
 
-async function handleCheck(userId: string, email: string, params: Record<string, unknown>): Promise<Response> {
+async function handleCheck(userId: string, params: Record<string, unknown>): Promise<Response> {
   const featureId = params.feature_id;
   if (typeof featureId !== "string") {
     return errorResponse("feature_id is required");
-  }
-
-  // Beta testers get free access without hitting Autumn
-  if (BETA_TESTERS.size > 0 && BETA_TESTERS.has(email.toLowerCase())) {
-    return jsonResponse({ allowed: true }, 200);
   }
 
   const { data, status } = await autumnFetch("POST", "/check", {
@@ -174,7 +169,7 @@ Deno.serve(async (req) => {
   try {
     switch (action) {
       case "check":
-        return await handleCheck(userId, email, body);
+        return await handleCheck(userId, body);
       case "checkout":
       case "attach":  // backward compat
         return await handleCheckout(userId, email, body);
