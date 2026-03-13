@@ -288,7 +288,7 @@ export const GAMES: GameDefinition[] = [
     id: 'marathon',
     name: 'Marathon',
     subtitle: 'Low Settings · Reflex On+Boost',
-    description: 'Optimizes cvars.xml -- Low shadows, SSAO off, foliage lowest, NVIDIA Reflex On+Boost. Read-only lock prevents overwrite.',
+    description: 'Optimizes cvars.xml -- Low shadows, SSAO off, foliage lowest, NVIDIA Reflex On+Boost.',
     gradient: 'from-sky-900 via-blue-950 to-black',
     letter: 'MTN',
     risk: 'safe',

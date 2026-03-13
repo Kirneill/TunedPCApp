@@ -7,8 +7,7 @@
 
 .DESCRIPTION
     Applies Windows EXE flags and writes optimized cvars.xml for
-    competitive Marathon performance. Config is set to read-only after
-    writing because Marathon OVERWRITES cvars.xml on exit.
+    competitive Marathon performance.
 
     BattlEye is Marathon's anti-cheat. Config file edits are safe.
 
@@ -130,8 +129,6 @@ if ($foundCount -eq 0) {
 # SECTION 2: WRITE OPTIMIZED CVARS.XML
 # -----------------------------------------------------------------------------
 # Marathon's cvars.xml is XML with <body> > <namespace name="X"> > <cvar name="" value="" />
-# Marathon OVERWRITES cvars.xml on exit, so we set read-only after writing.
-#
 # Strategy: read-merge-write. Parse existing XML, only override performance
 # keys in the "graphics" namespace. Preserve ALL other namespaces (key bindings,
 # audio, gameplay) and non-performance graphics keys (resolution, window, gamma)
@@ -273,15 +270,6 @@ if (-not (Test-Path $CvarsDir)) {
 
                 Write-Host "  [OK] cvars.xml written: $CvarsFile" -ForegroundColor Green
 
-                # Lock read-only to prevent Marathon from overwriting on exit
-                Lock-ConfigFile -Path $CvarsFile
-                if ((Get-Item $CvarsFile).IsReadOnly) {
-                    Write-Host "  [OK] cvars.xml locked read-only (Marathon overwrites on exit)" -ForegroundColor Green
-                } else {
-                    Write-Host "  [WARN] Could not lock cvars.xml -- Marathon may overwrite settings on exit" -ForegroundColor Yellow
-                    Write-Host "         Run manually: attrib +R `"$CvarsFile`"" -ForegroundColor Yellow
-                }
-
                 Write-Check -Status 'OK' -Key 'MARATHON_CONFIG_WRITTEN'
             } catch {
                 Write-Host "[FAIL] Failed to write cvars.xml: $_" -ForegroundColor Red
@@ -336,11 +324,8 @@ if (-not $script:ValidationFailed) {
 
     Write-Host ""
     Write-Host "  --- NOTES ---" -ForegroundColor Cyan
-    Write-Host "  - cvars.xml is locked read-only to preserve settings" -ForegroundColor DarkGray
-    Write-Host "  - Marathon overwrites cvars.xml on exit without this lock" -ForegroundColor DarkGray
-    Write-Host "  - To change settings later, remove read-only flag first:" -ForegroundColor DarkGray
-    Write-Host "    attrib -R `"$CvarsFile`"" -ForegroundColor DarkGray
     Write-Host "  - Key bindings, audio, and gameplay settings are preserved" -ForegroundColor DarkGray
+    Write-Host "  - You can change settings in-game after optimization" -ForegroundColor DarkGray
 
     Write-Host ""
     Write-Host "[DONE] Marathon cvars.xml written + EXE flags applied." -ForegroundColor Green

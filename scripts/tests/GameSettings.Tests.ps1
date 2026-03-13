@@ -3854,10 +3854,6 @@ Describe "Marathon cvars.xml" -Tag "marathon" {
             $mouseSmoothing | Should -Be '0'
         }
 
-        It "Output file is set to read-only" {
-            (Get-Item $script:OutputFile).IsReadOnly | Should -BeTrue
-        }
-
         It "Output XML declaration matches original format (no encoding attribute)" {
             $firstLine = (Get-Content $script:OutputFile)[0]
             $firstLine | Should -Not -Match 'encoding="utf-16"'
@@ -3952,10 +3948,6 @@ Describe "Marathon cvars.xml" -Tag "marathon" {
 
         It "Script writes UTF-8 without BOM" {
             $ScriptContent | Should -Match 'UTF8Encoding.*\$false'
-        }
-
-        It "Script sets config to read-only" {
-            $ScriptContent | Should -Match 'Lock-ConfigFile'
         }
 
         It "Script sets EXE compatibility flags" {
