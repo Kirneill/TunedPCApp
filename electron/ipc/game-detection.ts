@@ -57,6 +57,7 @@ const DETECTION_FUNCTIONS: Record<string, DetectFn> = {
   lol: findLeagueOfLegends,
   dota2: findDota2,
   eafc26: findEAFC26,
+  marathon: findMarathon,
 };
 
 // Derived from the unified game registry -- no manual sync needed
@@ -731,6 +732,30 @@ async function findEAFC26(): Promise<GameDetectionResult> {
     const configPath = path.join(localAppData, 'EA SPORTS FC 26', 'fcsetup.ini');
     if (fs.existsSync(configPath)) {
       console.log(`[game-detection] EA FC 26 config found at ${configPath} but no install directory located. PS1 script will use its own detection.`);
+      return { installed: true, gamePath: null };
+    }
+  }
+
+  return { installed: false, gamePath: null };
+}
+
+async function findMarathon(): Promise<GameDetectionResult> {
+  // Steam uninstall registry (App ID 3065800)
+  const steamResult = await runPowerShellCommand(
+    `(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 3065800' -ErrorAction SilentlyContinue).InstallLocation`
+  );
+  if (!steamResult.success) {
+    console.warn(`[game-detection] Marathon registry check failed: ${steamResult.errors.join(', ')}`);
+  } else if (steamResult.output.length > 0 && steamResult.output[0] && fs.existsSync(steamResult.output[0])) {
+    return { installed: true, gamePath: steamResult.output[0] };
+  }
+
+  // Config folder detection (proves game has been launched)
+  const appData = process.env.APPDATA || '';
+  if (appData) {
+    const configPath = path.join(appData, 'Bungie', 'Marathon', 'prefs', 'cvars.xml');
+    if (fs.existsSync(configPath)) {
+      console.log(`[game-detection] Marathon config found at ${configPath} but no install directory located. PS1 script will use its own detection.`);
       return { installed: true, gamePath: null };
     }
   }

@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<body>
+	<namespace name="graphics">
+		<cvar name="force_auto_detect" value="0" />
+		<cvar name="force_enable_multi_threaded_render_submit" value="0" />
+		<cvar name="window_position_x" value="8" />
+		<cvar name="window_position_y" value="31" />
+		<cvar name="window_mode" value="2" />
+		<cvar name="anti_aliasing_mode" value="12" />
+		<cvar name="ssao_mode" value="0" />
+		<cvar name="ssao_async_mode" value="0" />
+		<cvar name="shadow_quality" value="0" />
+		<cvar name="environment_detail" value="1" />
+		<cvar name="character_detail" value="1" />
+		<cvar name="texture_quality" value="2" />
+		<cvar name="texture_anisotropy_level" value="2" />
+		<cvar name="foliage_detail" value="0" />
+		<cvar name="local_light_shadows" value="1" />
+		<cvar name="gamma_control" value="3" />
+		<cvar name="foliage_shadows_mode" value="1" />
+		<cvar name="hdr_output" value="0" />
+		<cvar name="atmosphere_lighting_detail" value="0" />
+		<cvar name="master" value="0" />
+		<cvar name="framerate_cap_enabled" value="0" />
+		<cvar name="low_latency_mode" value="1" />
+		<cvar name="lighting_resolution" value="1" />
+		<cvar name="render_resolution_scaling_mode" value="6" />
+		<cvar name="fullscreen_resolution_width" value="1920" />
+		<cvar name="fullscreen_resolution_height" value="1080" />
+		<cvar name="fullscreen_refresh_rate_numerator" value="60" />
+		<cvar name="fullscreen_refresh_rate_denominator" value="1" />
+		<cvar name="windowed_resolution_width" value="1280" />
+		<cvar name="windowed_resolution_height" value="720" />
+		<cvar name="render_resolution_percentage" value="100" />
+		<cvar name="framerate_cap" value="237" />
+		<cvar name="target_framerate" value="60" />
+		<cvar name="version" value="12" />
+	</namespace>
+	<namespace name="key bindings">
+		<!-- ... key bindings ... -->
+	</namespace>
+	<namespace name="audio">
+		<cvar name="cached_music_volume" value="3" />
+		<cvar name="cached_sfx_volume" value="6" />
+		<cvar name="cached_game_volume" value="6" />
+		<cvar name="cached_listen_mode" value="3" />
+		<cvar name="cached_voice_capture_device_identifier_hash" value="0" />
+		<cvar name="cached_voice_render_device_identifier_hash" value="0" />
+		<cvar name="cached_voice_capture_device_type_preference" value="3" />
+		<cvar name="cached_voice_render_device_type_preference" value="3" />
+	</namespace>
+	<namespace name="gameplay">
+		<cvar name="mouse_smoothing_mode" value="0" />
+	</namespace>
+</body>
