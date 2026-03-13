@@ -210,7 +210,7 @@ Describe "Debloat Manifest Structure" -Tag "debloat-manifest" {
         }
 
         It "CreatedAt survives round-trip" {
-            $script:Parsed.CreatedAt | Should -Be $script:MockManifest.CreatedAt
+            [string]$script:Parsed.CreatedAt | Should -Be ([string]$script:MockManifest.CreatedAt)
         }
 
         It "Services count survives round-trip" {

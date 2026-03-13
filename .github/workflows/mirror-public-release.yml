@@ -46,10 +46,13 @@ jobs:
             source_blockmap="$(find out -maxdepth 1 -type f -name '*.exe.blockmap' | head -n 1 || true)"
 
             if [ -n "${expected_installer:-}" ] && [ -n "${source_installer:-}" ]; then
-              cp -f "$source_installer" "out/$expected_installer"
+              # Skip copy if the downloaded file already has the expected name
+              if [ "$(basename "$source_installer")" != "$expected_installer" ]; then
+                cp -f "$source_installer" "out/$expected_installer"
 
-              if [ -n "${source_blockmap:-}" ]; then
-                cp -f "$source_blockmap" "out/${expected_installer}.blockmap"
+                if [ -n "${source_blockmap:-}" ]; then
+                  cp -f "$source_blockmap" "out/${expected_installer}.blockmap"
+                fi
               fi
 
               # Keep only canonical installer names so update metadata and assets stay consistent.
