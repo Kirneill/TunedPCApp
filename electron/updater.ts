@@ -1,35 +1,7 @@
 import { app, BrowserWindow, net } from 'electron';
 import { autoUpdater } from 'electron-updater';
-
-export interface UpdateInfo {
-  hasUpdate: boolean;
-  currentVersion: string;
-  latestVersion: string;
-  releaseUrl: string;
-  releaseNotes: string;
-}
-
-export type UpdaterStatus =
-  | 'idle'
-  | 'checking'
-  | 'available'
-  | 'downloading'
-  | 'downloaded'
-  | 'up-to-date'
-  | 'error';
-
-export interface UpdaterState {
-  status: UpdaterStatus;
-  progress: number;
-  message: string;
-  latestVersion?: string;
-  error?: string;
-}
-
-export interface UpdaterActionResult {
-  started: boolean;
-  reason?: string;
-}
+import type { UpdateInfo, UpdaterStatus, UpdaterState, UpdaterActionResult } from '../src/types/index';
+export type { UpdateInfo, UpdaterStatus, UpdaterState, UpdaterActionResult } from '../src/types/index';
 
 const GITHUB_OWNER = 'Kirneill';
 const GITHUB_REPO = 'TunedPCApp';

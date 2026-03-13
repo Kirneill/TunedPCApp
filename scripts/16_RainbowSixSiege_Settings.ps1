@@ -250,7 +250,7 @@ if ($AccountFolders.Count -eq 0) {
                 $outputLines += ""
             }
 
-            $outputLines | Set-Content $settingsFile -Encoding UTF8 -Force
+            [System.IO.File]::WriteAllText($settingsFile, ($outputLines -join "`r`n"), [System.Text.UTF8Encoding]::new($false))
             Write-Host "  [OK] GameSettings.ini written: $settingsFile" -ForegroundColor Green
             $AnyConfigWritten = $true
             $WrittenCount++

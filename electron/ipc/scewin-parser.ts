@@ -2,41 +2,8 @@
  * SCEWIN NVRAM Parser — TypeScript port of BiosTuner's Python parser.
  * Parses AMI Aptio UEFI NVRAM text exports, matches profiles, and patches settings.
  */
-
-export interface NvramSetting {
-  name: string;
-  token: string;
-  offset: string;
-  width: string;
-  biosDefault: string;
-  currentValue: string;
-  options: Record<string, string>; // label → hex value
-  isNumeric: boolean;
-  numericMin?: string;
-  numericMax?: string;
-  numericStep?: string;
-  rawBlock: string;
-}
-
-export interface ProfileSetting {
-  name: string;
-  targetValue: string;
-  riskLevel: 'safe' | 'low' | 'medium' | 'high';
-  description: string;
-  matchPattern: string;
-}
-
-export interface ProfileChange {
-  name: string;
-  nvramName: string;
-  currentValue: string;
-  targetValue: string;
-  resolvedValue: string;
-  riskLevel: string;
-  description: string;
-  applied: boolean;
-  found: boolean;
-}
+import type { NvramSetting, ProfileSetting, ProfileChange } from '../../src/types/index';
+export type { NvramSetting, ProfileSetting, ProfileChange } from '../../src/types/index';
 
 /**
  * Parse SCEWIN NVRAM export text into structured settings.

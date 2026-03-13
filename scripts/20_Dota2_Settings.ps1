@@ -270,7 +270,7 @@ dota_disable_range_finder 0
 echo "Autoexec loaded - Dota 2 Competitive Config (Mar 2026)"
 "@
 
-        Set-Content -Path $AutoExecPath -Value $AutoExecContent -Encoding UTF8 -Force
+        [System.IO.File]::WriteAllText($AutoExecPath, $AutoExecContent, [System.Text.UTF8Encoding]::new($false))
         Write-Host "  [OK] autoexec.cfg written to: $AutoExecPath" -ForegroundColor Green
         Write-Check -Status 'OK' -Key 'DOTA2_AUTOEXEC_WRITTEN'
     } catch {
