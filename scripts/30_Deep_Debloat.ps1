@@ -166,7 +166,7 @@ try {
     # Snapshot current service states
     Write-Host "  [INFO] Snapshotting service states..." -ForegroundColor DarkCyan
     $AllServices = Get-Service | Select-Object Name, StartType, Status |
-        ForEach-Object { [ordered]@{ Name = $_.Name; StartType = $_.StartType.ToString(); Status = $_.Status.ToString() } }
+        ForEach-Object { [ordered]@{ Name = $_.Name; StartType = "$($_.StartType)"; Status = "$($_.Status)" } }
     $ServiceSnapshot = $AllServices | ConvertTo-Json -Depth 3
     [System.IO.File]::WriteAllText(
         (Join-Path $BackupDir 'services-snapshot.json'),
