@@ -294,6 +294,30 @@ export const biosSettings: BiosSetting[] = [
     },
   },
   {
+    id: 'iommu',
+    categoryId: 'security-perf',
+    title: 'Device Memory Virtualization (slightly improves FPS)',
+    description:
+      'IOMMU adds a hardware translation step when devices access memory. Disabling it slightly improves FPS in most games.',
+    details:
+      'Look for "IOMMU" in your BIOS (AMD) or "VT-d" (Intel). This feature is mainly used for passing hardware devices to virtual machines. If you don\'t use GPU passthrough to VMs, disabling it may reduce overhead on some systems.',
+    recommendedValue: 'Disabled for gaming PCs',
+    impact: 'medium',
+    risk: 'caution',
+    platform: 'both',
+    requiresReboot: true,
+    detectable: false,
+    automatable: true,
+    warning:
+      'Disabling is safe for dedicated gaming PCs. If you use WSL2, Docker, Hyper-V, or virtual machines, verify your setup still works after disabling.',
+    vendorNav: {
+      asus: 'Advanced > CPU Configuration > VT-d (Intel) / Advanced > AMD CBS > NBIO > IOMMU (AMD)',
+      msi: 'OC > CPU Features > Intel VT-d Tech (Intel) / IOMMU (AMD)',
+      gigabyte: 'Settings > IO Ports > Intel VT-d (Intel) / Settings > AMD CBS > NBIO > IOMMU (AMD)',
+      asrock: 'Advanced > Chipset Configuration > VT-d / IOMMU',
+    },
+  },
+  {
     id: 'secure-boot-tpm',
     categoryId: 'security-perf',
     title: 'Anti-Cheat Requirements (keep on)',
