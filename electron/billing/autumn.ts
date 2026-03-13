@@ -154,14 +154,20 @@ export async function getSubscription(): Promise<Subscription> {
   try {
     const { data, ok } = await billingFetch('getCustomer');
 
-    if (!ok || !data) return FREE_SUB;
+    if (!ok || !data) {
+      console.error('[billing] getSubscription: API returned not-ok or null data');
+      return FREE_SUB;
+    }
 
     const products = (data as { products?: Array<{ id: string; status: string; canceled_at?: number | null }> }).products || [];
     const proPlan = products.find(
       (p) => p.id === AUTUMN_PRODUCTS.pro
     );
 
-    if (!proPlan) return FREE_SUB;
+    if (!proPlan) {
+      console.log('[billing] getSubscription: no pro product found for customer');
+      return FREE_SUB;
+    }
 
     // Map Autumn status to our SubscriptionStatus
     if (proPlan.status === 'active') {

@@ -3,12 +3,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 const AUTUMN_SECRET_KEY = Deno.env.get("AUTUMN_SECRET_KEY");
 const AUTUMN_API_URL = "https://api.useautumn.com/v1";
 
-// Beta tester whitelist — comma-separated emails in env var
-// Set via: npx supabase secrets set BETA_TESTERS="email1@x.com,email2@x.com"
-const BETA_TESTERS = new Set(
-  (Deno.env.get("BETA_TESTERS") || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean),
-);
-
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
@@ -66,7 +60,14 @@ async function autumnFetch(
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
-  const data = await res.json().catch(() => null);
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    const text = await res.text().catch(() => "(unreadable body)");
+    console.error(`[billing-proxy] Non-JSON response from Autumn: status=${res.status} body=${text.slice(0, 500)}`);
+    data = null;
+  }
   return { data, status: res.status };
 }
 
@@ -82,6 +83,10 @@ async function handleCheck(userId: string, params: Record<string, unknown>): Pro
     customer_id: userId,
     feature_id: featureId,
   });
+
+  const allowed = (data as Record<string, unknown>)?.allowed ?? null;
+  console.log(`[billing-proxy] check: userId=${userId} featureId=${featureId} status=${status} allowed=${allowed}`);
+
   return jsonResponse(data, status);
 }
 
@@ -103,6 +108,11 @@ async function handleCheckout(userId: string, email: string, params: Record<stri
   if (email) body.customer_data = { email };
 
   const { data, status } = await autumnFetch("POST", "/checkout", body);
+
+  const respData = data as Record<string, unknown> | null;
+  const hasCheckoutUrl = !!(respData?.checkout_url);
+  console.log(`[billing-proxy] checkout: userId=${userId} productId=${productId} status=${status} hasCheckoutUrl=${hasCheckoutUrl}`);
+
   return jsonResponse(data, status);
 }
 
@@ -119,16 +129,29 @@ async function handleCancel(userId: string, params: Record<string, unknown>): Pr
     product_id: productId,
     cancel_immediately: cancelImmediately,
   });
+
+  console.log(`[billing-proxy] cancel: userId=${userId} productId=${productId} immediately=${cancelImmediately} status=${status}`);
+
   return jsonResponse(data, status);
 }
 
 async function handleGetCustomer(userId: string): Promise<Response> {
   const { data, status } = await autumnFetch("GET", `/customers/${encodeURIComponent(userId)}`);
+
+  const respData = data as Record<string, unknown> | null;
+  const products = Array.isArray(respData?.products)
+    ? (respData!.products as Array<Record<string, unknown>>).map((p) => ({ id: p.id, status: p.status }))
+    : [];
+  console.log(`[billing-proxy] getCustomer: userId=${userId} status=${status} products=${JSON.stringify(products)}`);
+
   return jsonResponse(data, status);
 }
 
 async function handleBillingPortal(userId: string): Promise<Response> {
   const { data, status } = await autumnFetch("GET", `/customers/${encodeURIComponent(userId)}/billing-portal`);
+
+  console.log(`[billing-proxy] billingPortal: userId=${userId} status=${status}`);
+
   return jsonResponse(data, status);
 }
 
@@ -157,7 +180,8 @@ Deno.serve(async (req) => {
   let body: Record<string, unknown>;
   try {
     body = await req.json();
-  } catch {
+  } catch (err) {
+    console.warn(`[billing-proxy] Invalid JSON body: ${err instanceof Error ? err.message : err}`);
     return errorResponse("Invalid JSON body");
   }
 
@@ -165,6 +189,8 @@ Deno.serve(async (req) => {
   if (typeof action !== "string") {
     return errorResponse("action is required");
   }
+
+  console.log(`[billing-proxy] action=${action} userId=${userId}`);
 
   try {
     switch (action) {
