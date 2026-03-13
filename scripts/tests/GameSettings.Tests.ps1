@@ -3988,3 +3988,395 @@ Describe "Marathon cvars.xml" -Tag "marathon" {
         }
     }
 }
+
+# ===========================================================================
+# OVERWATCH 2 TESTS
+# ===========================================================================
+Describe "Overwatch 2 Settings_v0.ini" -Tag "overwatch2" {
+
+    BeforeAll {
+        $ProjectRoot = (Get-Location).Path
+        $ScriptsDir = Join-Path $ProjectRoot "scripts"
+        $ReferenceDir = Join-Path $ScriptsDir "reference-configs"
+        $RefFile = Join-Path $ReferenceDir "overwatch2-Settings_v0.ini"
+        $ScriptFile = Join-Path $ScriptsDir "26_Overwatch2_Settings.ps1"
+
+        # Helper: Check if a file starts with UTF-8 BOM (EF BB BF)
+        function Test-HasBOM {
+            param([string]$Path)
+            $bytes = [System.IO.File]::ReadAllBytes($Path)
+            return ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+        }
+
+        # Helper: Parse Overwatch 2 custom INI into ordered dict of section -> key/value pairs
+        # Format: Key = "value" with section headers like [Render.13]
+        function Parse-OW2Ini {
+            param([string]$Path)
+            $sections = [ordered]@{}
+            $currentSection = ""
+            foreach ($line in (Get-Content $Path)) {
+                $trimmed = $line.Trim()
+                if ($trimmed -match '^\[(.+)\]$') {
+                    $currentSection = $Matches[1]
+                    if (-not $sections.Contains($currentSection)) {
+                        $sections[$currentSection] = [ordered]@{}
+                    }
+                } elseif ($currentSection -and $trimmed -match '^(\S+)\s*=\s*"(.*)"$') {
+                    $sections[$currentSection][$Matches[1]] = $Matches[2]
+                }
+            }
+            return $sections
+        }
+
+        # Parse reference config
+        $RefSections = Parse-OW2Ini -Path $RefFile
+    }
+
+    # -----------------------------------------------------------------
+    Context "Reference config is valid" {
+        It "Reference file exists" {
+            $RefFile | Should -Exist
+        }
+
+        It "Reference file is valid custom INI (has [Render.13] section)" {
+            $RefSections.Keys | Should -Contain 'Render.13'
+        }
+
+        It "Reference file has [Sound.3] section" {
+            $RefSections.Keys | Should -Contain 'Sound.3'
+        }
+
+        It "Reference file has [Cinematics.1] section" {
+            $RefSections.Keys | Should -Contain 'Cinematics.1'
+        }
+
+        It "Reference file has [Input.1] section" {
+            $RefSections.Keys | Should -Contain 'Input.1'
+        }
+
+        It "Render.13 section has key competitive settings" {
+            $render = $RefSections['Render.13']
+            $render.Keys | Should -Contain 'AADetail'
+            $render.Keys | Should -Contain 'FrameRateCap'
+            $render.Keys | Should -Contain 'VerticalSyncEnabled'
+            $render.Keys | Should -Contain 'TripleBufferingEnabled'
+            $render.Keys | Should -Contain 'GFXPresetLevel'
+            $render.Keys | Should -Contain 'RenderScale'
+            $render.Keys | Should -Contain 'HorizontalFOV'
+            $render.Keys | Should -Contain 'WindowMode'
+        }
+
+        It "Reference values use double-quoted string format" {
+            $content = Get-Content $RefFile -Raw
+            $content | Should -Match 'AADetail = "0"'
+            $content | Should -Match 'FrameRateCap = "600"'
+            $content | Should -Match 'VerticalSyncEnabled = "0"'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script competitive settings use valid key names" {
+        BeforeAll {
+            $ScriptContent = Get-Content $ScriptFile -Raw
+
+            # Extract key names from the $RenderOverrides hashtable in the script
+            # Pattern: 'KeyName' followed by optional whitespace and =
+            $renderBlock = [regex]::Match($ScriptContent, '(?s)\$RenderOverrides\s*=\s*(\[ordered\])?@\{(.+?)\}')
+            $ScriptRenderKeys = @()
+            if ($renderBlock.Success) {
+                $ScriptRenderKeys = [regex]::Matches($renderBlock.Groups[2].Value, "'(\w+)'\s*=") |
+                    ForEach-Object { $_.Groups[1].Value } |
+                    Select-Object -Unique
+            }
+
+            # Extract keys from $CinematicsOverrides
+            $cinematicsBlock = [regex]::Match($ScriptContent, '(?s)\$CinematicsOverrides\s*=\s*(\[ordered\])?@\{(.+?)\}')
+            $ScriptCinematicsKeys = @()
+            if ($cinematicsBlock.Success) {
+                $ScriptCinematicsKeys = [regex]::Matches($cinematicsBlock.Groups[2].Value, "'(\w+)'\s*=") |
+                    ForEach-Object { $_.Groups[1].Value } |
+                    Select-Object -Unique
+            }
+
+            # Extract keys from $SoundOverrides
+            $soundBlock = [regex]::Match($ScriptContent, '(?s)\$SoundOverrides\s*=\s*(\[ordered\])?@\{(.+?)\}')
+            $ScriptSoundKeys = @()
+            if ($soundBlock.Success) {
+                $ScriptSoundKeys = [regex]::Matches($soundBlock.Groups[2].Value, "'(\w+)'\s*=") |
+                    ForEach-Object { $_.Groups[1].Value } |
+                    Select-Object -Unique
+            }
+
+            # Extract keys from $InputOverrides
+            $inputBlock = [regex]::Match($ScriptContent, '(?s)\$InputOverrides\s*=\s*(\[ordered\])?@\{(.+?)\}')
+            $ScriptInputKeys = @()
+            if ($inputBlock.Success) {
+                $ScriptInputKeys = [regex]::Matches($inputBlock.Groups[2].Value, "'(\w+)'\s*=") |
+                    ForEach-Object { $_.Groups[1].Value } |
+                    Select-Object -Unique
+            }
+
+            # Reference keys by section
+            $RefRenderKeys = $RefSections['Render.13'].Keys
+            $RefCinematicsKeys = $RefSections['Cinematics.1'].Keys
+            $RefSoundKeys = $RefSections['Sound.3'].Keys
+            $RefInputKeys = $RefSections['Input.1'].Keys
+        }
+
+        It "Render override keys were extracted from script" {
+            $ScriptRenderKeys.Count | Should -BeGreaterThan 20 -Because "Script should have 20+ render overrides"
+        }
+
+        It "All Render.13 override keys exist in reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptRenderKeys) {
+                if ($key -notin $RefRenderKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These Render.13 keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+
+        It "All Cinematics.1 override keys exist in reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptCinematicsKeys) {
+                if ($key -notin $RefCinematicsKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These Cinematics.1 keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+
+        It "All Sound.3 override keys exist in reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptSoundKeys) {
+                if ($key -notin $RefSoundKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These Sound.3 keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+
+        It "All Input.1 override keys exist in reference config" {
+            $missingKeys = @()
+            foreach ($key in $ScriptInputKeys) {
+                if ($key -notin $RefInputKeys) {
+                    $missingKeys += $key
+                }
+            }
+            $missingKeys | Should -BeNullOrEmpty -Because "These Input.1 keys are not in the reference config: $($missingKeys -join ', ')"
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script output file format" {
+        BeforeAll {
+            # Create temp sandbox simulating %USERPROFILE%\Documents\Overwatch\Settings\
+            $script:TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "sq-test-overwatch2-$(Get-Random)"
+            $settingsDir = Join-Path $script:TempDir "Documents\Overwatch\Settings"
+            New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
+
+            # Seed with reference config to test read-merge-write
+            Copy-Item $RefFile (Join-Path $settingsDir "Settings_v0.ini") -Force
+
+            # Save original USERPROFILE
+            $script:OrigUserProfile = $env:USERPROFILE
+
+            # Run the script in headless mode with overridden USERPROFILE
+            $env:SENSEQUALITY_HEADLESS = "1"
+            $env:MONITOR_WIDTH = "1920"
+            $env:MONITOR_HEIGHT = "1080"
+            $env:MONITOR_REFRESH = "240"
+            $env:NVIDIA_GPU = "1"
+            $env:USERPROFILE = $script:TempDir
+
+            $scriptPath = Join-Path $ScriptsDir "26_Overwatch2_Settings.ps1"
+            # *>&1 captures all streams including Write-Host (stream 6)
+            $script:Output = & $scriptPath *>&1 | Out-String
+            $script:OutputFile = Join-Path $settingsDir "Settings_v0.ini"
+        }
+
+        AfterAll {
+            # Restore USERPROFILE and clean up
+            $env:USERPROFILE = $script:OrigUserProfile
+            $env:SENSEQUALITY_HEADLESS = ""
+            if ($script:TempDir -and (Test-Path $script:TempDir)) {
+                Get-ChildItem $script:TempDir -Recurse -File -ErrorAction SilentlyContinue |
+                    ForEach-Object { if ($_.IsReadOnly) { $_.IsReadOnly = $false } }
+                Remove-Item $script:TempDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "Output file exists" {
+            $script:OutputFile | Should -Exist
+        }
+
+        It "Output file has no UTF-8 BOM" {
+            Test-HasBOM $script:OutputFile | Should -BeFalse -Because "Overwatch 2 config should not have BOM"
+        }
+
+        It "Output file contains [Render.13] section" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match '\[Render\.13\]'
+        }
+
+        It "Output file contains [Sound.3] section" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match '\[Sound\.3\]'
+        }
+
+        It "Output file contains [Cinematics.1] section" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match '\[Cinematics\.1\]'
+        }
+
+        It "Output file contains [Input.1] section" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match '\[Input\.1\]'
+        }
+
+        It "AADetail is 0 (anti-aliasing off)" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match 'AADetail = "0"'
+        }
+
+        It "VerticalSyncEnabled is 0 (VSync off)" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match 'VerticalSyncEnabled = "0"'
+        }
+
+        It "FrameRateCap is 600 (game maximum)" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match 'FrameRateCap = "600"'
+        }
+
+        It "TripleBufferingEnabled is 0 (off)" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match 'TripleBufferingEnabled = "0"'
+        }
+
+        It "DynamicRenderScale is 0 (off)" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match 'DynamicRenderScale = "0"'
+        }
+
+        It "HorizontalFOV is 103 (maximum)" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match 'HorizontalFOV = "103\.000000"'
+        }
+
+        It "WindowMode is 0 (fullscreen)" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match 'WindowMode = "0"'
+        }
+
+        It "CpuForceSyncEnabled is 0 for NVIDIA (Reduce Buffering off)" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match 'CpuForceSyncEnabled = "0"'
+        }
+
+        It "ShowIntro is 0 (skip intro)" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match 'ShowIntro = "0"'
+        }
+
+        It "HighTickInput is 1 (high tick input on)" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match 'HighTickInput = "1"'
+        }
+
+        It "MusicVolume is 0 (disabled for competitive)" {
+            $content = Get-Content $script:OutputFile -Raw
+            $content | Should -Match 'MusicVolume = "0\.000000"'
+        }
+
+        It "Read-merge-write preserved non-performance keys from seed" {
+            $outSections = Parse-OW2Ini -Path $script:OutputFile
+            $render = $outSections['Render.13']
+            # These keys exist in the reference seed but are NOT in script overrides
+            $render.Keys | Should -Contain 'FullScreenWidth'
+            $render.Keys | Should -Contain 'FullScreenHeight'
+            $render.Keys | Should -Contain 'RenderBrightness'
+            $render.Keys | Should -Contain 'RenderContrast'
+        }
+
+        It "Read-merge-write preserved GPU section from seed" {
+            $outSections = Parse-OW2Ini -Path $script:OutputFile
+            $outSections.Keys | Should -Contain 'GPU.6'
+        }
+
+        It "SQ_CHECK markers are emitted for config write" {
+            $script:Output | Should -Match '\[SQ_CHECK_(OK|WARN|FAIL):OW2_CONFIG_WRITTEN'
+        }
+
+        It "SQ_CHECK markers are emitted for EXE flags" {
+            $script:Output | Should -Match '\[SQ_CHECK_(OK|WARN):OW2_EXE_FLAGS'
+        }
+    }
+
+    # -----------------------------------------------------------------
+    Context "Script source code correctness" {
+        BeforeAll {
+            $ScriptContent = Get-Content $ScriptFile -Raw
+        }
+
+        It "Script runs in headless mode" {
+            $ScriptContent | Should -Match 'Initialize-SQEngine|SENSEQUALITY_HEADLESS'
+        }
+
+        It "Script uses Write-Check or SQ_CHECK markers" {
+            $ScriptContent | Should -Match 'Write-Check|SQ_CHECK'
+        }
+
+        It "Script uses read-merge-write pattern (not blind overwrite)" {
+            $ScriptContent | Should -Match 'Read-OW2IniFile'
+            $ScriptContent | Should -Match 'Merge-OW2IniSection'
+        }
+
+        It "Script writes UTF-8 without BOM" {
+            $ScriptContent | Should -Match 'UTF8Encoding.*\$false'
+        }
+
+        It "Script sets config read-only after write" {
+            $ScriptContent | Should -Match 'Lock-ConfigFile|IsReadOnly.*\$true'
+        }
+
+        It "Script backs up existing config before writing" {
+            $ScriptContent | Should -Match 'Backup-ConfigFile|bak_'
+        }
+
+        It "Script sets EXE compatibility flags" {
+            $ScriptContent | Should -Match 'Set-ExeCompatFlags'
+        }
+
+        It "Script emits all expected SQ_CHECK markers" {
+            $ScriptContent | Should -Match 'OW2_CONFIG_WRITTEN'
+            $ScriptContent | Should -Match 'OW2_EXE_FLAGS'
+        }
+
+        It "Script does not use em dashes or bare ampersands in comments" {
+            $ScriptContent | Should -Not -Match [char]0x2014 -Because "Em dashes break Pester parsing"
+        }
+
+        It "Script uses USERPROFILE path (not APPDATA or LOCALAPPDATA)" {
+            $ScriptContent | Should -Match '\$env:USERPROFILE'
+            $ScriptContent | Should -Match 'Documents\\Overwatch\\Settings'
+        }
+
+        It "Script handles GPU-specific CpuForceSyncEnabled setting" {
+            $ScriptContent | Should -Match 'CpuForceSyncEnabled'
+            $ScriptContent | Should -Match '\$NvidiaGPU'
+        }
+
+        It "Guide text matches config values" {
+            # FPS Cap 600 matches FrameRateCap = 600
+            $ScriptContent | Should -Match 'FPS Cap\s+:\s+600'
+            # V-Sync OFF matches VerticalSyncEnabled = 0
+            $ScriptContent | Should -Match 'V-Sync\s+:\s+OFF'
+            # Triple Buffering OFF matches TripleBufferingEnabled = 0
+            $ScriptContent | Should -Match 'Triple Buffering\s+:\s+OFF'
+            # Field of View 103 matches HorizontalFOV = 103.000000
+            $ScriptContent | Should -Match 'Field of View\s+:\s+103'
+        }
+    }
+}
