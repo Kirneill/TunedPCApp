@@ -8,6 +8,7 @@ interface UpgradeModalProps {
 export default function UpgradeModal({ onClose }: UpgradeModalProps) {
   const { authUser } = useAppStore();
   const [loading, setLoading] = useState(false);
+  const [polling, setPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleUpgrade = async () => {
@@ -22,17 +23,26 @@ export default function UpgradeModal({ onClose }: UpgradeModalProps) {
       }
 
       if (result.url) {
-        // Checkout opened in browser — show waiting state
-        // User will return to app after payment
-        // Poll for access after a short delay
-        setTimeout(async () => {
-          const access = await window.sensequality.billingRefreshAccess();
-          if (access.allowed) {
-            const sub = await window.sensequality.billingGetSubscription();
-            useAppStore.getState().setSubscription(sub);
+        // Checkout opened in browser — poll for confirmation
+        setPolling(true);
+        for (let i = 0; i < 5; i++) {
+          await new Promise((r) => setTimeout(r, 4000));
+          try {
+            const access = await window.sensequality.billingRefreshAccess();
+            if (access.allowed) {
+              const sub = await window.sensequality.billingGetSubscription();
+              useAppStore.getState().setSubscription(sub);
+              onClose();
+              return;
+            }
+          } catch {
+            // Keep polling
           }
-          onClose();
-        }, 3000);
+        }
+        // Payment likely went through but Autumn hasn't synced yet
+        setError('Payment processing — tap Retry to check again.');
+        setLoading(false);
+        setPolling(false);
       } else {
         // Product attached directly (card on file) — refresh immediately
         const sub = await window.sensequality.billingGetSubscription();
@@ -43,6 +53,7 @@ export default function UpgradeModal({ onClose }: UpgradeModalProps) {
       console.error('[upgrade] Checkout failed:', err);
       setError('Something went wrong. Please try again.');
       setLoading(false);
+      setPolling(false);
     }
   };
 
@@ -113,7 +124,7 @@ export default function UpgradeModal({ onClose }: UpgradeModalProps) {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Opening checkout...
+                {polling ? 'Waiting for payment confirmation...' : 'Opening checkout...'}
               </span>
             ) : (
               'Upgrade to Pro - $20/mo'
@@ -124,7 +135,17 @@ export default function UpgradeModal({ onClose }: UpgradeModalProps) {
           </p>
 
           {error && (
-            <p className="text-xs text-sq-danger text-center mt-2">{error}</p>
+            <div className="text-center mt-2">
+              <p className="text-xs text-sq-danger">{error}</p>
+              {!loading && (
+                <button
+                  onClick={handleUpgrade}
+                  className="mt-2 text-xs font-semibold text-sq-accent hover:text-sq-accent-hover transition-colors cursor-pointer"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
           )}
         </div>
 

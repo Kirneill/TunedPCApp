@@ -82,7 +82,7 @@ export async function createCheckout(successUrl?: string): Promise<{ url?: strin
   try {
     const { data, ok } = await billingFetch('attach', {
       product_id: AUTUMN_PRODUCTS.pro,
-      success_url: successUrl || 'https://sensequality.com/billing/success',
+      success_url: successUrl || 'https://tunedpc.com/pages/billing-success',
       force_checkout: true,
       ...(email ? { email } : {}),
     });
