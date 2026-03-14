@@ -44,7 +44,6 @@ extraResources:
     filter:
       - "**/*"
       - "!build.ps1"
-      - "!*.apbx"
 
 win:
   target: nsis

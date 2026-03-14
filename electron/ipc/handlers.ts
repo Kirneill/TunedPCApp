@@ -1205,7 +1205,6 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
   // Debloat manifest check
   ipcMain.handle('debloat:exportPlaybook', async () => {
     try {
-      const execFileAsync = promisify(execFile);
       const downloadsDir = app.getPath('downloads');
       const outputFile = path.join(downloadsDir, 'TUNEDPC-Lightweight-OS.apbx');
 
@@ -1213,16 +1212,26 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
         ? path.join(process.resourcesPath, 'playbook')
         : path.join(app.getAppPath(), 'playbook');
 
+      // Ship the pre-built .apbx directly — no 7-Zip dependency needed
+      const prebuiltApbx = path.join(playbookDir, 'TUNEDPC.apbx');
+      if (fs.existsSync(prebuiltApbx)) {
+        if (fs.existsSync(outputFile)) fs.unlinkSync(outputFile);
+        fs.copyFileSync(prebuiltApbx, outputFile);
+        shell.showItemInFolder(outputFile);
+        return { success: true, path: outputFile };
+      }
+
+      // Fallback: build on-the-fly from source files if pre-built not found
       if (!fs.existsSync(path.join(playbookDir, 'playbook.conf'))) {
         return { success: false, error: 'Playbook files not found' };
       }
 
       if (fs.existsSync(outputFile)) fs.unlinkSync(outputFile);
 
+      const execFileAsync = promisify(execFile);
       const itemsToZip = ['playbook.conf', 'Configuration', 'Executables']
         .filter(name => fs.existsSync(path.join(playbookDir, name)));
 
-      // Find 7-Zip executable
       const sevenZipPaths = [
         'C:\\Program Files\\7-Zip\\7z.exe',
         'C:\\Program Files (x86)\\7-Zip\\7z.exe',
@@ -1232,7 +1241,6 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
         if (fs.existsSync(p)) { sevenZipExe = p; break; }
       }
       if (!sevenZipExe) {
-        // Check if 7z is on PATH
         try {
           execFileSync('where', ['7z.exe'], { stdio: 'pipe' });
           sevenZipExe = '7z.exe';
@@ -1240,9 +1248,6 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
       }
 
       if (sevenZipExe) {
-        // 7-Zip: create password-encrypted ZIP (required by AME Wizard)
-        // Uses ZipCrypto (default) — NOT AES256 which AME Wizard cannot read
-        // cwd is playbookDir so items are added at archive root (flat structure)
         const args = [
           'a', '-tzip', '-pmalte', '-mx1', '-y',
           outputFile,
@@ -1253,7 +1258,6 @@ export function registerIpcHandlers(ipcMain: IpcMain) {
         shell.showItemInFolder(outputFile);
         return { success: true, path: outputFile };
       } else {
-        // Fallback: unencrypted ZIP via PowerShell (AME Wizard may reject this)
         const zipFile = outputFile.replace('.apbx', '.zip');
         if (fs.existsSync(zipFile)) fs.unlinkSync(zipFile);
 
