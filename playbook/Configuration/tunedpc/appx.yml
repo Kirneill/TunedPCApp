@@ -69,86 +69,13 @@ actions:
   - !appx: {name: '*Xbox.TCUI*', type: family, option: 'remove-bloat'}
   - !appx: {name: '*XboxApp*', type: family, option: 'remove-bloat'}
 
-  # --- OneDrive (bundled, not AppX but needs cleanup) ---
   - !powerShell:
-      command: |
-        # Stop OneDrive if running
-        Stop-Process -Name 'OneDrive' -Force -ErrorAction SilentlyContinue
-        # Uninstall OneDrive
-        $onedrive64 = "$env:SystemRoot\SysWOW64\OneDriveSetup.exe"
-        $onedrive32 = "$env:SystemRoot\System32\OneDriveSetup.exe"
-        if (Test-Path $onedrive64) {
-            Start-Process $onedrive64 -ArgumentList '/uninstall' -Wait -ErrorAction SilentlyContinue
-        } elseif (Test-Path $onedrive32) {
-            Start-Process $onedrive32 -ArgumentList '/uninstall' -Wait -ErrorAction SilentlyContinue
-        }
-        # Clean up OneDrive folders
-        Remove-Item "$env:USERPROFILE\OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item "$env:LOCALAPPDATA\Microsoft\OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item "$env:ProgramData\Microsoft OneDrive" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host '[TUNEDPC] OneDrive removed.'
+      command: 'Stop-Process -Name ''OneDrive'' -Force -ErrorAction SilentlyContinue; $sr = [Environment]::GetEnvironmentVariable(''SystemRoot''); $o64 = Join-Path $sr ''SysWOW64\OneDriveSetup.exe''; $o32 = Join-Path $sr ''System32\OneDriveSetup.exe''; if (Test-Path $o64) { Start-Process $o64 -ArgumentList ''/uninstall'' -Wait -ErrorAction SilentlyContinue } elseif (Test-Path $o32) { Start-Process $o32 -ArgumentList ''/uninstall'' -Wait -ErrorAction SilentlyContinue }; $up = [Environment]::GetFolderPath(''UserProfile''); $la = [Environment]::GetFolderPath(''LocalApplicationData''); $pd = [Environment]::GetEnvironmentVariable(''ProgramData''); Remove-Item (Join-Path $up ''OneDrive'') -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item (Join-Path $la ''Microsoft\OneDrive'') -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item (Join-Path $pd ''Microsoft OneDrive'') -Recurse -Force -ErrorAction SilentlyContinue; Write-Host ''[TUNEDPC] OneDrive removed.'''
       option: 'remove-bloat'
       weight: 3
 
-  # --- Deprovision removed packages to prevent reinstallation ---
   - !powerShell:
-      command: |
-        $deprovisionNames = @(
-            'Microsoft.BingNews',
-            'Microsoft.BingWeather',
-            'Microsoft.BingFinance',
-            'Microsoft.BingSports',
-            'Microsoft.GetHelp',
-            'Microsoft.Getstarted',
-            'Microsoft.MicrosoftOfficeHub',
-            'Microsoft.MicrosoftSolitaireCollection',
-            'Microsoft.MixedReality.Portal',
-            'Microsoft.People',
-            'Microsoft.PowerAutomateDesktop',
-            'Microsoft.SkypeApp',
-            'Microsoft.Todos',
-            'Microsoft.MicrosoftStickyNotes',
-            'Microsoft.WindowsCommunicationsApps',
-            'Microsoft.OutlookForWindows',
-            'MicrosoftTeams',
-            'Microsoft.549981C3F5F10',
-            'Microsoft.Copilot',
-            'Microsoft.ZuneMusic',
-            'Microsoft.ZuneVideo',
-            'Microsoft.WindowsSoundRecorder',
-            'Microsoft.WindowsAlarms',
-            'Microsoft.WindowsFeedbackHub',
-            'Microsoft.WindowsMaps',
-            'Microsoft.YourPhone',
-            'Clipchamp.Clipchamp',
-            'MicrosoftCorporationII.QuickAssist',
-            'Microsoft.Windows.DevHome',
-            'Microsoft.Xbox.TCUI',
-            'Microsoft.XboxApp'
-        )
-        $deprovisioned = 0
-        foreach ($name in $deprovisionNames) {
-            $prov = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue |
-                Where-Object { $_.DisplayName -eq $name }
-            if ($prov) {
-                foreach ($p in $prov) {
-                    try {
-                        Remove-AppxProvisionedPackage -Online -PackageName $p.PackageName -ErrorAction Stop | Out-Null
-                        $deprovisioned++
-                    } catch { }
-                }
-            }
-            # Also create deprovision registry key to prevent future reinstallation
-            $familyName = (Get-AppxPackage -Name $name -AllUsers -ErrorAction SilentlyContinue |
-                Select-Object -First 1).PackageFamilyName
-            if ($familyName) {
-                $deprovPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\$familyName"
-                if (-not (Test-Path $deprovPath)) {
-                    New-Item -Path $deprovPath -Force | Out-Null
-                }
-            }
-        }
-        Write-Host "[TUNEDPC] Deprovisioned $deprovisioned packages."
+      command: '$names = @(''Microsoft.BingNews'',''Microsoft.BingWeather'',''Microsoft.BingFinance'',''Microsoft.BingSports'',''Microsoft.GetHelp'',''Microsoft.Getstarted'',''Microsoft.MicrosoftOfficeHub'',''Microsoft.MicrosoftSolitaireCollection'',''Microsoft.MixedReality.Portal'',''Microsoft.People'',''Microsoft.PowerAutomateDesktop'',''Microsoft.SkypeApp'',''Microsoft.Todos'',''Microsoft.MicrosoftStickyNotes'',''Microsoft.WindowsCommunicationsApps'',''Microsoft.OutlookForWindows'',''MicrosoftTeams'',''Microsoft.549981C3F5F10'',''Microsoft.Copilot'',''Microsoft.ZuneMusic'',''Microsoft.ZuneVideo'',''Microsoft.WindowsSoundRecorder'',''Microsoft.WindowsAlarms'',''Microsoft.WindowsFeedbackHub'',''Microsoft.WindowsMaps'',''Microsoft.YourPhone'',''Clipchamp.Clipchamp'',''MicrosoftCorporationII.QuickAssist'',''Microsoft.Windows.DevHome'',''Microsoft.Xbox.TCUI'',''Microsoft.XboxApp''); $d = 0; foreach ($n in $names) { $prov = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq $n }; if ($prov) { foreach ($p in $prov) { try { Remove-AppxProvisionedPackage -Online -PackageName $p.PackageName -ErrorAction Stop | Out-Null; $d++ } catch {} } }; $fn = (Get-AppxPackage -Name $n -AllUsers -ErrorAction SilentlyContinue | Select-Object -First 1).PackageFamilyName; if ($fn) { $dp = ''HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\'' + $fn; if (-not (Test-Path $dp)) { New-Item -Path $dp -Force | Out-Null } } }; Write-Host (''[TUNEDPC] Deprovisioned {0} packages.'' -f $d)'
       option: 'remove-bloat'
       weight: 5
 

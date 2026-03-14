@@ -6,166 +6,35 @@ actions:
   # CLEANUP: Final system cleanup after all optimizations
   # =====================================================================
 
-  # --- Clear Windows Update cache ---
   - !powerShell:
-      command: |
-        # Stop Windows Update service temporarily
-        Stop-Service -Name 'wuauserv' -Force -ErrorAction SilentlyContinue
-        Stop-Service -Name 'BITS' -Force -ErrorAction SilentlyContinue
-        # Clear SoftwareDistribution folder
-        $sdPath = "$env:SystemRoot\SoftwareDistribution\Download"
-        if (Test-Path $sdPath) {
-            Remove-Item "$sdPath\*" -Recurse -Force -ErrorAction SilentlyContinue
-            Write-Host '[TUNEDPC] Windows Update cache cleared.'
-        }
-        # Restart services
-        Start-Service -Name 'BITS' -ErrorAction SilentlyContinue
-        Start-Service -Name 'wuauserv' -ErrorAction SilentlyContinue
+      command: 'Stop-Service -Name ''wuauserv'' -Force -ErrorAction SilentlyContinue; Stop-Service -Name ''BITS'' -Force -ErrorAction SilentlyContinue; $sr = [Environment]::GetEnvironmentVariable(''SystemRoot''); $sd = Join-Path $sr ''SoftwareDistribution\Download''; if (Test-Path $sd) { Remove-Item (Join-Path $sd ''*'') -Recurse -Force -ErrorAction SilentlyContinue; Write-Host ''[TUNEDPC] Windows Update cache cleared.'' }; Start-Service -Name ''BITS'' -ErrorAction SilentlyContinue; Start-Service -Name ''wuauserv'' -ErrorAction SilentlyContinue'
       weight: 3
 
-  # --- Clear temp files ---
   - !powerShell:
-      command: |
-        $tempPaths = @(
-            "$env:TEMP",
-            "$env:SystemRoot\Temp",
-            "$env:SystemRoot\Prefetch",
-            "$env:LOCALAPPDATA\Temp"
-        )
-        $totalCleared = 0
-        foreach ($path in $tempPaths) {
-            if (Test-Path $path) {
-                $items = Get-ChildItem $path -Recurse -Force -ErrorAction SilentlyContinue
-                $sizeMB = [math]::Round(($items | Measure-Object -Property Length -Sum -ErrorAction SilentlyContinue).Sum / 1MB, 1)
-                Remove-Item "$path\*" -Recurse -Force -ErrorAction SilentlyContinue
-                $totalCleared += $sizeMB
-            }
-        }
-        Write-Host "[TUNEDPC] Cleared approximately ${totalCleared} MB of temp files."
+      command: '$sr = [Environment]::GetEnvironmentVariable(''SystemRoot''); $tp = @([Environment]::GetEnvironmentVariable(''TEMP''), (Join-Path $sr ''Temp''), (Join-Path $sr ''Prefetch''), (Join-Path ([Environment]::GetFolderPath(''LocalApplicationData'')) ''Temp'')); $tc = 0; foreach ($p in $tp) { if (Test-Path $p) { $items = Get-ChildItem $p -Recurse -Force -ErrorAction SilentlyContinue; $sz = [math]::Round(($items | Measure-Object -Property Length -Sum -ErrorAction SilentlyContinue).Sum / 1MB, 1); Remove-Item (Join-Path $p ''*'') -Recurse -Force -ErrorAction SilentlyContinue; $tc += $sz } }; Write-Host (''[TUNEDPC] Cleared approximately {0} MB of temp files.'' -f $tc)'
       weight: 3
 
-  # --- Clear Windows Delivery Optimization cache ---
   - !powerShell:
-      command: |
-        $doPath = "$env:SystemRoot\ServiceProfiles\NetworkService\AppData\Local\Microsoft\Windows\DeliveryOptimization\Cache"
-        if (Test-Path $doPath) {
-            Remove-Item "$doPath\*" -Recurse -Force -ErrorAction SilentlyContinue
-            Write-Host '[TUNEDPC] Delivery Optimization cache cleared.'
-        }
+      command: '$sr = [Environment]::GetEnvironmentVariable(''SystemRoot''); $dp = Join-Path $sr ''ServiceProfiles\NetworkService\AppData\Local\Microsoft\Windows\DeliveryOptimization\Cache''; if (Test-Path $dp) { Remove-Item (Join-Path $dp ''*'') -Recurse -Force -ErrorAction SilentlyContinue; Write-Host ''[TUNEDPC] Delivery Optimization cache cleared.'' }'
       weight: 2
 
-  # --- Clear font cache ---
   - !powerShell:
-      command: |
-        Stop-Service -Name 'FontCache' -Force -ErrorAction SilentlyContinue
-        $fontCachePath = "$env:SystemRoot\ServiceProfiles\LocalService\AppData\Local\FontCache"
-        if (Test-Path $fontCachePath) {
-            Remove-Item "$fontCachePath\*" -Force -ErrorAction SilentlyContinue
-        }
-        Start-Service -Name 'FontCache' -ErrorAction SilentlyContinue
-        Write-Host '[TUNEDPC] Font cache cleared.'
+      command: 'Stop-Service -Name ''FontCache'' -Force -ErrorAction SilentlyContinue; $sr = [Environment]::GetEnvironmentVariable(''SystemRoot''); $fc = Join-Path $sr ''ServiceProfiles\LocalService\AppData\Local\FontCache''; if (Test-Path $fc) { Remove-Item (Join-Path $fc ''*'') -Force -ErrorAction SilentlyContinue }; Start-Service -Name ''FontCache'' -ErrorAction SilentlyContinue; Write-Host ''[TUNEDPC] Font cache cleared.'''
       weight: 1
 
-  # --- Clear icon cache ---
   - !powerShell:
-      command: |
-        $iconCachePath = "$env:LOCALAPPDATA\Microsoft\Windows\Explorer"
-        if (Test-Path $iconCachePath) {
-            Get-ChildItem "$iconCachePath\iconcache*.db" -Force -ErrorAction SilentlyContinue |
-                Remove-Item -Force -ErrorAction SilentlyContinue
-            Get-ChildItem "$iconCachePath\thumbcache*.db" -Force -ErrorAction SilentlyContinue |
-                Remove-Item -Force -ErrorAction SilentlyContinue
-            Write-Host '[TUNEDPC] Icon and thumbnail cache cleared.'
-        }
+      command: '$la = [Environment]::GetFolderPath(''LocalApplicationData''); $ic = Join-Path $la ''Microsoft\Windows\Explorer''; if (Test-Path $ic) { Get-ChildItem (Join-Path $ic ''iconcache*.db'') -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue; Get-ChildItem (Join-Path $ic ''thumbcache*.db'') -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue; Write-Host ''[TUNEDPC] Icon and thumbnail cache cleared.'' }'
       weight: 1
 
-  # --- Run Disk Cleanup silently ---
   - !powerShell:
-      command: |
-        # Set Disk Cleanup flags for all categories
-        $cleanupFlags = @(
-            'Active Setup Temp Folders',
-            'BranchCache',
-            'Content Indexer Cleaner',
-            'D3D Shader Cache',
-            'Delivery Optimization Files',
-            'Device Driver Packages',
-            'Diagnostic Data Viewer database files',
-            'Downloaded Program Files',
-            'Internet Cache Files',
-            'Old ChkDsk Files',
-            'Previous Installations',
-            'Recycle Bin',
-            'RetailDemo Offline Content',
-            'Setup Log Files',
-            'System error memory dump files',
-            'System error minidump files',
-            'Temporary Files',
-            'Temporary Setup Files',
-            'Thumbnail Cache',
-            'Update Cleanup',
-            'Upgrade Discarded Files',
-            'User file versions',
-            'Windows Defender',
-            'Windows Error Reporting Files',
-            'Windows ESD installation files',
-            'Windows Reset Log Files',
-            'Windows Upgrade Log Files'
-        )
-        $volumeCache = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches'
-        foreach ($flag in $cleanupFlags) {
-            $path = Join-Path $volumeCache $flag
-            if (Test-Path $path) {
-                Set-ItemProperty -Path $path -Name 'StateFlags0100' -Value 2 -Type DWord -Force -ErrorAction SilentlyContinue
-            }
-        }
-        # Run cleanmgr silently
-        Start-Process 'cleanmgr.exe' -ArgumentList '/sagerun:100' -Wait -ErrorAction SilentlyContinue
-        Write-Host '[TUNEDPC] Disk Cleanup completed.'
+      command: '$cf = @(''Active Setup Temp Folders'',''BranchCache'',''Content Indexer Cleaner'',''D3D Shader Cache'',''Delivery Optimization Files'',''Device Driver Packages'',''Diagnostic Data Viewer database files'',''Downloaded Program Files'',''Internet Cache Files'',''Old ChkDsk Files'',''Previous Installations'',''Recycle Bin'',''RetailDemo Offline Content'',''Setup Log Files'',''System error memory dump files'',''System error minidump files'',''Temporary Files'',''Temporary Setup Files'',''Thumbnail Cache'',''Update Cleanup'',''Upgrade Discarded Files'',''User file versions'',''Windows Defender'',''Windows Error Reporting Files'',''Windows ESD installation files'',''Windows Reset Log Files'',''Windows Upgrade Log Files''); $vc = ''HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches''; foreach ($f in $cf) { $p = Join-Path $vc $f; if (Test-Path $p) { Set-ItemProperty -Path $p -Name ''StateFlags0100'' -Value 2 -Type DWord -Force -ErrorAction SilentlyContinue } }; Start-Process ''cleanmgr.exe'' -ArgumentList ''/sagerun:100'' -Wait -ErrorAction SilentlyContinue; Write-Host ''[TUNEDPC] Disk Cleanup completed.'''
       weight: 5
 
-  # --- Compact OS (reduce Windows footprint) ---
-  - !cmd:
-      command: 'compact /compactos:always'
-      wait: true
-      weight: 8
-
-  # --- Final DISM health check ---
-  - !cmd:
-      command: 'DISM /Online /Cleanup-Image /RestoreHealth'
-      wait: true
-      weight: 10
-
-  # --- Flush DNS cache ---
   - !cmd:
       command: 'ipconfig /flushdns'
       wait: true
       weight: 1
 
-  # --- Final summary ---
   - !powerShell:
-      command: |
-        Write-Host ''
-        Write-Host '============================================'
-        Write-Host '  TUNEDPC Lightweight OS -- Complete!'
-        Write-Host '============================================'
-        Write-Host ''
-        Write-Host '  All optimizations have been applied.'
-        Write-Host '  Please REBOOT your PC for changes to take full effect.'
-        Write-Host ''
-        Write-Host '  Anti-cheat status (Recommended mode):'
-        Write-Host '    Vanguard (Valorant):  SAFE'
-        Write-Host '    RICOCHET (COD):       SAFE'
-        Write-Host '    EAC (Fortnite):       SAFE'
-        Write-Host '    VAC (CS2):            SAFE'
-        Write-Host '    BattlEye (Tarkov):    SAFE'
-        Write-Host ''
-        Write-Host '  Note: Anti-cheat safety applies to Recommended mode.'
-        Write-Host '  Maximum Performance mode may affect some anti-cheat systems.'
-        Write-Host ''
-        Write-Host '  For game-specific config optimization,'
-        Write-Host '  download SENSEQUALITY Optimizer:'
-        Write-Host '  https://sensequality.com'
-        Write-Host ''
-        Write-Host '============================================'
+      command: 'Write-Host ''''; Write-Host ''============================================''; Write-Host ''  TUNEDPC Lightweight OS -- Complete!''; Write-Host ''============================================''; Write-Host ''''; Write-Host ''  All optimizations have been applied.''; Write-Host ''  Please REBOOT your PC for changes to take full effect.''; Write-Host ''''; Write-Host ''  For game-specific config optimization,''; Write-Host ''  download the TUNEDPC app at TUNEDPC.com''; Write-Host ''''; Write-Host ''============================================'''
       weight: 1

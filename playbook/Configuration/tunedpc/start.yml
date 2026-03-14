@@ -6,40 +6,15 @@ actions:
   # START: Pre-flight safety -- restore point, version check
   # =====================================================================
 
-  # Create a system restore point before any modifications
   - !powerShell:
-      command: |
-        try {
-            $srpPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore'
-            if (-not (Test-Path $srpPath)) { New-Item -Path $srpPath -Force | Out-Null }
-            Set-ItemProperty -Path $srpPath -Name 'SystemRestorePointCreationFrequency' -Value 0 -Type DWord -Force
-            Enable-ComputerRestore -Drive $env:SystemDrive -ErrorAction SilentlyContinue
-            Checkpoint-Computer -Description 'TUNEDPC Lightweight OS (pre-optimization)' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
-            Write-Host '[TUNEDPC] System restore point created successfully.'
-        } catch {
-            Write-Host "[TUNEDPC] WARNING: Could not create restore point: $_"
-            Write-Host '[TUNEDPC] Continuing -- AME Wizard provides its own safety mechanisms.'
-        }
+      command: 'try { $srpPath = ''HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore''; if (-not (Test-Path $srpPath)) { New-Item -Path $srpPath -Force | Out-Null }; Set-ItemProperty -Path $srpPath -Name ''SystemRestorePointCreationFrequency'' -Value 0 -Type DWord -Force; Enable-ComputerRestore -Drive $env:SystemDrive -ErrorAction SilentlyContinue; Checkpoint-Computer -Description ''TUNEDPC Lightweight OS (pre-optimization)'' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop; Write-Host ''[TUNEDPC] System restore point created successfully.'' } catch { Write-Host ''[TUNEDPC] WARNING: Could not create restore point. Continuing.'' }'
       weight: 5
 
-  # Log system information for diagnostics
   - !powerShell:
-      command: |
-        $os = Get-CimInstance Win32_OperatingSystem
-        $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
-        $gpu = Get-CimInstance Win32_VideoController | Where-Object { $_.AdapterRAM -gt 0 } | Select-Object -First 1
-        $ram = [math]::Round($os.TotalVisibleMemorySize / 1MB, 1)
-        Write-Host "============================================"
-        Write-Host "  TUNEDPC Lightweight OS v1.0.0"
-        Write-Host "============================================"
-        Write-Host "  OS:  $($os.Caption) Build $($os.BuildNumber)"
-        Write-Host "  CPU: $($cpu.Name)"
-        Write-Host "  GPU: $($gpu.Name)"
-        Write-Host "  RAM: ${ram} GB"
-        Write-Host "============================================"
+      command: '$os = Get-CimInstance Win32_OperatingSystem; $cpu = (Get-CimInstance Win32_Processor | Select-Object -First 1).Name; $gpu = (Get-CimInstance Win32_VideoController | Where-Object { $_.AdapterRAM -gt 0 } | Select-Object -First 1).Name; $ram = [math]::Round($os.TotalVisibleMemorySize / 1MB, 1); Write-Host ''============================================''; Write-Host ''  TUNEDPC Lightweight OS v1.0.0''; Write-Host ''============================================''; Write-Host (''  OS:  '' + $os.Caption + '' Build '' + $os.BuildNumber); Write-Host (''  CPU: '' + $cpu); Write-Host (''  GPU: '' + $gpu); Write-Host (''  RAM: '' + $ram + '' GB''); Write-Host ''============================================'''
       weight: 1
 
-  # Set PowerShell execution policy to allow scripts
+  # Set PowerShell execution policy to allow scripts (ignore if overridden by GPO)
   - !powerShell:
-      command: 'Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine -Force -ErrorAction SilentlyContinue'
+      command: 'try { Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine -Force -ErrorAction Stop } catch { Write-Host ''[TUNEDPC] Execution policy already set by GPO -- skipping.'' }'
       weight: 1

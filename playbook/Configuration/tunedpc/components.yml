@@ -12,128 +12,16 @@ actions:
   # Gated behind "remove-capabilities" checkbox option
   # =====================================================================
 
-  # --- Remove Windows Capabilities via DISM ---
-  # These use DISM /Remove-Capability which requires TrustedInstaller context
-
-  # Internet Explorer Mode
-  - !cmd:
-      command: 'DISM /Online /Remove-Capability /CapabilityName:Browser.InternetExplorer~~~~0.0.11.0 /NoRestart'
+  - !powerShell:
+      command: '$px = @(''Browser.InternetExplorer'',''MathRecognizer'',''Microsoft.Windows.PowerShell.ISE'',''App.StepsRecorder'',''Media.WindowsMediaPlayer'',''Microsoft.Windows.WordPad'',''Print.Fax.Scan'',''Hello.Face'',''App.Support.QuickAssist'',''Print.Management.Console'',''SNMP.Client'',''WMIC''); $r = 0; $caps = Get-WindowsCapability -Online -ErrorAction SilentlyContinue | Where-Object { $_.State -eq ''Installed'' }; foreach ($p in $px) { $m = $caps | Where-Object { $_.Name -like ($p + ''*'') }; if ($m) { foreach ($c in $m) { try { Remove-WindowsCapability -Online -Name $c.Name -ErrorAction Stop | Out-Null; $r++; Write-Host (''[TUNEDPC] Removed: '' + $c.Name) } catch { Write-Host (''[TUNEDPC] Skipped: '' + $c.Name) } } } }; Write-Host (''[TUNEDPC] Removed {0} capabilities.'' -f $r)'
       wait: true
-      weight: 5
+      weight: 15
       option: 'remove-capabilities'
 
-  # Math Recognizer (handwriting math input)
-  - !cmd:
-      command: 'DISM /Online /Remove-Capability /CapabilityName:MathRecognizer~~~~0.0.1.0 /NoRestart'
+  - !powerShell:
+      command: '$ft = @(''WorkFolders-Client'',''FaxServicesClientPackage'',''Printing-XPSServices-Features'',''WindowsMediaPlayer'',''Printing-Foundation-InternetPrinting-Client''); $d = 0; foreach ($f in $ft) { $s = Get-WindowsOptionalFeature -Online -FeatureName $f -ErrorAction SilentlyContinue; if ($s -and $s.State -eq ''Enabled'') { try { Disable-WindowsOptionalFeature -Online -FeatureName $f -NoRestart -ErrorAction Stop | Out-Null; $d++; Write-Host (''[TUNEDPC] Disabled: '' + $f) } catch { Write-Host (''[TUNEDPC] Skipped: '' + $f) } } }; Write-Host (''[TUNEDPC] Disabled {0} optional features.'' -f $d)'
       wait: true
-      weight: 3
-      option: 'remove-capabilities'
-
-  # PowerShell ISE (legacy editor, not needed with Terminal/VS Code)
-  - !cmd:
-      command: 'DISM /Online /Remove-Capability /CapabilityName:Microsoft.Windows.PowerShell.ISE~~~~0.0.1.0 /NoRestart'
-      wait: true
-      weight: 3
-      option: 'remove-capabilities'
-
-  # Steps Recorder (screen recording for support)
-  - !cmd:
-      command: 'DISM /Online /Remove-Capability /CapabilityName:App.StepsRecorder~~~~0.0.1.0 /NoRestart'
-      wait: true
-      weight: 3
-      option: 'remove-capabilities'
-
-  # Windows Media Player (legacy)
-  - !cmd:
-      command: 'DISM /Online /Remove-Capability /CapabilityName:Media.WindowsMediaPlayer~~~~0.0.12.0 /NoRestart'
-      wait: true
-      weight: 5
-      option: 'remove-capabilities'
-
-  # WordPad
-  - !cmd:
-      command: 'DISM /Online /Remove-Capability /CapabilityName:Microsoft.Windows.WordPad~~~~0.0.1.0 /NoRestart'
-      wait: true
-      weight: 3
-      option: 'remove-capabilities'
-
-  # Fax and Scan
-  - !cmd:
-      command: 'DISM /Online /Remove-Capability /CapabilityName:Print.Fax.Scan~~~~0.0.1.0 /NoRestart'
-      wait: true
-      weight: 3
-      option: 'remove-capabilities'
-
-  # Windows Hello Face recognition (requires camera hardware)
-  - !cmd:
-      command: 'DISM /Online /Remove-Capability /CapabilityName:Hello.Face~~~~0.0.1.0 /NoRestart'
-      wait: true
-      weight: 3
-      option: 'remove-capabilities'
-
-  # Quick Assist (remote support)
-  - !cmd:
-      command: 'DISM /Online /Remove-Capability /CapabilityName:App.Support.QuickAssist~~~~0.0.1.0 /NoRestart'
-      wait: true
-      weight: 3
-      option: 'remove-capabilities'
-
-  # Print Management Console
-  - !cmd:
-      command: 'DISM /Online /Remove-Capability /CapabilityName:Print.Management.Console~~~~0.0.1.0 /NoRestart'
-      wait: true
-      weight: 3
-      option: 'remove-capabilities'
-
-  # SNMP Protocol (legacy network monitoring)
-  - !cmd:
-      command: 'DISM /Online /Remove-Capability /CapabilityName:SNMP.Client~~~~0.0.1.0 /NoRestart'
-      wait: true
-      weight: 2
-      option: 'remove-capabilities'
-
-  # WMIC (deprecated command-line WMI -- PowerShell has Get-CimInstance)
-  - !cmd:
-      command: 'DISM /Online /Remove-Capability /CapabilityName:WMIC~~~~0.0.1.0 /NoRestart'
-      wait: true
-      weight: 2
-      option: 'remove-capabilities'
-
-  # --- Disable Optional Features via DISM ---
-
-  # Work Folders Client
-  - !cmd:
-      command: 'DISM /Online /Disable-Feature /FeatureName:WorkFolders-Client /NoRestart'
-      wait: true
-      weight: 2
-      option: 'remove-capabilities'
-
-  # Windows Fax and Scan
-  - !cmd:
-      command: 'DISM /Online /Disable-Feature /FeatureName:FaxServicesClientPackage /NoRestart'
-      wait: true
-      weight: 2
-      option: 'remove-capabilities'
-
-  # Printing -- XPS Document Writer
-  - !cmd:
-      command: 'DISM /Online /Disable-Feature /FeatureName:Printing-XPSServices-Features /NoRestart'
-      wait: true
-      weight: 2
-      option: 'remove-capabilities'
-
-  # Windows Media Player (optional feature)
-  - !cmd:
-      command: 'DISM /Online /Disable-Feature /FeatureName:WindowsMediaPlayer /NoRestart'
-      wait: true
-      weight: 2
-      option: 'remove-capabilities'
-
-  # Internet Printing Client
-  - !cmd:
-      command: 'DISM /Online /Disable-Feature /FeatureName:Printing-Foundation-InternetPrinting-Client /NoRestart'
-      wait: true
-      weight: 2
+      weight: 10
       option: 'remove-capabilities'
 
   # --- Enable Useful Features ---
@@ -144,29 +32,17 @@ actions:
       wait: true
       weight: 3
 
-  # .NET Framework 3.5 (required by some games and tools)
-  - !cmd:
-      command: 'DISM /Online /Enable-Feature /FeatureName:NetFx3 /All /NoRestart'
+  # .NET Framework 3.5 -- skip if Windows Update is unavailable (non-fatal)
+  - !powerShell:
+      command: '$f = Get-WindowsOptionalFeature -Online -FeatureName ''NetFx3'' -ErrorAction SilentlyContinue; if ($f -and $f.State -ne ''Enabled'') { try { Enable-WindowsOptionalFeature -Online -FeatureName ''NetFx3'' -All -NoRestart -ErrorAction Stop | Out-Null; Write-Host ''[TUNEDPC] .NET 3.5 enabled.'' } catch { Write-Host ''[TUNEDPC] .NET 3.5 skipped (requires Windows Update or install media).'' } } else { Write-Host ''[TUNEDPC] .NET 3.5 already enabled.'' }'
       wait: true
       weight: 5
 
-  # --- Component Store Cleanup (the deep clean) ---
-  # This is the most aggressive cleanup -- supersedes replaced components
-  # and permanently removes old component versions from WinSxS
-
-  # Run component store analysis first
+  # Component store cleanup -- use lightweight cleanup (no /ResetBase to avoid 20+ min hang)
   - !cmd:
-      command: 'DISM /Online /Cleanup-Image /AnalyzeComponentStore'
+      command: 'DISM /Online /Cleanup-Image /StartComponentCleanup /NoRestart'
       wait: true
-      weight: 3
-      option: 'remove-capabilities'
-
-  # Remove superseded components with /ResetBase
-  # This makes the cleanup PERMANENT -- old component versions cannot be restored
-  - !cmd:
-      command: 'DISM /Online /Cleanup-Image /StartComponentCleanup /ResetBase'
-      wait: true
-      weight: 10
+      weight: 5
       option: 'remove-capabilities'
 
   # --- Maximum mode: Remove additional Windows Optional Features ---

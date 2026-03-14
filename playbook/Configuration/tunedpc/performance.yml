@@ -197,29 +197,13 @@ actions:
       data: '0'
       option: 'gaming-perf'
 
-  # --- Ultimate Performance Power Plan ---
   - !powerShell:
-      command: |
-        # Unhide and activate Ultimate Performance power plan
-        $ultimateGuid = 'e9a42b02-d5df-448d-aa00-03f14749eb61'
-        powercfg /duplicatescheme $ultimateGuid 2>$null
-        powercfg /setactive $ultimateGuid 2>$null
-        if ($LASTEXITCODE -ne 0) {
-            # Fall back to High Performance if Ultimate Performance is unavailable
-            powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null
-            Write-Host '[TUNEDPC] High Performance power plan activated (Ultimate Performance unavailable).'
-        } else {
-            Write-Host '[TUNEDPC] Ultimate Performance power plan activated.'
-        }
+      command: '$g = ''e9a42b02-d5df-448d-aa00-03f14749eb61''; powercfg /duplicatescheme $g 2>$null; powercfg /setactive $g 2>$null; if ($LASTEXITCODE -ne 0) { powercfg /setactive ''8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c'' 2>$null; Write-Host ''[TUNEDPC] High Performance power plan activated.'' } else { Write-Host ''[TUNEDPC] Ultimate Performance power plan activated.'' }'
       option: 'gaming-perf'
       weight: 2
 
-  # --- Disable USB Selective Suspend ---
   - !powerShell:
-      command: |
-        powercfg /SETACVALUEINDEX SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
-        powercfg /SETDCVALUEINDEX SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
-        powercfg /SETACTIVE SCHEME_CURRENT
+      command: 'powercfg /SETACVALUEINDEX SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0; powercfg /SETDCVALUEINDEX SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0; powercfg /SETACTIVE SCHEME_CURRENT'
       option: 'gaming-perf'
       weight: 1
 
@@ -231,17 +215,7 @@ actions:
 
   # --- Disable Nagle's Algorithm (lower network latency) ---
   - !powerShell:
-      command: |
-        # Disable Nagle for all active network interfaces
-        $adapters = Get-NetAdapter | Where-Object { $_.Status -eq 'Up' }
-        foreach ($adapter in $adapters) {
-            $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\$($adapter.InterfaceGuid)"
-            if (Test-Path $regPath) {
-                Set-ItemProperty -Path $regPath -Name 'TcpAckFrequency' -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
-                Set-ItemProperty -Path $regPath -Name 'TCPNoDelay' -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
-            }
-        }
-        Write-Host "[TUNEDPC] Nagle's algorithm disabled on $($adapters.Count) adapter(s)."
+      command: '$a = Get-NetAdapter | Where-Object { $_.Status -eq ''Up'' }; foreach ($ad in $a) { $rp = ''HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\'' + $ad.InterfaceGuid; if (Test-Path $rp) { Set-ItemProperty -Path $rp -Name ''TcpAckFrequency'' -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue; Set-ItemProperty -Path $rp -Name ''TCPNoDelay'' -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue } }; Write-Host (''[TUNEDPC] Nagles algorithm disabled on {0} adapter(s).'' -f $a.Count)'
       option: 'gaming-perf'
       weight: 2
 
