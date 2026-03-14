@@ -6,23 +6,12 @@ import { trackOptimizationResult, trackFailureStage, sendRunDetail, buildHardwar
 import { GAMES } from '../../src/data/game-registry';
 import { parseScriptCheck, mergeScriptCheck } from '../utils/sq-check';
 import type { CheckStatus, ScriptCheck } from '../utils/sq-check';
-import type { RestorePointInfo } from '../../src/types/index';
+import type { RestorePointInfo, UserConfig } from '../../src/types/index';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { execFile, execFileSync } from 'child_process';
 import { promisify } from 'util';
-
-interface UserConfig {
-  monitorWidth: number;
-  monitorHeight: number;
-  monitorRefresh: number;
-  nvidiaGpu: boolean;
-  gpuMode: 'auto' | 'manual';
-  selectedGpuId: string;
-  cs2Stretched: boolean;
-  restorePointEnabled: boolean;
-}
 
 // Derived from the unified game registry -- no manual sync needed
 const GAME_PATH_ENV_VARS: Record<string, string> = Object.fromEntries(

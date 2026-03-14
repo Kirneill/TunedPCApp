@@ -18,6 +18,44 @@
 #>
 
 # ===========================================================================
+# SHARED TEST HELPERS
+# ===========================================================================
+BeforeAll {
+    function Test-HasBOM {
+        param([string]$Path)
+        $bytes = [System.IO.File]::ReadAllBytes($Path)
+        return ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+    }
+
+    function Parse-IniSections {
+        param([string]$Path)
+        $sections = [ordered]@{}
+        $currentSection = ""
+        foreach ($line in (Get-Content $Path)) {
+            if ($line -match '^\[(.+)\]$') {
+                $currentSection = $Matches[1]
+                if (-not $sections.Contains($currentSection)) {
+                    $sections[$currentSection] = [ordered]@{}
+                }
+            } elseif ($currentSection -and $line -match '^(.+?)=(.*)$') {
+                $sections[$currentSection][$Matches[1]] = $Matches[2]
+            }
+        }
+        return $sections
+    }
+
+    function Get-CfgCommands {
+        param([string]$Content)
+        $Content -split "`n" |
+            ForEach-Object { $_.Trim() } |
+            Where-Object { $_ -and $_ -notmatch '^\s*//' -and $_ -notmatch '^\s*$' } |
+            ForEach-Object { ($_ -split '\s+')[0] } |
+            Where-Object { $_ -ne 'echo' } |
+            Select-Object -Unique
+    }
+}
+
+# ===========================================================================
 # TARKOV TESTS
 # ===========================================================================
 Describe "Tarkov Graphics.ini" -Tag "tarkov" {
@@ -28,13 +66,6 @@ Describe "Tarkov Graphics.ini" -Tag "tarkov" {
         $ScriptsDir = Join-Path $ProjectRoot "scripts"
         $ReferenceDir = Join-Path $ScriptsDir "reference-configs"
         $RefFile = Join-Path $ReferenceDir "tarkov-Graphics.ini"
-
-        # Helper: Check if a file starts with UTF-8 BOM (EF BB BF)
-        function Test-HasBOM {
-            param([string]$Path)
-            $bytes = [System.IO.File]::ReadAllBytes($Path)
-            return ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
-        }
 
         # Load reference config key names
         $raw = [System.IO.File]::ReadAllText($RefFile, [System.Text.UTF8Encoding]::new($false))
@@ -564,31 +595,6 @@ Describe "Valorant GameUserSettings.ini" -Tag "valorant" {
         $ReferenceDir = Join-Path $ScriptsDir "reference-configs"
         $RefFile = Join-Path $ReferenceDir "valorant-GameUserSettings.ini"
         $ScriptFile = Join-Path $ScriptsDir "04_Valorant_Settings.ps1"
-
-        # Helper: Check if a file starts with UTF-8 BOM (EF BB BF)
-        function Test-HasBOM {
-            param([string]$Path)
-            $bytes = [System.IO.File]::ReadAllBytes($Path)
-            return ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
-        }
-
-        # Helper: Parse UE4 INI into ordered dict of section -> keys
-        function Parse-IniSections {
-            param([string]$Path)
-            $sections = [ordered]@{}
-            $currentSection = ""
-            foreach ($line in (Get-Content $Path)) {
-                if ($line -match '^\[(.+)\]$') {
-                    $currentSection = $Matches[1]
-                    if (-not $sections.Contains($currentSection)) {
-                        $sections[$currentSection] = [ordered]@{}
-                    }
-                } elseif ($currentSection -and $line -match '^(.+?)=(.*)$') {
-                    $sections[$currentSection][$Matches[1]] = $Matches[2]
-                }
-            }
-            return $sections
-        }
 
         # Parse reference config
         $RefSections = Parse-IniSections -Path $RefFile
@@ -1211,31 +1217,6 @@ Describe "Arc Raiders GameUserSettings.ini" -Tag "arcraiders" {
         $RefEngine = Join-Path $ReferenceDir "arcraiders-Engine.ini"
         $ScriptFile = Join-Path $ScriptsDir "06_ArcRaiders_Settings.ps1"
 
-        # Helper: Check if a file starts with UTF-8 BOM (EF BB BF)
-        function Test-HasBOM {
-            param([string]$Path)
-            $bytes = [System.IO.File]::ReadAllBytes($Path)
-            return ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
-        }
-
-        # Helper: Parse UE5 INI into ordered dict of section -> keys
-        function Parse-IniSections {
-            param([string]$Path)
-            $sections = [ordered]@{}
-            $currentSection = ""
-            foreach ($line in (Get-Content $Path)) {
-                if ($line -match '^\[(.+)\]$') {
-                    $currentSection = $Matches[1]
-                    if (-not $sections.Contains($currentSection)) {
-                        $sections[$currentSection] = [ordered]@{}
-                    }
-                } elseif ($currentSection -and $line -match '^(.+?)=(.*)$') {
-                    $sections[$currentSection][$Matches[1]] = $Matches[2]
-                }
-            }
-            return $sections
-        }
-
         # Parse reference configs
         $RefSections = Parse-IniSections -Path $RefGUS
         $RefEngineSections = Parse-IniSections -Path $RefEngine
@@ -1602,31 +1583,6 @@ Describe "Arc Raiders GameUserSettings.ini" -Tag "arcraiders" {
         $RefEngine = Join-Path $ReferenceDir "arcraiders-Engine.ini"
         $ScriptFile = Join-Path $ScriptsDir "06_ArcRaiders_Settings.ps1"
 
-        # Helper: Check if a file starts with UTF-8 BOM (EF BB BF)
-        function Test-HasBOM {
-            param([string]$Path)
-            $bytes = [System.IO.File]::ReadAllBytes($Path)
-            return ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
-        }
-
-        # Helper: Parse UE5 INI into ordered dict of section -> keys
-        function Parse-IniSections {
-            param([string]$Path)
-            $sections = [ordered]@{}
-            $currentSection = ""
-            foreach ($line in (Get-Content $Path)) {
-                if ($line -match '^\[(.+)\]$') {
-                    $currentSection = $Matches[1]
-                    if (-not $sections.Contains($currentSection)) {
-                        $sections[$currentSection] = [ordered]@{}
-                    }
-                } elseif ($currentSection -and $line -match '^(.+?)=(.*)$') {
-                    $sections[$currentSection][$Matches[1]] = $Matches[2]
-                }
-            }
-            return $sections
-        }
-
         # Parse reference configs
         $RefSections = Parse-IniSections -Path $RefGUS
         $RefEngineSections = Parse-IniSections -Path $RefEngine
@@ -1992,18 +1948,6 @@ Describe "CS2 autoexec.cfg" -Tag "cs2" {
         $RefFile = Join-Path $ReferenceDir "cs2-autoexec.cfg"
         $ScriptFile = Join-Path $ScriptsDir "05_CS2_Settings.ps1"
 
-        # Helper: Extract command names from CFG content.
-        # Filters out comments, empty lines, and the 'echo' command.
-        function Get-CfgCommands {
-            param([string]$Content)
-            $Content -split "`n" |
-                ForEach-Object { $_.Trim() } |
-                Where-Object { $_ -and $_ -notmatch '^\s*//' -and $_ -notmatch '^\s*$' } |
-                ForEach-Object { ($_ -split '\s+')[0] } |
-                Where-Object { $_ -ne 'echo' } |
-                Select-Object -Unique
-        }
-
         # Load reference commands
         $RefContent = Get-Content $RefFile -Raw
         $RefCommands = Get-CfgCommands $RefContent
@@ -2354,31 +2298,6 @@ Describe "Marvel Rivals GameUserSettings.ini" -Tag "marvelrivals" {
         $RefGUS = Join-Path $ReferenceDir "marvelrivals-GameUserSettings.ini"
         $RefEngine = Join-Path $ReferenceDir "marvelrivals-Engine.ini"
         $ScriptFile = Join-Path $ScriptsDir "18_MarvelRivals_Settings.ps1"
-
-        # Helper: Check if a file starts with UTF-8 BOM (EF BB BF)
-        function Test-HasBOM {
-            param([string]$Path)
-            $bytes = [System.IO.File]::ReadAllBytes($Path)
-            return ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
-        }
-
-        # Helper: Parse UE5 INI into ordered dict of section -> keys
-        function Parse-IniSections {
-            param([string]$Path)
-            $sections = [ordered]@{}
-            $currentSection = ""
-            foreach ($line in (Get-Content $Path)) {
-                if ($line -match '^\[(.+)\]$') {
-                    $currentSection = $Matches[1]
-                    if (-not $sections.Contains($currentSection)) {
-                        $sections[$currentSection] = [ordered]@{}
-                    }
-                } elseif ($currentSection -and $line -match '^(.+?)=(.*)$') {
-                    $sections[$currentSection][$Matches[1]] = $Matches[2]
-                }
-            }
-            return $sections
-        }
 
         # Helper: Run the Marvel Rivals script in a temp sandbox
         function Invoke-MarvelRivalsScript {
@@ -2759,31 +2678,6 @@ Describe "League of Legends game.cfg" -Tag "lol" {
         $RefFile = Join-Path $ReferenceDir "lol-game.cfg"
         $ScriptFile = Join-Path $ScriptsDir "19_LeagueOfLegends_Settings.ps1"
 
-        # Helper: Check if a file starts with UTF-8 BOM (EF BB BF)
-        function Test-HasBOM {
-            param([string]$Path)
-            $bytes = [System.IO.File]::ReadAllBytes($Path)
-            return ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
-        }
-
-        # Helper: Parse INI into ordered dict of section -> keys
-        function Parse-IniSections {
-            param([string]$Path)
-            $sections = [ordered]@{}
-            $currentSection = ""
-            foreach ($line in (Get-Content $Path)) {
-                if ($line -match '^\[(.+)\]$') {
-                    $currentSection = $Matches[1]
-                    if (-not $sections.Contains($currentSection)) {
-                        $sections[$currentSection] = [ordered]@{}
-                    }
-                } elseif ($currentSection -and $line -match '^(.+?)=(.*)$') {
-                    $sections[$currentSection][$Matches[1]] = $Matches[2]
-                }
-            }
-            return $sections
-        }
-
         # Helper: Run the LoL script in a temp sandbox
         function Invoke-LolScript {
             param(
@@ -3127,17 +3021,6 @@ Describe "Dota 2 video.txt" -Tag "dota2" {
                 }
             }
             return $config
-        }
-
-        # Helper: Extract command names from CFG content
-        function Get-CfgCommands {
-            param([string]$Content)
-            $Content -split "`n" |
-                ForEach-Object { $_.Trim() } |
-                Where-Object { $_ -and $_ -notmatch '^\s*//' -and $_ -notmatch '^\s*$' } |
-                ForEach-Object { ($_ -split '\s+')[0] } |
-                Where-Object { $_ -ne 'echo' } |
-                Select-Object -Unique
         }
 
         # Load reference configs
@@ -4000,13 +3883,6 @@ Describe "Overwatch 2 Settings_v0.ini" -Tag "overwatch2" {
         $ReferenceDir = Join-Path $ScriptsDir "reference-configs"
         $RefFile = Join-Path $ReferenceDir "overwatch2-Settings_v0.ini"
         $ScriptFile = Join-Path $ScriptsDir "26_Overwatch2_Settings.ps1"
-
-        # Helper: Check if a file starts with UTF-8 BOM (EF BB BF)
-        function Test-HasBOM {
-            param([string]$Path)
-            $bytes = [System.IO.File]::ReadAllBytes($Path)
-            return ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
-        }
 
         # Helper: Parse Overwatch 2 custom INI into ordered dict of section -> key/value pairs
         # Format: Key = "value" with section headers like [Render.13]

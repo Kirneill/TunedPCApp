@@ -187,7 +187,7 @@ cl_use_opens_buy_menu 0
 echo "Autoexec loaded - CS2 Competitive Config (Feb 2026)"
 "@
 
-    Set-Content -Path $AutoExec -Value $AutoExecContent -Encoding UTF8 -Force
+    [System.IO.File]::WriteAllText($AutoExec, $AutoExecContent, [System.Text.UTF8Encoding]::new($false))
     Write-Host "  [OK] autoexec.cfg written to: $AutoExec" -ForegroundColor Green
 
 } else {

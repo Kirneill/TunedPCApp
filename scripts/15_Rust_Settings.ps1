@@ -206,7 +206,7 @@ if ($RustCfgPaths.Count -eq 0) {
 
             # Write back
             $output = foreach ($key in $configMap.Keys) { '{0} "{1}"' -f $key, $configMap[$key] }
-            $output | Set-Content $clientCfg -Encoding UTF8 -Force
+            [System.IO.File]::WriteAllText($clientCfg, ($output -join "`r`n"), [System.Text.UTF8Encoding]::new($false))
 
             # Lock read-only to prevent in-game overwriting
             Lock-ConfigFile -Path $clientCfg

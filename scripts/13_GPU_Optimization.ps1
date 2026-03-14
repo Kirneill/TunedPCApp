@@ -9,22 +9,8 @@
 #>
 
 $ErrorActionPreference = 'Stop'
-
-function Write-Check {
-    param(
-        [Parameter(Mandatory = $true)][ValidateSet('OK', 'FAIL', 'WARN')] [string]$Status,
-        [Parameter(Mandatory = $true)] [string]$Key,
-        [string]$Detail = ''
-    )
-
-    $suffix = ''
-    if ($Detail) {
-        $safeDetail = $Detail -replace '[\r\n]+', ' ' -replace '\s+', ' '
-        $suffix = ":$safeDetail"
-    }
-
-    Write-Host "[SQ_CHECK_${Status}:$Key$suffix]"
-}
+. "$PSScriptRoot\SQEngine.ps1"
+Initialize-SQEngine
 
 function Resolve-ToolsRoot {
     if ($env:GPU_TOOLS_PATH) {

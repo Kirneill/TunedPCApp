@@ -91,7 +91,7 @@ Write-Host ""
 
 if ($env:SKIP_POWER_PLAN -eq '1') {
     Write-Host "[1/12] POWER PLAN - SKIPPED" -ForegroundColor DarkGray
-    Write-Host "[SQ_SKIP:POWER_PLAN]"
+    Write-Host "[SQ_CHECK_SKIP:POWER_PLAN]"
 } else {
     Write-Host "------------------------------------------" -ForegroundColor DarkGray
     Write-Host "[1/12] POWER PLAN" -ForegroundColor White
@@ -100,7 +100,7 @@ if ($env:SKIP_POWER_PLAN -eq '1') {
     try {
         if (-not $IsIntelCpu) {
             Write-Host "  [INFO] Non-Intel CPU detected ($CpuName). Leaving existing power plan unchanged." -ForegroundColor DarkCyan
-            Write-Host "[SQ_SKIP:POWER_PLAN]"
+            Write-Host "[SQ_CHECK_SKIP:POWER_PLAN]"
         } else {
             # Unlock the hidden "Ultimate Performance" power plan (GUID: e9a42b02-d5df-448d-aa00-03f14749eb61)
             $UltimatePerfGUID = "e9a42b02-d5df-448d-aa00-03f14749eb61"
@@ -112,11 +112,11 @@ if ($env:SKIP_POWER_PLAN -eq '1') {
             powercfg /setactive $UltimatePerfGUID
             Write-Host "  [OK] Intel CPU detected. Ultimate Performance power plan activated." -ForegroundColor Green
             Write-Host "  [TIP] Verify in: Control Panel > Power Options" -ForegroundColor DarkGray
-            Write-Host "[SQ_OK:POWER_PLAN]"
+            Write-Host "[SQ_CHECK_OK:POWER_PLAN]"
         }
     } catch {
         Write-Host "  [FAIL] Power plan: $_" -ForegroundColor Red
-        Write-Host "[SQ_FAIL:POWER_PLAN]"
+        Write-Host "[SQ_CHECK_FAIL:POWER_PLAN]"
     }
 }
 
@@ -130,7 +130,7 @@ if ($env:SKIP_POWER_PLAN -eq '1') {
 
 if ($env:SKIP_HAGS -eq '1') {
     Write-Host "[2/12] HAGS - SKIPPED" -ForegroundColor DarkGray
-    Write-Host "[SQ_SKIP:HAGS]"
+    Write-Host "[SQ_CHECK_SKIP:HAGS]"
 } else {
     Write-Host ""
     Write-Host "------------------------------------------" -ForegroundColor DarkGray
@@ -145,10 +145,10 @@ if ($env:SKIP_HAGS -eq '1') {
         Write-Host "  [OK] HAGS enabled (HwSchMode = 2)." -ForegroundColor Green
         Write-Host "  [TIP] If you have 8GB VRAM or less and experience stutters, disable via:" -ForegroundColor DarkGray
         Write-Host "         Settings > Display > Graphics > Change default graphics settings" -ForegroundColor DarkGray
-        Write-Host "[SQ_OK:HAGS]"
+        Write-Host "[SQ_CHECK_OK:HAGS]"
     } catch {
         Write-Host "  [FAIL] HAGS: $_" -ForegroundColor Red
-        Write-Host "[SQ_FAIL:HAGS]"
+        Write-Host "[SQ_CHECK_FAIL:HAGS]"
     }
 }
 
@@ -162,7 +162,7 @@ if ($env:SKIP_HAGS -eq '1') {
 
 if ($env:SKIP_GAME_MODE -eq '1') {
     Write-Host "[3/12] GAME MODE - SKIPPED" -ForegroundColor DarkGray
-    Write-Host "[SQ_SKIP:GAME_MODE]"
+    Write-Host "[SQ_CHECK_SKIP:GAME_MODE]"
 } else {
     Write-Host ""
     Write-Host "------------------------------------------" -ForegroundColor DarkGray
@@ -189,10 +189,10 @@ if ($env:SKIP_GAME_MODE -eq '1') {
         Write-Host "  [OK] Xbox Game Bar overlay disabled." -ForegroundColor Green
         Write-Host "  [OK] Game DVR / background recording disabled." -ForegroundColor Green
         Write-Host "  [TIP] These can also be toggled in: Settings > Gaming" -ForegroundColor DarkGray
-        Write-Host "[SQ_OK:GAME_MODE]"
+        Write-Host "[SQ_CHECK_OK:GAME_MODE]"
     } catch {
         Write-Host "  [FAIL] Game Mode: $_" -ForegroundColor Red
-        Write-Host "[SQ_FAIL:GAME_MODE]"
+        Write-Host "[SQ_CHECK_FAIL:GAME_MODE]"
     }
 }
 
@@ -207,7 +207,7 @@ if ($env:SKIP_GAME_MODE -eq '1') {
 
 if ($env:SKIP_MMCSS -eq '1') {
     Write-Host "[4/12] MMCSS - SKIPPED" -ForegroundColor DarkGray
-    Write-Host "[SQ_SKIP:MMCSS]"
+    Write-Host "[SQ_CHECK_SKIP:MMCSS]"
 } else {
     Write-Host ""
     Write-Host "------------------------------------------" -ForegroundColor DarkGray
@@ -235,10 +235,10 @@ if ($env:SKIP_MMCSS -eq '1') {
         Write-Host "  [OK] SystemResponsiveness set to 10 (90% CPU to games)." -ForegroundColor Green
         Write-Host "  [OK] NetworkThrottlingIndex disabled (0xFFFFFFFF)." -ForegroundColor Green
         Write-Host "  [OK] MMCSS Games task: Scheduling Category=High, GPU Priority=8." -ForegroundColor Green
-        Write-Host "[SQ_OK:MMCSS]"
+        Write-Host "[SQ_CHECK_OK:MMCSS]"
     } catch {
         Write-Host "  [FAIL] MMCSS: $_" -ForegroundColor Red
-        Write-Host "[SQ_FAIL:MMCSS]"
+        Write-Host "[SQ_CHECK_FAIL:MMCSS]"
     }
 }
 
@@ -253,7 +253,7 @@ if ($env:SKIP_MMCSS -eq '1') {
 
 if ($env:SKIP_NETWORK -eq '1') {
     Write-Host "[5/12] NETWORK - SKIPPED" -ForegroundColor DarkGray
-    Write-Host "[SQ_SKIP:NETWORK]"
+    Write-Host "[SQ_CHECK_SKIP:NETWORK]"
 } else {
     Write-Host ""
     Write-Host "------------------------------------------" -ForegroundColor DarkGray
@@ -290,10 +290,10 @@ if ($env:SKIP_NETWORK -eq '1') {
             Set-ItemProperty -Path $TcpParamsPath -Name "DefaultTTL" -Value 64 -Type DWord -Force
             Write-Host "  [OK] DefaultTTL set to 64." -ForegroundColor Green
         }
-        Write-Host "[SQ_OK:NETWORK]"
+        Write-Host "[SQ_CHECK_OK:NETWORK]"
     } catch {
         Write-Host "  [FAIL] Network: $_" -ForegroundColor Red
-        Write-Host "[SQ_FAIL:NETWORK]"
+        Write-Host "[SQ_CHECK_FAIL:NETWORK]"
     }
 }
 
@@ -307,7 +307,7 @@ if ($env:SKIP_NETWORK -eq '1') {
 
 if ($env:SKIP_VISUAL_FX -eq '1') {
     Write-Host "[6/12] VISUAL FX - SKIPPED" -ForegroundColor DarkGray
-    Write-Host "[SQ_SKIP:VISUAL_FX]"
+    Write-Host "[SQ_CHECK_SKIP:VISUAL_FX]"
 } else {
     Write-Host ""
     Write-Host "------------------------------------------" -ForegroundColor DarkGray
@@ -332,10 +332,10 @@ if ($env:SKIP_VISUAL_FX -eq '1') {
         Write-Host "  [OK] Window transparency disabled." -ForegroundColor Green
         Write-Host "  [TIP] To restore: Right-click My Computer > Properties > Advanced >" -ForegroundColor DarkGray
         Write-Host "         Performance Settings > Visual Effects > Let Windows choose" -ForegroundColor DarkGray
-        Write-Host "[SQ_OK:VISUAL_FX]"
+        Write-Host "[SQ_CHECK_OK:VISUAL_FX]"
     } catch {
         Write-Host "  [FAIL] Visual FX: $_" -ForegroundColor Red
-        Write-Host "[SQ_FAIL:VISUAL_FX]"
+        Write-Host "[SQ_CHECK_FAIL:VISUAL_FX]"
     }
 }
 
@@ -352,7 +352,7 @@ if ($env:SKIP_VISUAL_FX -eq '1') {
 
 if ($env:SKIP_FULLSCREEN -eq '1') {
     Write-Host "[7/12] FULLSCREEN - SKIPPED" -ForegroundColor DarkGray
-    Write-Host "[SQ_SKIP:FULLSCREEN]"
+    Write-Host "[SQ_CHECK_SKIP:FULLSCREEN]"
 } else {
     Write-Host ""
     Write-Host "------------------------------------------" -ForegroundColor DarkGray
@@ -370,10 +370,10 @@ if ($env:SKIP_FULLSCREEN -eq '1') {
         Write-Host "  [OK] Fullscreen optimizations disabled globally." -ForegroundColor Green
         Write-Host "  [NOTE] Valorant may perform slightly better with FSO enabled." -ForegroundColor DarkGray
         Write-Host "  [NOTE] Per-game EXE overrides are set in individual game scripts." -ForegroundColor DarkGray
-        Write-Host "[SQ_OK:FULLSCREEN]"
+        Write-Host "[SQ_CHECK_OK:FULLSCREEN]"
     } catch {
         Write-Host "  [FAIL] Fullscreen: $_" -ForegroundColor Red
-        Write-Host "[SQ_FAIL:FULLSCREEN]"
+        Write-Host "[SQ_CHECK_FAIL:FULLSCREEN]"
     }
 }
 
@@ -387,7 +387,7 @@ if ($env:SKIP_FULLSCREEN -eq '1') {
 
 if ($env:SKIP_MOUSE -eq '1') {
     Write-Host "[8/12] MOUSE - SKIPPED" -ForegroundColor DarkGray
-    Write-Host "[SQ_SKIP:MOUSE]"
+    Write-Host "[SQ_CHECK_SKIP:MOUSE]"
 } else {
     Write-Host ""
     Write-Host "------------------------------------------" -ForegroundColor DarkGray
@@ -404,10 +404,10 @@ if ($env:SKIP_MOUSE -eq '1') {
         Write-Host "  [OK] Mouse acceleration (Enhance Pointer Precision) disabled." -ForegroundColor Green
         Write-Host "  [TIP] Also verify in: Control Panel > Mouse > Pointer Options >" -ForegroundColor DarkGray
         Write-Host "         Uncheck 'Enhance pointer precision'" -ForegroundColor DarkGray
-        Write-Host "[SQ_OK:MOUSE]"
+        Write-Host "[SQ_CHECK_OK:MOUSE]"
     } catch {
         Write-Host "  [FAIL] Mouse: $_" -ForegroundColor Red
-        Write-Host "[SQ_FAIL:MOUSE]"
+        Write-Host "[SQ_CHECK_FAIL:MOUSE]"
     }
 }
 
@@ -421,7 +421,7 @@ if ($env:SKIP_MOUSE -eq '1') {
 
 if ($env:SKIP_CPU_POWER -eq '1') {
     Write-Host "[9/12] CPU POWER - SKIPPED" -ForegroundColor DarkGray
-    Write-Host "[SQ_SKIP:CPU_POWER]"
+    Write-Host "[SQ_CHECK_SKIP:CPU_POWER]"
 } else {
     Write-Host ""
     Write-Host "------------------------------------------" -ForegroundColor DarkGray
@@ -444,10 +444,10 @@ if ($env:SKIP_CPU_POWER -eq '1') {
 
         powercfg /hibernate off
         Write-Host "  [OK] Hibernation disabled." -ForegroundColor Green
-        Write-Host "[SQ_OK:CPU_POWER]"
+        Write-Host "[SQ_CHECK_OK:CPU_POWER]"
     } catch {
         Write-Host "  [FAIL] CPU Power: $_" -ForegroundColor Red
-        Write-Host "[SQ_FAIL:CPU_POWER]"
+        Write-Host "[SQ_CHECK_FAIL:CPU_POWER]"
     }
 }
 
@@ -462,7 +462,7 @@ if ($env:SKIP_CPU_POWER -eq '1') {
 
 if ($env:SKIP_BG_APPS -eq '1') {
     Write-Host "[10/12] BACKGROUND APPS - SKIPPED" -ForegroundColor DarkGray
-    Write-Host "[SQ_SKIP:BG_APPS]"
+    Write-Host "[SQ_CHECK_SKIP:BG_APPS]"
 } else {
     Write-Host ""
     Write-Host "------------------------------------------" -ForegroundColor DarkGray
@@ -480,10 +480,10 @@ if ($env:SKIP_BG_APPS -eq '1') {
 
         Write-Host "  [OK] Background apps disabled globally." -ForegroundColor Green
         Write-Host "  [TIP] Individual app permissions in: Settings > Privacy > Background apps" -ForegroundColor DarkGray
-        Write-Host "[SQ_OK:BG_APPS]"
+        Write-Host "[SQ_CHECK_OK:BG_APPS]"
     } catch {
         Write-Host "  [FAIL] Background Apps: $_" -ForegroundColor Red
-        Write-Host "[SQ_FAIL:BG_APPS]"
+        Write-Host "[SQ_CHECK_FAIL:BG_APPS]"
     }
 }
 
@@ -499,7 +499,7 @@ if ($env:SKIP_BG_APPS -eq '1') {
 
 if ($env:SKIP_MPO -eq '1') {
     Write-Host "[11/12] MPO - SKIPPED" -ForegroundColor DarkGray
-    Write-Host "[SQ_SKIP:MPO]"
+    Write-Host "[SQ_CHECK_SKIP:MPO]"
 } else {
     Write-Host ""
     Write-Host "------------------------------------------" -ForegroundColor DarkGray
@@ -513,10 +513,10 @@ if ($env:SKIP_MPO -eq '1') {
 
         Write-Host "  [OK] Multiplane Overlay (MPO) disabled." -ForegroundColor Green
         Write-Host "  [NOTE] Fixes flickers and stutters on multi-monitor setups." -ForegroundColor DarkGray
-        Write-Host "[SQ_OK:MPO]"
+        Write-Host "[SQ_CHECK_OK:MPO]"
     } catch {
         Write-Host "  [FAIL] MPO: $_" -ForegroundColor Red
-        Write-Host "[SQ_FAIL:MPO]"
+        Write-Host "[SQ_CHECK_FAIL:MPO]"
     }
 }
 
@@ -533,7 +533,7 @@ if ($env:SKIP_MPO -eq '1') {
 
 if ($env:SKIP_VISUAL_EXTRAS -eq '1') {
     Write-Host "[12/12] VISUAL EXTRAS - SKIPPED" -ForegroundColor DarkGray
-    Write-Host "[SQ_SKIP:VISUAL_EXTRAS]"
+    Write-Host "[SQ_CHECK_SKIP:VISUAL_EXTRAS]"
 } else {
     Write-Host ""
     Write-Host "------------------------------------------" -ForegroundColor DarkGray
@@ -568,10 +568,10 @@ if ($env:SKIP_VISUAL_EXTRAS -eq '1') {
         Set-ItemProperty -Path $SearchUIPath -Name "SearchboxTaskbarMode" -Value 1 -Type DWord -Force
         Write-Host "  [OK] Search bar minimized to icon." -ForegroundColor Green
 
-        Write-Host "[SQ_OK:VISUAL_EXTRAS]"
+        Write-Host "[SQ_CHECK_OK:VISUAL_EXTRAS]"
     } catch {
         Write-Host "  [FAIL] Visual Extras: $_" -ForegroundColor Red
-        Write-Host "[SQ_FAIL:VISUAL_EXTRAS]"
+        Write-Host "[SQ_CHECK_FAIL:VISUAL_EXTRAS]"
     }
 }
 
