@@ -30,5 +30,5 @@ All changes are safe and reversible. Game settings back up before modifying. GPU
 
 ## Support
 
-- [Discord](https://discord.gg/tunedpc)
+- [Discord](https://discord.gg/7P9C4UBf)
 - [Website](https://sensequality.com)
