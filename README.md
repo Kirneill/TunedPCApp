@@ -1,6 +1,4 @@
-# TunedPC - PC Gaming Optimizer
-
-One-click optimization for competitive FPS gaming. Tunes your Windows settings, game configs, GPU, and BIOS for maximum FPS and minimum input lag.
+# TunedPC - PC Optimizer
 
 ## Download
 
